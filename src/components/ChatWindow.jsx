@@ -523,7 +523,10 @@ export default function ChatWindow({
                         }}
                         style={{
                           ...styles.messageBubble,
-                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
+                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
+                          border: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : '1px solid var(--border-color)',
+                          boxShadow: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : 'var(--shadow-sm)',
+                          padding: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? '0' : '10px 14px',
                           color: isMe ? '#ffffff' : 'var(--text-primary)',
                           borderRadius: isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
                           cursor: isNearNext ? 'pointer' : 'default'
@@ -894,16 +897,22 @@ const styles = {
     objectFit: 'contain'
   },
   imageWrapper: {
-    borderRadius: 'var(--radius-sm)',
+    borderRadius: 'var(--radius-md)',
     overflow: 'hidden',
-    maxWidth: '280px',
-    maxHeight: '200px',
-    cursor: 'pointer'
+    maxWidth: '320px',
+    maxHeight: '380px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   chatImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover'
+    maxWidth: '100%',
+    maxHeight: '380px',
+    width: 'auto',
+    height: 'auto',
+    objectFit: 'contain',
+    borderRadius: 'var(--radius-md)'
   },
   fileBox: {
     display: 'flex',
