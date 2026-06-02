@@ -35,22 +35,22 @@ self.addEventListener('push', (event) => {
       }
     };
 
-    // Chỉ hiển thị thông báo đẩy lên khay hệ thống nếu tab ứng dụng đang đóng hoặc không hiển thị (active/visible)
+    // Chỉ hiển thị thông báo đẩy lên khay hệ thống nếu ứng dụng KHÔNG đang được tập trung (focused)
     const promiseChain = clients.matchAll({
       type: 'window',
       includeUncontrolled: true
     }).then((windowClients) => {
       console.log(`[Service Worker] Số lượng client đang quản lý: ${windowClients.length}`);
-      const isAppVisible = windowClients.some(client => {
-        console.log(`[Service Worker] Client URL: ${client.url}, Trạng thái hiển thị: ${client.visibilityState}`);
-        return client.visibilityState === 'visible';
+      const isAppFocused = windowClients.some(client => {
+        console.log(`[Service Worker] Client URL: ${client.url}, Trực quan tập trung (focused): ${client.focused}`);
+        return client.focused;
       });
 
-      if (isAppVisible) {
-        console.log('[Service Worker] Ứng dụng đang mở và hiển thị -> Bỏ qua không hiện thông báo đẩy hệ thống.');
+      if (isAppFocused) {
+        console.log('[Service Worker] Ứng dụng đang được tập trung (focused) -> Bỏ qua không hiện thông báo đẩy hệ thống.');
         return;
       }
-      console.log('[Service Worker] Ứng dụng đang tắt hoặc ẩn -> Kích hoạt hiển thị thông báo đẩy hệ thống.');
+      console.log('[Service Worker] Ứng dụng đang đóng hoặc chạy nền (không focused) -> Kích hoạt hiển thị thông báo đẩy hệ thống.');
       return self.registration.showNotification(title, options);
     });
 
