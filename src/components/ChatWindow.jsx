@@ -685,6 +685,7 @@ const styles = {
     WebkitTouchCallout: 'none',
     WebkitUserSelect: 'none',
     userSelect: 'none'
+  },
   messageTime: {
     fontSize: '0.7rem',
     color: 'var(--text-muted)',
