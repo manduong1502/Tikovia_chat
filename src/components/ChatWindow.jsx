@@ -392,12 +392,8 @@ export default function ChatWindow({
                     {/* Popover Action Menu */}
                     {activePopoverMsgId === msg.id && (
                       <div 
-                        style={{
-                          ...styles.actionPopover,
-                          right: isMe ? '0px' : 'auto',
-                          left: !isMe ? '0px' : 'auto',
-                          bottom: '100%'
-                        }}
+                        style={styles.actionPopover}
+                        className={`action-popover-box ${isMe ? 'is-me-popover' : 'is-other-popover'}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         {/* Emojis selection row */}
@@ -425,6 +421,18 @@ export default function ChatWindow({
 
                         {/* Actions list */}
                         <div style={styles.popoverActionsRow}>
+                          {msg.type === 'text' && (
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(msg.content);
+                                setActivePopoverMsgId(null);
+                              }}
+                              style={styles.popoverActionItem}
+                              className="btn-interactive"
+                            >
+                              Sao chép
+                            </button>
+                          )}
                           <button 
                             onClick={() => {
                               setReplyingTo(msg);
@@ -687,6 +695,9 @@ const styles = {
     boxShadow: 'var(--shadow-sm)',
     border: '1px solid var(--border-color)',
     groupHover: 'true', // Trạng thái hover để hiện nút ghim
+    WebkitTouchCallout: 'none',
+    WebkitUserSelect: 'none',
+    userSelect: 'none'
   },
   bubblePinBtn: {
     position: 'absolute',

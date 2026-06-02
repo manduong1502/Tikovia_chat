@@ -386,4 +386,31 @@ body {
   }
 }
 
+/* Popover positioning on Desktop */
+@media (min-width: 769px) {
+  .action-popover-box.is-me-popover {
+    right: calc(100% + 12px) !important;
+    top: 50% !important;
+    bottom: auto !important;
+    transform: translateY(-50%) !important;
+  }
+  .action-popover-box.is-other-popover {
+    left: calc(100% + 12px) !important;
+    top: 50% !important;
+    bottom: auto !important;
+    transform: translateY(-50%) !important;
+  }
+}
+
+/* Popover positioning on Mobile */
+@media (max-width: 768px) {
+  .action-popover-box {
+    left: 50% !important;
+    right: auto !important;
+    bottom: calc(100% + 8px) !important;
+    top: auto !important;
+    transform: translateX(-50%) !important;
+  }
+}
+
 
