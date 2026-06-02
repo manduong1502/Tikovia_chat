@@ -204,10 +204,72 @@ export default function App() {
     }
   };
 
+  // Đăng ký nhận thông báo đẩy (Web Push)
+  const subscribeUserToPush = async (userToken) => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.log('Trình duyệt không hỗ trợ Web Push.');
+      return;
+    }
+
+    try {
+      // 1. Chờ service worker sẵn sàng
+      const registration = await navigator.serviceWorker.ready;
+      
+      // 2. Lấy public key từ server
+      const keyRes = await fetch(`${API_URL}/chat/push-key`, {
+        headers: { 'Authorization': `Bearer ${userToken}` }
+      });
+      if (!keyRes.ok) throw new Error('Không thể tải khoá push public key');
+      const { publicKey } = await keyRes.json();
+
+      // Convert VAPID public key sang Uint8Array
+      const urlBase64ToUint8Array = (base64String) => {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding)
+          .replace(/\-/g, '+')
+          .replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+          outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+      };
+
+      // 3. Đăng ký nhận thông báo
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey)
+        });
+      }
+
+      // 4. Gửi subscription payload lên server
+      const subRes = await fetch(`${API_URL}/chat/push-subscribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userToken}`
+        },
+        body: JSON.stringify({ subscription })
+      });
+
+      if (subRes.ok) {
+        console.log('Đăng ký nhận thông báo đẩy thành công.');
+      } else {
+        console.error('Không thể đồng bộ subscription lên server.');
+      }
+    } catch (e) {
+      console.error('Lỗi thiết lập thông báo đẩy:', e);
+    }
+  };
+
   // Gọi fetchConversations khi login xong
   useEffect(() => {
     if (token) {
       fetchConversations();
+      subscribeUserToPush(token);
     }
   }, [token]);
 
