@@ -14,10 +14,15 @@ self.addEventListener('activate', (event) => {
 
 // Lắng nghe sự kiện push từ máy chủ thông báo đẩy
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
+  console.log('[Service Worker] Nhận được sự kiện push chạy nền:', event);
+  if (!event.data) {
+    console.warn('[Service Worker] Push event không có dữ liệu data.');
+    return;
+  }
 
   try {
     const data = event.data.json();
+    console.log('[Service Worker] Dữ liệu push nhận được:', data);
     const title = data.title || 'ChatTikovia';
     
     const options = {
@@ -35,17 +40,23 @@ self.addEventListener('push', (event) => {
       type: 'window',
       includeUncontrolled: true
     }).then((windowClients) => {
-      const isAppVisible = windowClients.some(client => client.visibilityState === 'visible');
+      console.log(`[Service Worker] Số lượng client đang quản lý: ${windowClients.length}`);
+      const isAppVisible = windowClients.some(client => {
+        console.log(`[Service Worker] Client URL: ${client.url}, Trạng thái hiển thị: ${client.visibilityState}`);
+        return client.visibilityState === 'visible';
+      });
+
       if (isAppVisible) {
-        // Ứng dụng đang mở và người dùng đang nhìn thấy -> không cần hiện thông báo đẩy hệ thống
+        console.log('[Service Worker] Ứng dụng đang mở và hiển thị -> Bỏ qua không hiện thông báo đẩy hệ thống.');
         return;
       }
+      console.log('[Service Worker] Ứng dụng đang tắt hoặc ẩn -> Kích hoạt hiển thị thông báo đẩy hệ thống.');
       return self.registration.showNotification(title, options);
     });
 
     event.waitUntil(promiseChain);
   } catch (err) {
-    console.error('Lỗi giải mã push notification payload:', err);
+    console.error('[Service Worker] Lỗi giải mã hoặc hiển thị push notification:', err);
   }
 });
 
