@@ -28,6 +28,12 @@ export default function App() {
   const [mobileActiveView, setMobileActiveView] = useState('list'); // 'list', 'chat', 'options'
   const [showProfile, setShowProfile] = useState(false);
 
+  // Trạng thái thông báo đẩy (Web Push)
+  const [pushStatus, setPushStatus] = useState('checking'); // 'checking', 'granted', 'prompt', 'denied', 'unsupported', 'insecure'
+  const [dismissedPushBanner, setDismissedPushBanner] = useState(
+    localStorage.getItem('chat_dismissed_push_banner') === 'true'
+  );
+
   // Offline status
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [offlineOutbox, setOfflineOutbox] = useState([]);
@@ -182,10 +188,7 @@ export default function App() {
       }
     });
 
-    // Xin quyền thông báo đẩy (Push notification)
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
+    // Không tự động xin quyền thông báo ở đây để tránh bị trình duyệt di động chặn
 
     return () => {
       newSocket.disconnect();
@@ -219,25 +222,58 @@ export default function App() {
     }
   };
 
-  // Đăng ký nhận thông báo đẩy (Web Push)
-  const subscribeUserToPush = async (userToken) => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      console.log('Trình duyệt không hỗ trợ Web Push.');
+  // Kiểm tra trạng thái hỗ trợ và quyền của Push Notifications
+  const checkPushNotificationStatus = async () => {
+    if (typeof window === 'undefined') return;
+
+    if (!window.isSecureContext) {
+      setPushStatus('insecure');
+      return;
+    }
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      setPushStatus('unsupported');
       return;
     }
 
     try {
-      // 1. Chờ service worker sẵn sàng
+      const permission = Notification.permission;
+      if (permission === 'granted') {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          setPushStatus('granted');
+        } else {
+          setPushStatus('prompt'); // Quyền được bật nhưng chưa subscribe/hoặc bị mất token
+        }
+      } else if (permission === 'denied') {
+        setPushStatus('denied');
+      } else {
+        setPushStatus('prompt');
+      }
+    } catch (err) {
+      console.error('Lỗi kiểm tra trạng thái push:', err);
+      setPushStatus('unsupported');
+    }
+  };
+
+  // Đăng ký nhận thông báo đẩy (Web Push) lên server
+  const subscribeUserToPush = async (userToken) => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      console.log('Trình duyệt không hỗ trợ Web Push.');
+      setPushStatus('unsupported');
+      return false;
+    }
+
+    try {
       const registration = await navigator.serviceWorker.ready;
       
-      // 2. Lấy public key từ server
       const keyRes = await fetch(`${API_URL}/chat/push-key`, {
         headers: { 'Authorization': `Bearer ${userToken}` }
       });
-      if (!keyRes.ok) throw new Error('Không thể tải khoá push public key');
+      if (!keyRes.ok) throw new Error('Không thể tải khoá push public key từ máy chủ');
       const { publicKey } = await keyRes.json();
 
-      // Convert VAPID public key sang Uint8Array
       const urlBase64ToUint8Array = (base64String) => {
         const padding = '='.repeat((4 - base64String.length % 4) % 4);
         const base64 = (base64String + padding)
@@ -251,7 +287,6 @@ export default function App() {
         return outputArray;
       };
 
-      // 3. Đăng ký nhận thông báo
       let subscription = await registration.pushManager.getSubscription();
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
@@ -260,7 +295,6 @@ export default function App() {
         });
       }
 
-      // 4. Gửi subscription payload lên server
       const subRes = await fetch(`${API_URL}/chat/push-subscribe`, {
         method: 'POST',
         headers: {
@@ -272,19 +306,59 @@ export default function App() {
 
       if (subRes.ok) {
         console.log('Đăng ký nhận thông báo đẩy thành công.');
+        setPushStatus('granted');
+        return true;
       } else {
         console.error('Không thể đồng bộ subscription lên server.');
+        setPushStatus('prompt');
+        return false;
       }
     } catch (e) {
       console.error('Lỗi thiết lập thông báo đẩy:', e);
+      setPushStatus('prompt');
+      return false;
     }
   };
 
-  // Gọi fetchConversations khi login xong
+  // Kích hoạt xin quyền và đăng ký thông báo đẩy thông qua Cử chỉ Người dùng (User Gesture)
+  const handleEnablePushNotifications = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      alert('Trình duyệt hoặc thiết bị này không hỗ trợ thông báo đẩy.');
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setPushStatus('checking');
+        const success = await subscribeUserToPush(token);
+        if (success) {
+          alert('Bật thông báo đẩy thành công!');
+        } else {
+          alert('Đăng ký với máy chủ thất bại. Vui lòng tải lại trang và thử lại.');
+        }
+      } else if (permission === 'denied') {
+        setPushStatus('denied');
+        alert('Bạn đã chặn quyền thông báo. Vui lòng bật lại quyền thông báo trong cài đặt trình duyệt.');
+      } else {
+        setPushStatus('prompt');
+      }
+    } catch (err) {
+      console.error('Lỗi khi kích hoạt thông báo:', err);
+      alert('Đã xảy ra lỗi: ' + err.message);
+    }
+  };
+
+  // Gọi fetchConversations khi login xong và kiểm tra quyền thông báo đẩy
   useEffect(() => {
     if (token) {
       fetchConversations();
-      subscribeUserToPush(token);
+      checkPushNotificationStatus();
+      
+      // Nếu quyền đã được bật từ trước, chạy đồng bộ nền mà không cần click của người dùng
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        subscribeUserToPush(token);
+      }
     }
   }, [token]);
 
@@ -460,6 +534,13 @@ export default function App() {
           className={mobileActiveView === 'list' ? 'mobile-show-list' : 'mobile-hide-list'}
           theme={theme}
           toggleTheme={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+          pushStatus={pushStatus}
+          onEnablePush={handleEnablePushNotifications}
+          dismissedPushBanner={dismissedPushBanner}
+          onDismissPushBanner={() => {
+            localStorage.setItem('chat_dismissed_push_banner', 'true');
+            setDismissedPushBanner(true);
+          }}
         />
 
         {/* 2. Center Chat window */}
@@ -535,6 +616,8 @@ export default function App() {
             setUser(updatedUser);
             fetchConversations();
           }}
+          pushStatus={pushStatus}
+          onEnablePush={handleEnablePushNotifications}
         />
       )}
     </div>

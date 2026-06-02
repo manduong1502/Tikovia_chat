@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { FiX, FiCamera, FiEye, FiEyeOff } from 'react-icons/fi';
 
-export default function ProfileModal({ user, token, onClose, onProfileUpdate }) {
+export default function ProfileModal({ user, token, onClose, onProfileUpdate, pushStatus, onEnablePush }) {
   const [displayName, setDisplayName] = useState(user.displayName || '');
   const [phone, setPhone] = useState(user.phone || '');
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
@@ -16,6 +16,50 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate }) 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Helper cho Thông báo đẩy
+  const getPermissionText = (status) => {
+    switch (status) {
+      case 'granted': return 'Đã bật thông báo';
+      case 'prompt': return 'Chưa kích hoạt';
+      case 'denied': return 'Bị chặn bởi trình duyệt';
+      case 'unsupported': return 'Thiết bị không hỗ trợ';
+      case 'insecure': return 'Không bảo mật (Cần HTTPS)';
+      case 'checking': return 'Đang kiểm tra...';
+      default: return 'Không xác định';
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'granted': return '#4ade80';
+      case 'prompt': return '#facc15';
+      case 'denied': return '#f87171';
+      case 'unsupported':
+      case 'insecure': return '#ef4444';
+      default: return 'var(--text-secondary)';
+    }
+  };
+
+  const shouldShowButton = (status) => {
+    return status === 'prompt' || status === 'granted';
+  };
+
+  const getHelpText = (status) => {
+    switch (status) {
+      case 'insecure':
+        return '⚠️ Tính năng thông báo đẩy yêu cầu kết nối HTTPS bảo mật. Vui lòng thiết lập SSL/HTTPS cho tên miền của bạn để kích hoạt.';
+      case 'unsupported':
+        return '⚠️ Thiết bị hoặc trình duyệt này không hỗ trợ Push API. Hãy đảm bảo bạn đã cài đặt ứng dụng vào màn hình chính (Add to Home Screen) trên iOS/Android.';
+      case 'denied':
+        return '❌ Quyền thông báo đang bị từ chối. Hãy mở cài đặt trình duyệt hoặc cài đặt ứng dụng trên điện thoại để cấp quyền thông báo.';
+      case 'granted':
+        return '✅ Thiết bị này đã đăng ký nhận thông báo đẩy thành công. Bạn sẽ nhận được chuông/rung khi có tin nhắn/cuộc gọi mới kể cả khi đóng ứng dụng.';
+      case 'prompt':
+      default:
+        return '💡 Bật thông báo đẩy để nhận tin nhắn mới và cuộc gọi đến ngay tức thì khi ứng dụng đang đóng hoặc chạy nền.';
+    }
+  };
 
   const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/auth/profile';
   const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').endsWith('/api')
@@ -187,6 +231,30 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate }) 
               placeholder="https://..." 
               style={styles.input} 
             />
+          </div>
+
+          {/* Cấu hình Thông báo đẩy điện thoại */}
+          <div style={{...styles.passwordSection, borderTop: '1px solid var(--border-color)', paddingTop: '15px', marginTop: '10px'}}>
+            <h4 style={{fontSize: '0.85rem', marginBottom: '10px', color: 'var(--accent)'}}>Thông báo điện thoại</h4>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <span style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>
+                  Trạng thái: <strong style={{color: getStatusColor(pushStatus)}}>{getPermissionText(pushStatus)}</strong>
+                </span>
+                {shouldShowButton(pushStatus) && (
+                  <button 
+                    type="button" 
+                    onClick={onEnablePush}
+                    style={{...styles.btnPrimary, padding: '6px 12px', fontSize: '0.75rem', borderRadius: '12px'}}
+                  >
+                    {pushStatus === 'granted' ? 'Đăng ký lại' : 'Bật ngay'}
+                  </button>
+                )}
+              </div>
+              <p style={{fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.1rem'}}>
+                {getHelpText(pushStatus)}
+              </p>
+            </div>
           </div>
 
           <div style={{...styles.passwordSection, borderTop: '1px solid var(--border-color)', paddingTop: '15px', marginTop: '10px'}}>

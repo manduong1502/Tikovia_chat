@@ -15,7 +15,11 @@ export default function Sidebar({
   setMobileActiveView,
   className,
   theme,
-  toggleTheme
+  toggleTheme,
+  pushStatus,
+  onEnablePush,
+  dismissedPushBanner,
+  onDismissPushBanner
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -242,6 +246,33 @@ export default function Sidebar({
           <FiMaximize style={{position: 'absolute', right: '12px', color: 'var(--text-secondary)', cursor: 'pointer'}} title="Quét mã QR" />
         </div>
       </div>
+
+      {/* Banner Đăng ký thông báo đẩy */}
+      {pushStatus === 'prompt' && !dismissedPushBanner && (
+        <div style={styles.pushBanner}>
+          <div style={styles.pushBannerContent}>
+            <span style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center' }}>🔔</span>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>Thông báo trên điện thoại</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', lineHeight: '0.9rem' }}>Nhận cuộc gọi & tin nhắn mới cả khi tắt app</div>
+            </div>
+            <button 
+              onClick={onEnablePush} 
+              style={styles.pushBannerBtn}
+              className="btn-interactive"
+            >
+              Bật ngay
+            </button>
+            <button 
+              onClick={onDismissPushBanner} 
+              style={styles.pushBannerCloseBtn}
+              title="Đóng thông báo"
+            >
+              <FiX size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={styles.tabsContainer}>
@@ -807,5 +838,40 @@ const styles = {
     border: '1px solid var(--border-color)',
     fontWeight: '600',
     cursor: 'pointer'
+  },
+  pushBanner: {
+    padding: '4px 20px 12px 20px',
+  },
+  pushBannerContent: {
+    background: 'rgba(7, 102, 255, 0.1)',
+    border: '1px solid rgba(7, 102, 255, 0.2)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '10px 12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+    position: 'relative'
+  },
+  pushBannerBtn: {
+    background: 'var(--primary-gradient)',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '12px',
+    padding: '4px 10px',
+    fontSize: '0.7rem',
+    fontWeight: 'bold',
+    cursor: 'pointer'
+  },
+  pushBannerCloseBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '2px',
+    transition: 'color var(--transition-fast)'
   }
 };
