@@ -3,6 +3,15 @@ import { precacheAndRoute } from 'workbox-precaching';
 // Precaching các tài nguyên tĩnh được liệt kê bởi Vite
 precacheAndRoute(self.__WB_MANIFEST);
 
+// Ép buộc kích hoạt Service Worker mới ngay lập tức mà không cần chờ đợi người dùng đóng các tab
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
 // Lắng nghe sự kiện push từ máy chủ thông báo đẩy
 self.addEventListener('push', (event) => {
   if (!event.data) return;

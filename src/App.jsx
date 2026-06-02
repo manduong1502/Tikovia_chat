@@ -48,7 +48,7 @@ export default function App() {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
 
-  // Khôi phục phiên đăng nhập từ LocalStorage
+  // Khôi phục phiên đăng nhập từ LocalStorage & tự động tải lại khi Service Worker cập nhật
   useEffect(() => {
     const savedToken = localStorage.getItem('chat_token');
     const savedUser = localStorage.getItem('chat_user');
@@ -56,6 +56,18 @@ export default function App() {
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
+    }
+
+    // Tự động reload ứng dụng khi có Service Worker mới kiểm soát trang
+    let refreshing = false;
+    const handleControllerChange = () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
     }
 
     // Lắng nghe sự kiện Online/Offline của trình duyệt
@@ -67,6 +79,9 @@ export default function App() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      }
     };
   }, []);
 
