@@ -26,6 +26,7 @@ export default function ChatWindow({
   const [replyingTo, setReplyingTo] = useState(null);
   const messagesEndRef = useRef(null);
   const chatFeedRef = useRef(null);
+  const touchTimeoutRef = useRef(null);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
@@ -299,6 +300,7 @@ export default function ChatWindow({
             return (
               <div 
                 key={msg.id} 
+                className="message-row-hover"
                 style={{
                   ...styles.messageRow,
                   alignSelf: isMe ? 'flex-end' : 'flex-start',
@@ -321,6 +323,25 @@ export default function ChatWindow({
                     flexDirection: isMe ? 'row-reverse' : 'row'
                   }}>
                     <div 
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (!msg.isRecalled) {
+                          setActivePopoverMsgId(activePopoverMsgId === msg.id ? null : msg.id);
+                        }
+                      }}
+                      onTouchStart={() => {
+                        if (!msg.isRecalled) {
+                          touchTimeoutRef.current = setTimeout(() => {
+                            setActivePopoverMsgId(msg.id);
+                          }, 500);
+                        }
+                      }}
+                      onTouchEnd={() => {
+                        if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
+                      }}
+                      onTouchMove={() => {
+                        if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!msg.isRecalled) {
@@ -352,6 +373,21 @@ export default function ChatWindow({
                         </button>
                       )}
                     </div>
+
+                    {/* Options Trigger Button next to bubble */}
+                    {!msg.isRecalled && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActivePopoverMsgId(activePopoverMsgId === msg.id ? null : msg.id);
+                        }}
+                        style={styles.hoverMenuBtn}
+                        className="hover-menu-btn-desktop btn-interactive"
+                        title="Tùy chọn tin nhắn"
+                      >
+                        ⋮
+                      </button>
+                    )}
 
                     {/* Popover Action Menu */}
                     {activePopoverMsgId === msg.id && (
@@ -862,5 +898,18 @@ const styles = {
     fontWeight: 'bold',
     color: 'var(--text-secondary)',
     fontSize: '0.7rem'
+  },
+  hoverMenuBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    padding: '4px 8px',
+    fontSize: '1.1rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 'var(--radius-circle)',
+    transition: 'all var(--transition-fast)'
   }
 };
