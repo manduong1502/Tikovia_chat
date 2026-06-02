@@ -124,6 +124,17 @@ export default function App() {
       console.log('Socket.io connected:', newSocket.id);
       newSocket.emit('register-user', user.id);
       
+      // Tự động đồng bộ Push Subscription từ LocalStorage lên server qua socket khi kết nối thành công!
+      const savedSub = localStorage.getItem('chat_push_subscription');
+      if (savedSub) {
+        try {
+          const subscription = JSON.parse(savedSub);
+          newSocket.emit('sync-push-subscription', { subscription });
+        } catch (e) {
+          console.error('Lỗi phân tích cú pháp push token lưu trữ:', e);
+        }
+      }
+      
       // Đồng bộ các tin nhắn offline lên server khi có mạng lại
       sendOfflineOutbox(newSocket);
     });
@@ -306,26 +317,28 @@ export default function App() {
         applicationServerKey: urlBase64ToUint8Array(publicKey)
       });
 
-      currentStep = 'Đồng bộ token đăng ký lên máy chủ';
-      // Mã hóa base64 payload subscription để tránh bị tường lửa Cloudflare WAF chặn (do có chứa URL tuyệt đối và token dài)
-      const encodedData = btoa(JSON.stringify(subscription));
+      currentStep = 'Đồng bộ token đăng ký lên máy chủ qua Socket';
+      // Lưu trữ subscription vào LocalStorage để tự động đồng bộ lại khi kết nối socket
+      localStorage.setItem('chat_push_subscription', JSON.stringify(subscription));
 
-      const subRes = await fetch(`${API_URL}/chat/device-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userToken}`
-        },
-        body: JSON.stringify({ data: encodedData })
-      });
-
-      if (subRes.ok) {
-        console.log('Đăng ký nhận thông báo đẩy thành công.');
+      if (socket && socket.connected) {
+        return new Promise((resolve) => {
+          socket.emit('sync-push-subscription', { subscription }, (res) => {
+            if (res && res.success) {
+              console.log('Đăng ký nhận thông báo đẩy thành công qua Socket.');
+              setPushStatus('granted');
+              resolve({ success: true });
+            } else {
+              resolve({ success: false, error: res?.error || 'Đồng bộ qua socket thất bại.' });
+            }
+          });
+        });
+      } else {
+        // Nếu chưa có socket kết nối, lưu trữ thành công cục bộ vẫn được coi là tạm thời thành công
+        // vì khi socket kết nối nó sẽ tự động được gửi lên server.
+        console.log('Lưu token cục bộ thành công, sẽ đồng bộ khi có kết nối socket.');
         setPushStatus('granted');
         return { success: true };
-      } else {
-        const errData = await subRes.json().catch(() => ({}));
-        throw new Error(errData.error || `Lỗi từ máy chủ khi đồng bộ token (Mã lỗi ${subRes.status}).`);
       }
     } catch (e) {
       console.error('Lỗi thiết lập thông báo đẩy:', e);
