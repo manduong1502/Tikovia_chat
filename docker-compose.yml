@@ -1,0 +1,10 @@
+services:
+  chattikovia-web:
+    build:
+      context: .
+      args:
+        - VITE_API_URL=https://api-chat.tikovia.vn/api
+    container_name: tiko-chattikovia-web
+    restart: always
+    ports:
+      - "5001:80"
