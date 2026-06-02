@@ -42,15 +42,8 @@ export default function VideoCall({
   useEffect(() => {
     if (!socket || !user) return;
 
-    // Sử dụng userId của người dùng làm Peer ID để không cần trao đổi ID phức tạp
-    const peer = new Peer(user.id, {
-      host: 'localhost',
-      port: 5000,
-      path: '/peerjs', // Nếu chạy server riêng, hoặc Peer Cloud mặc định:
-      // Để đảm bảo kết nối local & cloud chạy ổn định mà không cần cài thêm service phức tạp,
-      // ta sử dụng PeerJS Cloud mặc định (bằng cách bỏ config host/port)
-      // PeerJS Cloud hoàn toàn miễn phí và tự động kết nối cực tốt
-    });
+    // Sử dụng PeerJS Cloud mặc định (bằng cách bỏ config host/port) để chạy ổn định cả local & cloud
+    const peer = new Peer(user.id);
 
     peer.on('open', (id) => {
       console.log('Đã đăng ký Peer ID:', id);
