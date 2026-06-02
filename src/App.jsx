@@ -307,13 +307,16 @@ export default function App() {
       });
 
       currentStep = 'Đồng bộ token đăng ký lên máy chủ';
+      // Mã hóa base64 payload subscription để tránh bị tường lửa Cloudflare WAF chặn (do có chứa URL tuyệt đối và token dài)
+      const encodedData = btoa(JSON.stringify(subscription));
+
       const subRes = await fetch(`${API_URL}/chat/device-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${userToken}`
         },
-        body: JSON.stringify({ subscription })
+        body: JSON.stringify({ data: encodedData })
       });
 
       if (subRes.ok) {
