@@ -36,7 +36,7 @@ export default function ChatWindow({
 
   if (!conversation) {
     return (
-      <div style={styles.emptyContainer} className="anim-fade">
+      <div style={styles.emptyContainer} className={`anim-fade ${className || ''}`}>
         <img 
           src="https://api.dicebear.com/7.x/shapes/svg?seed=ChatTikovia" 
           alt="ChatTikovia" 
