@@ -26,6 +26,7 @@ export default function ChatWindow({
   const [replyingTo, setReplyingTo] = useState(null);
   const [popoverDirection, setPopoverDirection] = useState('up');
   const [manuallyShownTimes, setManuallyShownTimes] = useState(new Set());
+  const [popoverStyle, setPopoverStyle] = useState({});
   const messagesEndRef = useRef(null);
   const chatFeedRef = useRef(null);
   const touchTimeoutRef = useRef(null);
@@ -60,19 +61,57 @@ export default function ChatWindow({
     return dateStr;
   };
 
-  const handleOpenPopover = (e, msgId) => {
+  const handleOpenPopover = (e, msgId, isMsgMe) => {
     e.stopPropagation();
     if (!chatFeedRef.current) return;
     
-    const rect = e.currentTarget.getBoundingClientRect();
+    const triggerEl = e.currentTarget;
+    const wrapperEl = triggerEl.closest('.chat-message-bubble')?.parentElement || triggerEl.parentElement;
+    if (!wrapperEl) return;
+
+    const rect = wrapperEl.getBoundingClientRect();
     const feedRect = chatFeedRef.current.getBoundingClientRect();
     const distFromTop = rect.top - feedRect.top;
     
-    if (distFromTop < 200) {
-      setPopoverDirection('down');
-    } else {
-      setPopoverDirection('up');
+    let dir = 'up';
+    if (distFromTop < 220) {
+      dir = 'down';
     }
+    setPopoverDirection(dir);
+    
+    const isMobile = window.innerWidth <= 768;
+    let positionStyle = {};
+    
+    if (isMobile) {
+      const popoverWidth = 240;
+      const padding = 10;
+      const wrapperCenter = rect.left + rect.width / 2;
+      let pageLeft = wrapperCenter - popoverWidth / 2;
+      
+      const minPageLeft = feedRect.left + padding;
+      const maxPageLeft = feedRect.right - popoverWidth - padding;
+      pageLeft = Math.max(minPageLeft, Math.min(pageLeft, maxPageLeft));
+      
+      const localLeft = pageLeft - rect.left;
+      
+      positionStyle = {
+        left: `${localLeft}px`,
+        right: 'auto',
+        transform: 'none',
+        top: dir === 'down' ? 'calc(100% + 8px)' : 'auto',
+        bottom: dir === 'up' ? 'calc(100% + 8px)' : 'auto'
+      };
+    } else {
+      positionStyle = {
+        left: isMsgMe ? 'auto' : 'calc(100% + 12px)',
+        right: isMsgMe ? 'calc(100% + 12px)' : 'auto',
+        transform: 'none',
+        top: dir === 'down' ? '0px' : 'auto',
+        bottom: dir === 'up' ? '0px' : 'auto'
+      };
+    }
+    
+    setPopoverStyle(positionStyle);
     setActivePopoverMsgId(msgId);
   };
 
@@ -401,7 +440,7 @@ export default function ChatWindow({
                             if (activePopoverMsgId === msg.id) {
                               setActivePopoverMsgId(null);
                             } else {
-                              handleOpenPopover(e, msg.id);
+                              handleOpenPopover(e, msg.id, isMe);
                             }
                           }
                         }}
@@ -411,16 +450,52 @@ export default function ChatWindow({
                             const currentTarget = e.currentTarget;
                             touchTimeoutRef.current = setTimeout(() => {
                               if (!chatFeedRef.current) return;
-                              const rect = currentTarget.getBoundingClientRect();
+                              const wrapperEl = currentTarget.closest('.chat-message-bubble')?.parentElement || currentTarget.parentElement;
+                              if (!wrapperEl) return;
+
+                              const rect = wrapperEl.getBoundingClientRect();
                               const feedRect = chatFeedRef.current.getBoundingClientRect();
                               const distFromTop = rect.top - feedRect.top;
                               
-                              if (distFromTop < 200) {
-                                setPopoverDirection('down');
+                              let dir = 'up';
+                              if (distFromTop < 220) {
+                                dir = 'down';
+                              }
+                              setPopoverDirection(dir);
+                              
+                              const isMobile = window.innerWidth <= 768;
+                              let positionStyle = {};
+                              
+                              if (isMobile) {
+                                const popoverWidth = 240;
+                                const padding = 10;
+                                const wrapperCenter = rect.left + rect.width / 2;
+                                let pageLeft = wrapperCenter - popoverWidth / 2;
+                                
+                                const minPageLeft = feedRect.left + padding;
+                                const maxPageLeft = feedRect.right - popoverWidth - padding;
+                                pageLeft = Math.max(minPageLeft, Math.min(pageLeft, maxPageLeft));
+                                
+                                const localLeft = pageLeft - rect.left;
+                                
+                                positionStyle = {
+                                  left: `${localLeft}px`,
+                                  right: 'auto',
+                                  transform: 'none',
+                                  top: dir === 'down' ? 'calc(100% + 8px)' : 'auto',
+                                  bottom: dir === 'up' ? 'calc(100% + 8px)' : 'auto'
+                                };
                               } else {
-                                setPopoverDirection('up');
+                                positionStyle = {
+                                  left: isMe ? 'auto' : 'calc(100% + 12px)',
+                                  right: isMe ? 'calc(100% + 12px)' : 'auto',
+                                  transform: 'none',
+                                  top: dir === 'down' ? '0px' : 'auto',
+                                  bottom: dir === 'up' ? '0px' : 'auto'
+                                };
                               }
                               
+                              setPopoverStyle(positionStyle);
                               setActivePopoverMsgId(msg.id);
                               if (navigator.vibrate) navigator.vibrate(50); // Phản hồi rung nhẹ
                             }, 400); // 400ms long press
@@ -465,7 +540,7 @@ export default function ChatWindow({
                             if (activePopoverMsgId === msg.id) {
                               setActivePopoverMsgId(null);
                             } else {
-                              handleOpenPopover(e, msg.id);
+                              handleOpenPopover(e, msg.id, isMe);
                             }
                           }}
                           style={styles.hoverMenuBtn}
@@ -479,7 +554,10 @@ export default function ChatWindow({
                       {/* Popover Action Menu */}
                       {activePopoverMsgId === msg.id && (
                         <div 
-                          style={styles.actionPopover}
+                          style={{
+                            ...styles.actionPopover,
+                            ...popoverStyle
+                          }}
                           className={`action-popover-box ${isMe ? 'is-me-popover' : 'is-other-popover'} dir-${popoverDirection}`}
                           onClick={(e) => e.stopPropagation()}
                         >

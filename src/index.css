@@ -386,45 +386,7 @@ body {
   }
 }
 
-/* Popover positioning on Desktop */
-@media (min-width: 769px) {
-  .action-popover-box.is-me-popover {
-    right: calc(100% + 12px) !important;
-    left: auto !important;
-  }
-  .action-popover-box.is-other-popover {
-    left: calc(100% + 12px) !important;
-    right: auto !important;
-  }
-  .action-popover-box.dir-up {
-    top: auto !important;
-    bottom: 0 !important;
-    transform: none !important;
-  }
-  .action-popover-box.dir-down {
-    top: 0 !important;
-    bottom: auto !important;
-    transform: none !important;
-  }
-}
-
-/* Popover positioning on Mobile */
-@media (max-width: 768px) {
-  .action-popover-box.dir-up {
-    left: 50% !important;
-    right: auto !important;
-    bottom: calc(100% + 8px) !important;
-    top: auto !important;
-    transform: translateX(-50%) !important;
-  }
-  .action-popover-box.dir-down {
-    left: 50% !important;
-    right: auto !important;
-    top: calc(100% + 8px) !important;
-    bottom: auto !important;
-    transform: translateX(-50%) !important;
-  }
-}
+/* Positioning is handled dynamically in JavaScript to prevent clipping */
 
 /* Disable selection and touch callouts on message bubbles to enable long press */
 .chat-message-bubble,
