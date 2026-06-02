@@ -323,6 +323,7 @@ export default function ChatWindow({
                     flexDirection: isMe ? 'row-reverse' : 'row'
                   }}>
                     <div 
+                      className="chat-message-bubble"
                       onContextMenu={(e) => {
                         e.preventDefault();
                         if (!msg.isRecalled) {
@@ -331,9 +332,11 @@ export default function ChatWindow({
                       }}
                       onTouchStart={() => {
                         if (!msg.isRecalled) {
+                          if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
                           touchTimeoutRef.current = setTimeout(() => {
                             setActivePopoverMsgId(msg.id);
-                          }, 500);
+                            if (navigator.vibrate) navigator.vibrate(50); // Phản hồi rung nhẹ
+                          }, 400); // 400ms long press
                         }
                       }}
                       onTouchEnd={() => {
@@ -344,34 +347,18 @@ export default function ChatWindow({
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!msg.isRecalled) {
-                          setActivePopoverMsgId(activePopoverMsgId === msg.id ? null : msg.id);
-                        }
+                        // Click chuột trái bình thường không kích hoạt Popover tránh conflict với click ngoài hoặc scroll di động
                       }}
                       style={{
                         ...styles.messageBubble,
                         background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
                         color: isMe ? '#ffffff' : 'var(--text-primary)',
                         borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                        cursor: 'pointer'
+                        cursor: 'default'
                       }}
                     >
                       {renderReplyContext(msg)}
                       {renderMessageContent(msg)}
-                      
-                      {/* Action buttons (Pin) on Hover */}
-                      {!msg.isRecalled && (
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePinClick(msg.id);
-                          }} 
-                          style={styles.bubblePinBtn}
-                          title={msg.isPinned ? "Bỏ ghim tin" : "Ghim tin"}
-                        >
-                          <BsPinAngle size={10} style={{transform: msg.isPinned ? 'none' : 'rotate(45deg)', color: msg.isPinned ? 'var(--accent)' : 'inherit'}} />
-                        </button>
-                      )}
                     </div>
 
                     {/* Options Trigger Button next to bubble */}
@@ -698,24 +685,6 @@ const styles = {
     WebkitTouchCallout: 'none',
     WebkitUserSelect: 'none',
     userSelect: 'none'
-  },
-  bubblePinBtn: {
-    position: 'absolute',
-    top: '-8px',
-    right: '-8px',
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-color)',
-    color: 'var(--text-secondary)',
-    borderRadius: '50%',
-    width: '18px',
-    height: '18px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-    transition: 'all 0.15s ease'
-  },
   messageTime: {
     fontSize: '0.7rem',
     color: 'var(--text-muted)',
