@@ -262,7 +262,7 @@ export default function App() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       console.log('Trình duyệt không hỗ trợ Web Push.');
       setPushStatus('unsupported');
-      return false;
+      return { success: false, error: 'Thiết bị hoặc trình duyệt không hỗ trợ API Web Push.' };
     }
 
     try {
@@ -271,7 +271,9 @@ export default function App() {
       const keyRes = await fetch(`${API_URL}/chat/push-key`, {
         headers: { 'Authorization': `Bearer ${userToken}` }
       });
-      if (!keyRes.ok) throw new Error('Không thể tải khoá push public key từ máy chủ');
+      if (!keyRes.ok) {
+        throw new Error(`Máy chủ trả về mã lỗi ${keyRes.status} khi tải VAPID key.`);
+      }
       const { publicKey } = await keyRes.json();
 
       const urlBase64ToUint8Array = (base64String) => {
@@ -287,13 +289,19 @@ export default function App() {
         return outputArray;
       };
 
+      // Để tránh lỗi lệch khóa VAPID (đặc biệt khi restart container docker tạo lại vapid.json mới),
+      // chúng ta sẽ huỷ đăng ký hiện tại (nếu có) trước khi đăng ký mới.
       let subscription = await registration.pushManager.getSubscription();
-      if (!subscription) {
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey)
+      if (subscription) {
+        await subscription.unsubscribe().catch(err => {
+          console.warn('Lỗi khi huỷ đăng ký cũ (vẫn tiếp tục đăng ký mới):', err);
         });
       }
+
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
 
       const subRes = await fetch(`${API_URL}/chat/push-subscribe`, {
         method: 'POST',
@@ -307,16 +315,15 @@ export default function App() {
       if (subRes.ok) {
         console.log('Đăng ký nhận thông báo đẩy thành công.');
         setPushStatus('granted');
-        return true;
+        return { success: true };
       } else {
-        console.error('Không thể đồng bộ subscription lên server.');
-        setPushStatus('prompt');
-        return false;
+        const errData = await subRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Lỗi từ máy chủ khi đồng bộ token (Mã lỗi ${subRes.status}).`);
       }
     } catch (e) {
       console.error('Lỗi thiết lập thông báo đẩy:', e);
       setPushStatus('prompt');
-      return false;
+      return { success: false, error: e.message || 'Lỗi không xác định.' };
     }
   };
 
@@ -331,11 +338,11 @@ export default function App() {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         setPushStatus('checking');
-        const success = await subscribeUserToPush(token);
-        if (success) {
+        const res = await subscribeUserToPush(token);
+        if (res.success) {
           alert('Bật thông báo đẩy thành công!');
         } else {
-          alert('Đăng ký với máy chủ thất bại. Vui lòng tải lại trang và thử lại.');
+          alert(`Đăng ký với máy chủ thất bại. Chi tiết: ${res.error}\n\nVui lòng tải lại trang và thử lại.`);
         }
       } else if (permission === 'denied') {
         setPushStatus('denied');
@@ -345,7 +352,7 @@ export default function App() {
       }
     } catch (err) {
       console.error('Lỗi khi kích hoạt thông báo:', err);
-      alert('Đã xảy ra lỗi: ' + err.message);
+      alert('Đã xảy ra lỗi hệ thống: ' + err.message);
     }
   };
 
