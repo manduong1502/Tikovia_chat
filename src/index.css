@@ -281,21 +281,6 @@ body {
     gap: 16px !important;
   }
 
-  .more-item-mobile-only {
-    display: flex !important;
-  }
-
-  /* Ẩn các nút ghi âm/hình ảnh ngoài thanh chat bar trên mobile */
-  .input-mic-btn, .input-image-btn {
-    display: none !important;
-  }
-}
-
-/* Mặc định ẩn các phần tử chỉ dành cho mobile khi ở màn hình lớn */
-@media (min-width: 769px) {
-  .more-item-mobile-only {
-    display: none !important;
-  }
 }
 
 @media (max-width: 480px) {

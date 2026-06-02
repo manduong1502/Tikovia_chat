@@ -394,21 +394,7 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
               <span style={styles.moreLabel}>Nhắc hẹn</span>
             </div>
 
-            {/* HÌNH ẢNH (Chỉ hiển thị trên di động trong Menu) */}
-            <div className="more-item-mobile-only" style={styles.moreItem} onClick={() => { imageInputRef.current.click(); setShowMoreMenu(false); }}>
-              <div style={{...styles.moreIconWrapper, backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399'}}>
-                <FiImage size={22} />
-              </div>
-              <span style={styles.moreLabel}>Hình ảnh</span>
-            </div>
 
-            {/* GHI ÂM (Chỉ hiển thị trên di động trong Menu) */}
-            <div className="more-item-mobile-only" style={styles.moreItem} onClick={() => { startRecording(); setShowMoreMenu(false); }}>
-              <div style={{...styles.moreIconWrapper, backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#f472b6'}}>
-                <FiMic size={22} />
-              </div>
-              <span style={styles.moreLabel}>Ghi âm</span>
-            </div>
           </div>
         </div>
       )}
@@ -429,17 +415,17 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
           {/* Nút Sticker */}
           <button 
             onClick={() => { setShowStickers(!showStickers); setShowMoreMenu(false); }} 
-            style={styles.iconBtn} 
+            style={styles.smileBtn} 
             className="btn-interactive"
           >
-            <FiSmile size={22} />
+            <FiSmile size={28} />
           </button>
 
           {/* Ô nhập nhắn tin */}
           <input
             type="text"
             ref={inputRef}
-            placeholder="Nhập tin nhắn..."
+            placeholder="Tin nhắn"
             value={text}
             onChange={handleInputChange}
             onKeyDown={(e) => e.key === 'Enter' && handleSendText()}
@@ -449,20 +435,25 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
           {/* Nút 3 chấm */}
           <button 
             onClick={() => { setShowMoreMenu(!showMoreMenu); setShowStickers(false); }} 
-            style={{...styles.iconBtn, color: showMoreMenu ? 'var(--primary)' : 'inherit'}} 
+            style={{...styles.iconBtn, color: showMoreMenu ? 'var(--primary)' : '#e2e8f0'}} 
             className="btn-interactive"
           >
-            <FiMoreHorizontal size={22} />
+            <FiMoreHorizontal size={26} />
           </button>
 
           {/* Nút Ghi âm */}
           <button onClick={startRecording} style={styles.iconBtn} className="btn-interactive input-mic-btn">
-            <FiMic size={22} />
+            <FiMic size={26} />
           </button>
 
           {/* Nút Gửi Ảnh */}
-          <button onClick={() => imageInputRef.current.click()} style={styles.iconBtn} className="btn-interactive input-image-btn">
-            <FiImage size={22} />
+          <button 
+            onClick={() => imageInputRef.current.click()} 
+            style={styles.imageBtn} 
+            className="btn-interactive input-image-btn"
+            title="Gửi hình ảnh"
+          >
+            <FiImage size={18} />
           </button>
 
           {/* Nút gửi tin nhắn nhanh */}
@@ -533,45 +524,64 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
 
 const styles = {
   container: {
-    padding: '12px 20px',
+    padding: '12px 16px',
     borderTop: '1px solid var(--border-color)',
-    position: 'relative'
+    position: 'relative',
+    background: '#151a24'
   },
   inputBar: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px'
+    gap: '12px',
+    background: 'none'
   },
   iconBtn: {
     background: 'none',
     border: 'none',
-    color: 'var(--text-secondary)',
+    color: '#e2e8f0',
     cursor: 'pointer',
     padding: '4px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 'var(--radius-circle)',
-    transition: 'all var(--transition-fast)',
-    ':hover': {
-      color: 'var(--text-primary)',
-      background: 'rgba(255,255,255,0.05)'
-    }
+    transition: 'color var(--transition-fast)',
+    flexShrink: 0
+  },
+  smileBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#cbd5e1',
+    cursor: 'pointer',
+    padding: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'color var(--transition-fast)',
+    flexShrink: 0
+  },
+  imageBtn: {
+    background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+    color: '#151a24',
+    border: 'none',
+    borderRadius: '8px',
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    padding: '0',
+    flexShrink: 0
   },
   textInput: {
     flex: 1,
-    padding: '10px 16px',
-    borderRadius: '24px',
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid var(--border-color)',
+    padding: '10px 4px',
+    background: 'transparent',
+    border: 'none',
     color: 'var(--text-primary)',
-    fontSize: '0.9rem',
+    fontSize: '1rem',
     outline: 'none',
-    transition: 'all var(--transition-fast)',
-    ':focus': {
-      border: '1px solid var(--primary)',
-      background: 'rgba(255,255,255,0.08)'
-    }
+    width: '100%'
   },
   sendBtn: {
     background: 'var(--primary-gradient)',
