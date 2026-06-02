@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { FiX, FiCamera } from 'react-icons/fi';
+import { FiX, FiCamera, FiEye, FiEyeOff } from 'react-icons/fi';
 
 export default function ProfileModal({ user, token, onClose, onProfileUpdate }) {
   const [displayName, setDisplayName] = useState(user.displayName || '');
@@ -10,6 +10,8 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate }) 
   // Password states
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -192,24 +194,44 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate }) 
             
             <div style={{...styles.inputGroup, marginBottom: '12px'}}>
               <label style={styles.label}>Mật khẩu hiện tại</label>
-              <input 
-                type="password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                placeholder="Nhập mật khẩu cũ..." 
-                style={styles.input} 
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input 
+                  type={showOldPassword ? 'text' : 'password'} 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="Nhập mật khẩu cũ..." 
+                  style={{ ...styles.input, width: '100%', paddingRight: '44px' }} 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowOldPassword(!showOldPassword)}
+                  style={styles.eyeBtn}
+                  title={showOldPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                >
+                  {showOldPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                </button>
+              </div>
             </div>
             
             <div style={styles.inputGroup}>
               <label style={styles.label}>Mật khẩu mới</label>
-              <input 
-                type="password" 
-                value={newPassword} 
-                onChange={(e) => setNewPassword(e.target.value)} 
-                placeholder="Nhập mật khẩu mới..." 
-                style={styles.input} 
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input 
+                  type={showNewPassword ? 'text' : 'password'} 
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)} 
+                  placeholder="Nhập mật khẩu mới..." 
+                  style={{ ...styles.input, width: '100%', paddingRight: '44px' }} 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  style={styles.eyeBtn}
+                  title={showNewPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                >
+                  {showNewPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -354,5 +376,18 @@ const styles = {
     border: '1px solid var(--border-color)',
     fontWeight: '600',
     cursor: 'pointer'
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: '12px',
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px',
+    zIndex: 2,
   }
 };

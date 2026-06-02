@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 export default function Auth({ onAuthSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -8,6 +9,7 @@ export default function Auth({ onAuthSuccess }) {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/auth';
 
@@ -106,14 +108,24 @@ export default function Auth({ onAuthSuccess }) {
 
           <div style={styles.inputGroup}>
             <label style={styles.label}>Mật khẩu</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Nhập mật khẩu"
-              style={styles.input}
-            />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Nhập mật khẩu"
+                style={{ ...styles.input, width: '100%', paddingRight: '44px' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={styles.eyeBtn}
+                title={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              >
+                {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button
@@ -280,5 +292,18 @@ const styles = {
     cursor: 'pointer',
     fontSize: '0.85rem',
     transition: 'color 0.2s ease',
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: '12px',
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px',
+    zIndex: 2,
   }
 };
