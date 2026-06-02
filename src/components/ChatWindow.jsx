@@ -353,6 +353,10 @@ export default function ChatWindow({
             const showDateSeparator = !prevMsg || 
               new Date(prevMsg.createdAt).toDateString() !== new Date(msg.createdAt).toDateString();
 
+            const isGroupStart = !prevMsg || 
+              prevMsg.senderId !== msg.senderId || 
+              (new Date(msg.createdAt) - new Date(prevMsg.createdAt)) >= 5 * 60 * 1000;
+
             return (
               <React.Fragment key={msg.id}>
                 {showDateSeparator && (
@@ -372,14 +376,18 @@ export default function ChatWindow({
                   }}
                 >
                   {!isMe && (
-                    <img 
-                      src={msg.sender?.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${msg.sender?.username || msg.sender?.id || 'user'}`} 
-                      alt="" 
-                      style={styles.messageAvatar} 
-                    />
+                    isNearNext ? (
+                      <div style={{ width: '32px', height: '32px', marginBottom: '16px' }} />
+                    ) : (
+                      <img 
+                        src={msg.sender?.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${msg.sender?.username || msg.sender?.id || 'user'}`} 
+                        alt="" 
+                        style={styles.messageAvatar} 
+                      />
+                    )
                   )}
                   <div style={styles.messageContentWrapper}>
-                    {!isMe && isGroup && <span style={styles.senderLabel}>{getSenderName(msg)}</span>}
+                    {!isMe && isGroup && isGroupStart && <span style={styles.senderLabel}>{getSenderName(msg)}</span>}
                     
                     <div style={{
                       ...styles.bubbleWrapper,
