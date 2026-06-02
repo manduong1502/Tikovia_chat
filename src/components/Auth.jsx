@@ -46,7 +46,7 @@ export default function Auth({ onAuthSuccess }) {
 
   return (
     <div style={styles.container}>
-      <div style={styles.authCard} className="glass-card anim-scale-in">
+      <div style={styles.authCard} className="glass-card anim-scale-in auth-card">
         <h2 style={styles.title}>{isLogin ? 'Đăng nhập ChatTikovia' : 'Đăng ký Tài khoản'}</h2>
         <p style={styles.subtitle}>
           {isLogin ? 'Ứng dụng chat nội bộ bảo mật của doanh nghiệp' : 'Điền thông tin của bạn để bắt đầu'}

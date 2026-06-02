@@ -364,7 +364,7 @@ export default function Sidebar({
       {/* Create Group Modal */}
       {showCreateGroup && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalContent} className="glass-card anim-scale-in">
+          <div style={styles.modalContent} className="glass-card anim-scale-in create-group-modal">
             <div style={styles.modalHeader}>
               <h3>Tạo cuộc hội thoại mới</h3>
               <button onClick={() => setShowCreateGroup(false)} style={styles.closeBtn}><FiX size={20} /></button>

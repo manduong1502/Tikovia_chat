@@ -289,7 +289,7 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
     <div style={styles.container} className="glass">
       {/* 1. Popover Tag tên (@mention) */}
       {showMentions && mentionFilteredMembers.length > 0 && (
-        <div style={{...styles.mentionsContainer, bottom: mentionCoords.bottom, left: mentionCoords.left}} className="glass-card">
+        <div style={{...styles.mentionsContainer, bottom: mentionCoords.bottom, left: mentionCoords.left}} className="glass-card mentions-popover">
           {mentionFilteredMembers.map((m, idx) => (
             <div 
               key={m.user.id} 
@@ -308,7 +308,7 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
 
       {/* 2. Popover Sticker */}
       {showStickers && (
-        <div style={styles.stickerContainer} className="glass-card anim-scale-in">
+        <div style={styles.stickerContainer} className="glass-card anim-scale-in sticker-popover">
           <div style={styles.stickerHeader}>
             <span>Sticker đáng yêu</span>
             <button onClick={() => setShowStickers(false)} style={styles.stickerClose}><FiX /></button>
@@ -346,8 +346,8 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
 
       {/* 3. Popover Menu dấu 3 chấm (Vị trí, tài liệu, nhắc hẹn) */}
       {showMoreMenu && (
-        <div style={styles.moreMenuContainer} className="glass-card anim-scale-in">
-          <div style={styles.moreGrid}>
+        <div style={styles.moreMenuContainer} className="glass-card anim-scale-in more-menu-popover">
+          <div style={styles.moreGrid} className="more-grid-container">
             <div style={styles.moreItem} onClick={handleShareLocation}>
               <div style={{...styles.moreIconWrapper, backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#f87171'}}>
                 <FiMapPin size={22} />
@@ -367,6 +367,22 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
                 <FiClock size={22} />
               </div>
               <span style={styles.moreLabel}>Nhắc hẹn</span>
+            </div>
+
+            {/* HÌNH ẢNH (Chỉ hiển thị trên di động trong Menu) */}
+            <div className="more-item-mobile-only" style={styles.moreItem} onClick={() => { imageInputRef.current.click(); setShowMoreMenu(false); }}>
+              <div style={{...styles.moreIconWrapper, backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399'}}>
+                <FiImage size={22} />
+              </div>
+              <span style={styles.moreLabel}>Hình ảnh</span>
+            </div>
+
+            {/* GHI ÂM (Chỉ hiển thị trên di động trong Menu) */}
+            <div className="more-item-mobile-only" style={styles.moreItem} onClick={() => { startRecording(); setShowMoreMenu(false); }}>
+              <div style={{...styles.moreIconWrapper, backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#f472b6'}}>
+                <FiMic size={22} />
+              </div>
+              <span style={styles.moreLabel}>Ghi âm</span>
             </div>
           </div>
         </div>
@@ -415,12 +431,12 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
           </button>
 
           {/* Nút Ghi âm */}
-          <button onClick={startRecording} style={styles.iconBtn} className="btn-interactive">
+          <button onClick={startRecording} style={styles.iconBtn} className="btn-interactive input-mic-btn">
             <FiMic size={22} />
           </button>
 
           {/* Nút Gửi Ảnh */}
-          <button onClick={() => imageInputRef.current.click()} style={styles.iconBtn} className="btn-interactive">
+          <button onClick={() => imageInputRef.current.click()} style={styles.iconBtn} className="btn-interactive input-image-btn">
             <FiImage size={22} />
           </button>
 
@@ -451,7 +467,7 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
       {/* Modal Nhắc Hẹn */}
       {showReminderModal && (
         <div style={styles.modalOverlay}>
-          <form onSubmit={handleCreateReminder} style={styles.modalContent} className="glass-card anim-scale-in">
+          <form onSubmit={handleCreateReminder} style={styles.modalContent} className="glass-card anim-scale-in reminder-modal">
             <div style={styles.modalHeader}>
               <h3>Tạo nhắc hẹn cuộc trò chuyện</h3>
               <button type="button" onClick={() => setShowReminderModal(false)} style={styles.modalCloseBtn}><FiX size={20} /></button>

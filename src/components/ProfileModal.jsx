@@ -113,7 +113,7 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate }) 
 
   return (
     <div style={styles.overlay}>
-      <div style={styles.modalContent} className="glass-card anim-scale-in">
+      <div style={styles.modalContent} className="glass-card anim-scale-in profile-modal-content">
         <div style={styles.header}>
           <h3>Cập nhật Trang cá nhân</h3>
           <button onClick={onClose} style={styles.closeBtn}><FiX size={20} /></button>

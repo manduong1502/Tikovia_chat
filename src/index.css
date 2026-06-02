@@ -238,4 +238,59 @@ body {
   .mobile-list-padding {
     padding-bottom: 70px !important;
   }
+
+  /* Hiển thị nút back trên mobile */
+  .mobile-back-btn {
+    display: flex !important;
+  }
+
+  /* Popovers chọn sticker & menu ba chấm không bị tràn */
+  .sticker-popover, .more-menu-popover {
+    width: calc(100% - 24px) !important;
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 76px !important;
+  }
+
+  .mentions-popover {
+    width: calc(100% - 24px) !important;
+    left: 12px !important;
+    right: 12px !important;
+  }
+
+  /* Menu 3 chấm dạng lưới trên mobile */
+  .more-grid-container {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .more-item-mobile-only {
+    display: flex !important;
+  }
+
+  /* Ẩn các nút ghi âm/hình ảnh ngoài thanh chat bar trên mobile */
+  .input-mic-btn, .input-image-btn {
+    display: none !important;
+  }
 }
+
+/* Mặc định ẩn các phần tử chỉ dành cho mobile khi ở màn hình lớn */
+.more-item-mobile-only {
+  display: none !important;
+}
+
+@media (max-width: 480px) {
+  /* Modals co giãn đẹp mắt trên điện thoại nhỏ */
+  .profile-modal-content, .create-group-modal, .reminder-modal {
+    width: calc(100% - 24px) !important;
+    padding: 16px !important;
+    max-height: 95vh !important;
+  }
+
+  .auth-card {
+    padding: 24px 16px !important;
+    margin: 16px !important;
+  }
+}
+
