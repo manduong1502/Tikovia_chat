@@ -24,11 +24,57 @@ export default function ChatWindow({
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [activePopoverMsgId, setActivePopoverMsgId] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [popoverDirection, setPopoverDirection] = useState('up');
+  const [manuallyShownTimes, setManuallyShownTimes] = useState(new Set());
   const messagesEndRef = useRef(null);
   const chatFeedRef = useRef(null);
   const touchTimeoutRef = useRef(null);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
+
+  // Helper định dạng ngày phân tách dạng Voz
+  const getRelativeDateString = (dateString) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    
+    const dDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    const diffTime = dToday - dDate;
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    const dayName = days[date.getDay()];
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    const dateStr = `${dayName} ${dd}/${mm}/${yyyy}`;
+    
+    if (diffDays === 0) {
+      return `Hôm nay, ${dateStr}`;
+    } else if (diffDays === 1) {
+      return `Hôm qua, ${dateStr}`;
+    } else if (diffDays > 1) {
+      return `${dateStr} (${diffDays} ngày trước)`;
+    }
+    return dateStr;
+  };
+
+  const handleOpenPopover = (e, msgId) => {
+    e.stopPropagation();
+    if (!chatFeedRef.current) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const feedRect = chatFeedRef.current.getBoundingClientRect();
+    const distFromTop = rect.top - feedRect.top;
+    
+    if (distFromTop < 200) {
+      setPopoverDirection('down');
+    } else {
+      setPopoverDirection('up');
+    }
+    setActivePopoverMsgId(msgId);
+  };
 
   // Cuộn xuống đáy khi có tin nhắn mới
   useEffect(() => {
@@ -288,7 +334,7 @@ export default function ChatWindow({
             <p>Bắt đầu cuộc trò chuyện. Hãy gửi lời chào!</p>
           </div>
         ) : (
-          messages.map(msg => {
+          messages.map((msg, index) => {
             const isMe = msg.senderId === user.id;
             const totalReactions = msg.reactions?.length || 0;
             const reactionCounts = msg.reactions?.reduce((acc, r) => {
@@ -297,208 +343,257 @@ export default function ChatWindow({
             }, {}) || {};
             const reactionTypes = Object.keys(reactionCounts).sort((a, b) => reactionCounts[b] - reactionCounts[a]);
 
-            return (
-              <div 
-                key={msg.id} 
-                className="message-row-hover"
-                style={{
-                  ...styles.messageRow,
-                  alignSelf: isMe ? 'flex-end' : 'flex-start',
-                  justifyContent: isMe ? 'flex-end' : 'flex-start',
-                  marginBottom: totalReactions > 0 ? '16px' : '0px'
-                }}
-              >
-                {!isMe && (
-                  <img 
-                    src={msg.sender?.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${msg.sender?.username || msg.sender?.id || 'user'}`} 
-                    alt="" 
-                    style={styles.messageAvatar} 
-                  />
-                )}
-                <div style={styles.messageContentWrapper}>
-                  {!isMe && isGroup && <span style={styles.senderLabel}>{getSenderName(msg)}</span>}
-                  
-                  <div style={{
-                    ...styles.bubbleWrapper,
-                    flexDirection: isMe ? 'row-reverse' : 'row'
-                  }}>
-                    <div 
-                      className="chat-message-bubble"
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        if (!msg.isRecalled) {
-                          setActivePopoverMsgId(activePopoverMsgId === msg.id ? null : msg.id);
-                        }
-                      }}
-                      onTouchStart={() => {
-                        if (!msg.isRecalled) {
-                          if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
-                          touchTimeoutRef.current = setTimeout(() => {
-                            setActivePopoverMsgId(msg.id);
-                            if (navigator.vibrate) navigator.vibrate(50); // Phản hồi rung nhẹ
-                          }, 400); // 400ms long press
-                        }
-                      }}
-                      onTouchEnd={() => {
-                        if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
-                      }}
-                      onTouchMove={() => {
-                        if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Click chuột trái bình thường không kích hoạt Popover tránh conflict với click ngoài hoặc scroll di động
-                      }}
-                      style={{
-                        ...styles.messageBubble,
-                        background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
-                        color: isMe ? '#ffffff' : 'var(--text-primary)',
-                        borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                        cursor: 'default'
-                      }}
-                    >
-                      {renderReplyContext(msg)}
-                      {renderMessageContent(msg)}
-                    </div>
+            // Kiểm tra tin nhắn kế tiếp có cùng người gửi và gửi cách nhau dưới 5p không
+            const nextMsg = messages[index + 1];
+            const isNearNext = nextMsg && 
+              nextMsg.senderId === msg.senderId && 
+              (new Date(nextMsg.createdAt) - new Date(msg.createdAt)) < 5 * 60 * 1000;
 
-                    {/* Options Trigger Button next to bubble */}
-                    {!msg.isRecalled && (
-                      <button 
+            const prevMsg = messages[index - 1];
+            const showDateSeparator = !prevMsg || 
+              new Date(prevMsg.createdAt).toDateString() !== new Date(msg.createdAt).toDateString();
+
+            return (
+              <React.Fragment key={msg.id}>
+                {showDateSeparator && (
+                  <div style={styles.dateSeparator}>
+                    <span style={styles.dateSeparatorText}>
+                      {getRelativeDateString(msg.createdAt)}
+                    </span>
+                  </div>
+                )}
+                <div 
+                  className="message-row-hover"
+                  style={{
+                    ...styles.messageRow,
+                    alignSelf: isMe ? 'flex-end' : 'flex-start',
+                    justifyContent: isMe ? 'flex-end' : 'flex-start',
+                    marginBottom: totalReactions > 0 ? '16px' : '0px'
+                  }}
+                >
+                  {!isMe && (
+                    <img 
+                      src={msg.sender?.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${msg.sender?.username || msg.sender?.id || 'user'}`} 
+                      alt="" 
+                      style={styles.messageAvatar} 
+                    />
+                  )}
+                  <div style={styles.messageContentWrapper}>
+                    {!isMe && isGroup && <span style={styles.senderLabel}>{getSenderName(msg)}</span>}
+                    
+                    <div style={{
+                      ...styles.bubbleWrapper,
+                      flexDirection: isMe ? 'row-reverse' : 'row'
+                    }}>
+                      <div 
+                        className="chat-message-bubble"
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          if (!msg.isRecalled) {
+                            if (activePopoverMsgId === msg.id) {
+                              setActivePopoverMsgId(null);
+                            } else {
+                              handleOpenPopover(e, msg.id);
+                            }
+                          }
+                        }}
+                        onTouchStart={(e) => {
+                          if (!msg.isRecalled) {
+                            if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
+                            const currentTarget = e.currentTarget;
+                            touchTimeoutRef.current = setTimeout(() => {
+                              if (!chatFeedRef.current) return;
+                              const rect = currentTarget.getBoundingClientRect();
+                              const feedRect = chatFeedRef.current.getBoundingClientRect();
+                              const distFromTop = rect.top - feedRect.top;
+                              
+                              if (distFromTop < 200) {
+                                setPopoverDirection('down');
+                              } else {
+                                setPopoverDirection('up');
+                              }
+                              
+                              setActivePopoverMsgId(msg.id);
+                              if (navigator.vibrate) navigator.vibrate(50); // Phản hồi rung nhẹ
+                            }, 400); // 400ms long press
+                          }
+                        }}
+                        onTouchEnd={() => {
+                          if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
+                        }}
+                        onTouchMove={() => {
+                          if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
+                        }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setActivePopoverMsgId(activePopoverMsgId === msg.id ? null : msg.id);
+                          if (isNearNext) {
+                            setManuallyShownTimes(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(msg.id)) {
+                                newSet.delete(msg.id);
+                              } else {
+                                newSet.add(msg.id);
+                              }
+                              return newSet;
+                            });
+                          }
                         }}
-                        style={styles.hoverMenuBtn}
-                        className="hover-menu-btn-desktop btn-interactive"
-                        title="Tùy chọn tin nhắn"
+                        style={{
+                          ...styles.messageBubble,
+                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
+                          color: isMe ? '#ffffff' : 'var(--text-primary)',
+                          borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                          cursor: isNearNext ? 'pointer' : 'default'
+                        }}
                       >
-                        ⋮
-                      </button>
-                    )}
+                        {renderReplyContext(msg)}
+                        {renderMessageContent(msg)}
+                      </div>
 
-                    {/* Popover Action Menu */}
-                    {activePopoverMsgId === msg.id && (
-                      <div 
-                        style={styles.actionPopover}
-                        className={`action-popover-box ${isMe ? 'is-me-popover' : 'is-other-popover'}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {/* Emojis selection row */}
-                        <div style={styles.popoverEmojisRow}>
-                          {['👍', '❤️', '😂', '😮', '😭', '😡'].map(emoji => {
-                            const hasReacted = msg.reactions?.some(r => r.userId === user.id && r.type === emoji);
-                            return (
+                      {/* Options Trigger Button next to bubble */}
+                      {!msg.isRecalled && (
+                        <button 
+                          onClick={(e) => {
+                            if (activePopoverMsgId === msg.id) {
+                              setActivePopoverMsgId(null);
+                            } else {
+                              handleOpenPopover(e, msg.id);
+                            }
+                          }}
+                          style={styles.hoverMenuBtn}
+                          className="hover-menu-btn-desktop btn-interactive"
+                          title="Tùy chọn tin nhắn"
+                        >
+                          ⋮
+                        </button>
+                      )}
+
+                      {/* Popover Action Menu */}
+                      {activePopoverMsgId === msg.id && (
+                        <div 
+                          style={styles.actionPopover}
+                          className={`action-popover-box ${isMe ? 'is-me-popover' : 'is-other-popover'} dir-${popoverDirection}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {/* Emojis selection row */}
+                          <div style={styles.popoverEmojisRow}>
+                            {['👍', '❤️', '😂', '😮', '😭', '😡'].map(emoji => {
+                              const hasReacted = msg.reactions?.some(r => r.userId === user.id && r.type === emoji);
+                              return (
+                                <button 
+                                  key={emoji} 
+                                  onClick={() => {
+                                    onToggleReaction(msg.id, emoji);
+                                    setActivePopoverMsgId(null);
+                                  }}
+                                  style={{
+                                    ...styles.popoverEmojiBtn,
+                                    background: hasReacted ? 'rgba(255,255,255,0.15)' : 'none'
+                                  }}
+                                  className="btn-interactive"
+                                >
+                                  {emoji}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Actions list */}
+                          <div style={styles.popoverActionsRow}>
+                            {msg.type === 'text' && (
                               <button 
-                                key={emoji} 
                                 onClick={() => {
-                                  onToggleReaction(msg.id, emoji);
+                                  navigator.clipboard.writeText(msg.content);
                                   setActivePopoverMsgId(null);
                                 }}
-                                style={{
-                                  ...styles.popoverEmojiBtn,
-                                  background: hasReacted ? 'rgba(255,255,255,0.15)' : 'none'
-                                }}
+                                style={styles.popoverActionItem}
                                 className="btn-interactive"
                               >
-                                {emoji}
+                                Sao chép
                               </button>
-                            );
-                          })}
-                        </div>
-
-                        {/* Actions list */}
-                        <div style={styles.popoverActionsRow}>
-                          {msg.type === 'text' && (
+                            )}
                             <button 
                               onClick={() => {
-                                navigator.clipboard.writeText(msg.content);
+                                setReplyingTo(msg);
                                 setActivePopoverMsgId(null);
                               }}
                               style={styles.popoverActionItem}
                               className="btn-interactive"
                             >
-                              Sao chép
+                              Trả lời
                             </button>
-                          )}
-                          <button 
-                            onClick={() => {
-                              setReplyingTo(msg);
-                              setActivePopoverMsgId(null);
-                            }}
-                            style={styles.popoverActionItem}
-                            className="btn-interactive"
-                          >
-                            Trả lời
-                          </button>
-                          <button 
-                            onClick={() => {
-                              handlePinClick(msg.id);
-                              setActivePopoverMsgId(null);
-                            }}
-                            style={styles.popoverActionItem}
-                            className="btn-interactive"
-                          >
-                            {msg.isPinned ? 'Bỏ ghim' : 'Ghim'}
-                          </button>
-                          {isMe && (
                             <button 
                               onClick={() => {
-                                if (confirm('Bạn có chắc muốn thu hồi tin nhắn này đối với mọi người?')) {
-                                  onRecallMessage(msg.id);
-                                }
+                                handlePinClick(msg.id);
                                 setActivePopoverMsgId(null);
+                              }}
+                              style={styles.popoverActionItem}
+                              className="btn-interactive"
+                            >
+                              {msg.isPinned ? 'Bỏ ghim' : 'Ghim'}
+                            </button>
+                            {isMe && (
+                              <button 
+                                onClick={() => {
+                                  if (confirm('Bạn có chắc muốn thu hồi tin nhắn này đối với mọi người?')) {
+                                    onRecallMessage(msg.id);
+                                  }
+                                  setActivePopoverMsgId(null);
+                                }}
+                                style={{...styles.popoverActionItem, color: 'var(--danger)'}}
+                                className="btn-interactive"
+                              >
+                                Gỡ/Thu hồi
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => {
+                                  if (confirm('Xóa tin nhắn này phía bạn? Người khác vẫn sẽ nhìn thấy.')) {
+                                    onDeleteMessage(msg.id);
+                                  }
+                                  setActivePopoverMsgId(null);
                               }}
                               style={{...styles.popoverActionItem, color: 'var(--danger)'}}
                               className="btn-interactive"
                             >
-                              Gỡ/Thu hồi
+                              Xóa phía tôi
                             </button>
-                          )}
-                          <button 
-                            onClick={() => {
-                              if (confirm('Xóa tin nhắn này phía bạn? Người khác vẫn sẽ nhìn thấy.')) {
-                                onDeleteMessage(msg.id);
-                              }
-                              setActivePopoverMsgId(null);
-                            }}
-                            style={{...styles.popoverActionItem, color: 'var(--danger)'}}
-                            className="btn-interactive"
-                          >
-                            Xóa phía tôi
-                          </button>
+                          </div>
                         </div>
+                      )}
+                    </div>
+
+                    {/* Reaction Badges */}
+                    {totalReactions > 0 && (
+                      <div style={{
+                        ...styles.reactionsWrapper,
+                        alignSelf: isMe ? 'flex-end' : 'flex-start',
+                        justifyContent: isMe ? 'flex-end' : 'flex-start'
+                      }}>
+                        {reactionTypes.map(type => (
+                          <div 
+                            key={type} 
+                            style={styles.reactionBadge} 
+                            title={msg.reactions.filter(r => r.type === type).map(r => r.user.displayName).join(', ')}
+                          >
+                            <span>{type}</span>
+                            <span style={styles.reactionCount}>{reactionCounts[type]}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
+
+                    {(!isNearNext || manuallyShownTimes.has(msg.id)) && (
+                      <span style={{
+                        ...styles.messageTime,
+                        textAlign: isMe ? 'right' : 'left'
+                      }}>
+                        {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                    )}
                   </div>
-
-                  {/* Reaction Badges */}
-                  {totalReactions > 0 && (
-                    <div style={{
-                      ...styles.reactionsWrapper,
-                      alignSelf: isMe ? 'flex-end' : 'flex-start',
-                      justifyContent: isMe ? 'flex-end' : 'flex-start'
-                    }}>
-                      {reactionTypes.map(type => (
-                        <div 
-                          key={type} 
-                          style={styles.reactionBadge} 
-                          title={msg.reactions.filter(r => r.type === type).map(r => r.user.displayName).join(', ')}
-                        >
-                          <span>{type}</span>
-                          <span style={styles.reactionCount}>{reactionCounts[type]}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <span style={{
-                    ...styles.messageTime,
-                    textAlign: isMe ? 'right' : 'left'
-                  }}>
-                    {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </span>
                 </div>
-              </div>
+              </React.Fragment>
             );
           })
         )}
@@ -637,10 +732,26 @@ const styles = {
   chatFeed: {
     flex: 1,
     overflowY: 'auto',
-    padding: '24px',
+    padding: '12px 16px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px'
+    gap: '6px'
+  },
+  dateSeparator: {
+    display: 'flex',
+    justifyContent: 'center',
+    margin: '12px 0 6px 0',
+    width: '100%'
+  },
+  dateSeparatorText: {
+    background: 'rgba(255, 255, 255, 0.08)',
+    color: 'var(--text-secondary)',
+    padding: '4px 12px',
+    borderRadius: '12px',
+    fontSize: '0.75rem',
+    fontWeight: '500',
+    border: '1px solid var(--border-color)',
+    boxShadow: 'var(--shadow-sm)'
   },
   startChat: {
     display: 'flex',
