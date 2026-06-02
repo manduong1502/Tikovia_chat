@@ -259,6 +259,7 @@ export default function App() {
 
   // Đăng ký nhận thông báo đẩy (Web Push) lên server
   const subscribeUserToPush = async (userToken) => {
+    let currentStep = 'Khởi tạo';
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       console.log('Trình duyệt không hỗ trợ Web Push.');
       setPushStatus('unsupported');
@@ -266,8 +267,10 @@ export default function App() {
     }
 
     try {
+      currentStep = 'Chờ Service Worker sẵn sàng';
       const registration = await navigator.serviceWorker.ready;
       
+      currentStep = 'Tải khoá VAPID từ máy chủ';
       const keyRes = await fetch(`${API_URL}/chat/push-key`, {
         headers: { 'Authorization': `Bearer ${userToken}` }
       });
@@ -289,20 +292,21 @@ export default function App() {
         return outputArray;
       };
 
-      // Để tránh lỗi lệch khóa VAPID (đặc biệt khi restart container docker tạo lại vapid.json mới),
-      // chúng ta sẽ huỷ đăng ký hiện tại (nếu có) trước khi đăng ký mới.
+      currentStep = 'Huỷ đăng ký push cũ trên trình duyệt';
       let subscription = await registration.pushManager.getSubscription();
       if (subscription) {
         await subscription.unsubscribe().catch(err => {
-          console.warn('Lỗi khi huỷ đăng ký cũ (vẫn tiếp tục đăng ký mới):', err);
+          console.warn('Lỗi khi huỷ đăng ký cũ:', err);
         });
       }
 
+      currentStep = 'Tạo token đăng ký (Web Push Service của Google/Apple)';
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey)
       });
 
+      currentStep = 'Đồng bộ token đăng ký lên máy chủ';
       const subRes = await fetch(`${API_URL}/chat/push-subscribe`, {
         method: 'POST',
         headers: {
@@ -323,7 +327,7 @@ export default function App() {
     } catch (e) {
       console.error('Lỗi thiết lập thông báo đẩy:', e);
       setPushStatus('prompt');
-      return { success: false, error: e.message || 'Lỗi không xác định.' };
+      return { success: false, error: `[Bản vá - Lỗi tại bước: ${currentStep}] ${e.message || 'Lỗi mạng hoặc kết nối.'}` };
     }
   };
 
