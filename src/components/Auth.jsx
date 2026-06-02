@@ -213,9 +213,7 @@ const styles = {
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: '8px',
-    background: 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
+    color: 'var(--text-primary)',
     letterSpacing: '-0.5px',
   },
   subtitle: {
@@ -244,13 +242,13 @@ const styles = {
   input: {
     padding: '12px 16px',
     borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255, 255, 255, 0.04)',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
     fontSize: '0.95rem',
     outline: 'none',
     transition: 'all var(--transition-fast)',
-    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.2)',
+    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.05)',
   },
   submitBtn: {
     padding: '13px',
@@ -287,7 +285,7 @@ const styles = {
   switchBtn: {
     background: 'none',
     border: 'none',
-    color: '#60a5fa',
+    color: 'var(--primary)',
     fontWeight: '600',
     cursor: 'pointer',
     fontSize: '0.85rem',

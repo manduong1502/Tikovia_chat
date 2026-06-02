@@ -16,6 +16,12 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]); // Danh sách người đang gõ chữ
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   // Sidebars toggle
   const [showRightSidebar, setShowRightSidebar] = useState(false);
@@ -375,6 +381,8 @@ export default function App() {
           mobileActiveView={mobileActiveView}
           setMobileActiveView={setMobileActiveView}
           className={mobileActiveView === 'list' ? 'mobile-show-list' : 'mobile-hide-list'}
+          theme={theme}
+          toggleTheme={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
         />
 
         {/* 2. Center Chat window */}

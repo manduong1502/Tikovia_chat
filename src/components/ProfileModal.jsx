@@ -300,7 +300,7 @@ const styles = {
     border: '2px solid var(--primary)'
   },
   randomAvatarBtn: {
-    background: 'rgba(255,255,255,0.05)',
+    background: 'var(--bg-surface)',
     border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
     padding: '5px 12px',
@@ -327,7 +327,7 @@ const styles = {
   input: {
     padding: '10px 12px',
     borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255,255,255,0.05)',
+    background: 'var(--bg-surface)',
     border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
     fontSize: '0.9rem',
@@ -371,7 +371,7 @@ const styles = {
   btnSecondary: {
     padding: '10px 16px',
     borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255,255,255,0.05)',
+    background: 'var(--bg-surface)',
     color: 'var(--text-primary)',
     border: '1px solid var(--border-color)',
     fontWeight: '600',

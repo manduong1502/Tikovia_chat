@@ -425,7 +425,7 @@ const styles = {
     width: '38px',
     height: '38px',
     borderRadius: '50%',
-    background: 'rgba(255,255,255,0.04)',
+    background: 'var(--bg-surface)',
     color: 'var(--text-primary)',
     display: 'flex',
     alignItems: 'center',
@@ -461,7 +461,7 @@ const styles = {
     flex: 1,
     padding: '8px 10px',
     borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255,255,255,0.05)',
+    background: 'var(--bg-surface)',
     border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
     fontSize: '0.8rem',
@@ -479,7 +479,7 @@ const styles = {
   },
   searchResultsContainer: {
     marginTop: '10px',
-    background: 'rgba(255,255,255,0.02)',
+    background: 'var(--bg-surface)',
     borderRadius: 'var(--radius-sm)',
     padding: '8px'
   },
@@ -578,9 +578,9 @@ const styles = {
     flex: 1,
     padding: '4px 6px',
     borderRadius: '4px',
-    background: 'rgba(255,255,255,0.05)',
+    background: 'var(--bg-surface)',
     border: '1px solid var(--border-color)',
-    color: 'white',
+    color: 'var(--text-primary)',
     fontSize: '0.75rem',
     outline: 'none'
   },
@@ -658,7 +658,7 @@ const styles = {
     alignItems: 'center',
     gap: '8px',
     padding: '6px',
-    background: 'rgba(255,255,255,0.02)',
+    background: 'var(--bg-surface)',
     borderRadius: '4px'
   },
   fileInfo: {
@@ -691,7 +691,7 @@ const styles = {
     display: 'flex',
     gap: '8px',
     padding: '6px',
-    background: 'rgba(255,255,255,0.02)',
+    background: 'var(--bg-surface)',
     borderRadius: '4px'
   },
   linkInfo: {

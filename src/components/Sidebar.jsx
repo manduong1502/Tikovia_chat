@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiLogOut, FiUsers, FiSearch, FiX, FiPlus, FiMessageSquare, FiCompass, FiBookOpen, FiUser, FiMaximize } from 'react-icons/fi';
+import { FiLogOut, FiUsers, FiSearch, FiX, FiPlus, FiMessageSquare, FiCompass, FiBookOpen, FiUser, FiMaximize, FiSun, FiMoon } from 'react-icons/fi';
 
 export default function Sidebar({
   user,
@@ -13,7 +13,9 @@ export default function Sidebar({
   onShowProfile,
   mobileActiveView,
   setMobileActiveView,
-  className
+  className,
+  theme,
+  toggleTheme
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -206,6 +208,14 @@ export default function Sidebar({
             className="btn-interactive"
           >
             <FiPlus size={20} />
+          </button>
+          <button 
+            title={theme === 'light' ? 'Chuyển sang Chế độ tối' : 'Chuyển sang Chế độ sáng'} 
+            onClick={toggleTheme} 
+            style={styles.actionBtn} 
+            className="btn-interactive"
+          >
+            {theme === 'light' ? <FiMoon size={18} /> : <FiSun size={18} />}
           </button>
           <button 
             title="Đăng xuất" 

@@ -3,38 +3,88 @@
 :root {
   --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   
-  /* Harmonious Color Palette - Zalo Dark Mode style */
-  --bg-primary: #151a24;
-  --bg-secondary: #1a2232;
-  --bg-surface: #222d41;
-  --bg-glass: rgba(26, 34, 50, 0.85);
-  --bg-glass-active: rgba(34, 45, 65, 0.95);
+  /* Modern Dark Theme (Default) */
+  --bg-primary: #0f131a;
+  --bg-secondary: #151a24;
+  --bg-surface: #1e2638;
+  --bg-glass: rgba(21, 26, 36, 0.85);
+  --bg-glass-active: rgba(30, 38, 56, 0.95);
   
-  --primary: #0766ff; /* Zalo Blue */
-  --primary-gradient: linear-gradient(135deg, #0766ff 0%, #0052cc 100%);
-  --secondary: #22c55e;
+  --primary: #3b82f6; /* Modern Blue */
+  --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  --secondary: #10b981;
   --accent: #f59e0b;
   --danger: #ef4444;
   
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-muted: #627288;
   
-  --border-color: rgba(255, 255, 255, 0.06);
-  --border-glow: rgba(7, 102, 255, 0.25);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(59, 130, 246, 0.25);
   
   --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 16px 40px -8px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 20px 50px -15px rgba(0, 0, 0, 0.7);
   
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
   --radius-circle: 50%;
   
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Scrollbar Variables */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  /* Image Button Variables */
+  --btn-image-bg: rgba(99, 102, 241, 0.15);
+  --btn-image-color: #a5b4fc;
+  --btn-image-hover-bg: rgba(99, 102, 241, 0.25);
+
+  /* Chat Window Dynamic Gradient */
+  --bg-chat-gradient: radial-gradient(circle at center, rgba(30, 41, 66, 0.25) 0%, rgba(11, 15, 25, 0.98) 100%);
+}
+
+[data-theme='light'] {
+  /* Soft Premium Light Theme */
+  --bg-primary: #f0f2f5;
+  --bg-secondary: #ffffff;
+  --bg-surface: #f8fafc;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --bg-glass-active: rgba(241, 245, 249, 0.95);
+  
+  --primary: #2563eb;
+  --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  --secondary: #10b981;
+  --accent: #f59e0b;
+  --danger: #ef4444;
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-glow: rgba(37, 99, 235, 0.15);
+  
+  --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 10px 30px -10px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 20px 50px -15px rgba(0, 0, 0, 0.1);
+
+  /* Scrollbar Variables */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+
+  /* Image Button Variables */
+  --btn-image-bg: rgba(99, 102, 241, 0.1);
+  --btn-image-color: #4f46e5;
+  --btn-image-hover-bg: rgba(99, 102, 241, 0.18);
+
+  /* Chat Window Dynamic Gradient */
+  --bg-chat-gradient: radial-gradient(circle at center, rgba(255, 255, 255, 0.85) 0%, #f0f2f5 100%);
 }
 
 * {
@@ -70,12 +120,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--scrollbar-thumb);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Glassmorphism Class utilities */

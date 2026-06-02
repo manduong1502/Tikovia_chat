@@ -525,7 +525,7 @@ export default function ChatWindow({
                           ...styles.messageBubble,
                           background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
                           color: isMe ? '#ffffff' : 'var(--text-primary)',
-                          borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                          borderRadius: isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
                           cursor: isNearNext ? 'pointer' : 'default'
                         }}
                       >
@@ -721,7 +721,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     position: 'relative',
-    background: 'radial-gradient(circle at center, rgba(30, 41, 66, 0.2) 0%, rgba(11, 15, 25, 0.95) 100%)',
+    background: 'var(--bg-chat-gradient)',
   },
   emptyContainer: {
     flex: 1,
@@ -830,10 +830,10 @@ const styles = {
     width: '100%'
   },
   dateSeparatorText: {
-    background: 'rgba(255, 255, 255, 0.08)',
+    background: 'var(--bg-surface)',
     color: 'var(--text-secondary)',
-    padding: '4px 12px',
-    borderRadius: '12px',
+    padding: '6px 14px',
+    borderRadius: 'var(--radius-md)',
     fontSize: '0.75rem',
     fontWeight: '500',
     border: '1px solid var(--border-color)',
@@ -909,7 +909,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    background: 'rgba(255,255,255,0.05)',
+    background: 'var(--bg-surface)',
     padding: '8px 12px',
     borderRadius: 'var(--radius-sm)',
     border: '1px solid var(--border-color)',
@@ -959,7 +959,7 @@ const styles = {
   },
   reminderBox: {
     width: '240px',
-    background: 'rgba(255, 255, 255, 0.03)',
+    background: 'var(--bg-surface)',
     borderLeft: '3px solid var(--accent)',
     padding: '8px 12px',
     borderRadius: '0 var(--radius-sm) var(--radius-sm) 0'
@@ -977,11 +977,11 @@ const styles = {
   },
   actionPopover: {
     position: 'absolute',
-    background: 'rgba(30, 41, 66, 0.95)',
-    backdropFilter: 'blur(10px)',
+    background: 'var(--bg-glass-active)',
+    backdropFilter: 'blur(12px)',
     border: '1px solid var(--border-color)',
-    borderRadius: '12px',
-    boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+    borderRadius: 'var(--radius-md)',
+    boxShadow: 'var(--shadow-md)',
     zIndex: 9999,
     padding: '8px',
     display: 'flex',
@@ -1061,16 +1061,13 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '3px',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'var(--bg-surface)',
     border: '1px solid var(--border-color)',
-    borderRadius: '12px',
+    borderRadius: 'var(--radius-sm)',
     padding: '2px 6px',
     fontSize: '0.75rem',
     cursor: 'pointer',
-    transition: 'background 0.15s ease',
-    ':hover': {
-      backgroundColor: 'rgba(255,255,255,0.15)'
-    }
+    transition: 'background 0.15s ease'
   },
   reactionCount: {
     fontWeight: 'bold',

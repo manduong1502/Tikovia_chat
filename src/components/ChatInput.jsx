@@ -527,7 +527,7 @@ const styles = {
     padding: '12px 16px',
     borderTop: '1px solid var(--border-color)',
     position: 'relative',
-    background: '#151a24'
+    background: 'var(--bg-secondary)'
   },
   inputBar: {
     display: 'flex',
@@ -560,18 +560,19 @@ const styles = {
     flexShrink: 0
   },
   imageBtn: {
-    background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
-    color: '#151a24',
+    background: 'var(--btn-image-bg)',
+    color: 'var(--btn-image-color)',
     border: 'none',
-    borderRadius: '8px',
-    width: '32px',
-    height: '32px',
+    borderRadius: 'var(--radius-sm)',
+    width: '36px',
+    height: '36px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
     padding: '0',
-    flexShrink: 0
+    flexShrink: 0,
+    transition: 'background var(--transition-fast), transform var(--transition-fast)'
   },
   textInput: {
     flex: 1,
@@ -808,7 +809,7 @@ const styles = {
   modalInput: {
     padding: '10px 12px',
     borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255,255,255,0.05)',
+    background: 'var(--bg-surface)',
     border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
     fontSize: '0.9rem',
@@ -832,7 +833,7 @@ const styles = {
   btnSecondary: {
     padding: '10px 16px',
     borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255,255,255,0.05)',
+    background: 'var(--bg-surface)',
     color: 'var(--text-primary)',
     border: '1px solid var(--border-color)',
     fontWeight: '600',
@@ -842,10 +843,10 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    background: 'rgba(255, 255, 255, 0.05)',
+    background: 'var(--bg-surface)',
     borderLeft: '3px solid var(--primary)',
     padding: '8px 16px',
-    borderRadius: '8px',
+    borderRadius: 'var(--radius-sm)',
     marginBottom: '10px',
     animation: 'slideDown 0.2s ease'
   },
