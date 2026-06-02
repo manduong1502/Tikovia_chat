@@ -11,6 +11,9 @@ export default function ChatWindow({
   typingUsers,
   onSendMessage,
   onPinMessage,
+  onToggleReaction,
+  onRecallMessage,
+  onDeleteMessage,
   onStartCall, // Trực tiếp gọi
   toggleRightSidebar,
   onlineUsers,
@@ -19,6 +22,8 @@ export default function ChatWindow({
   className
 }) {
   const [pinnedMessages, setPinnedMessages] = useState([]);
+  const [activePopoverMsgId, setActivePopoverMsgId] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
   const messagesEndRef = useRef(null);
   const chatFeedRef = useRef(null);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -77,8 +82,34 @@ export default function ChatWindow({
     onPinMessage(msgId, conversation.id);
   };
 
+  // Render reply preview inside the bubble
+  const renderReplyContext = (msg) => {
+    if (!msg.replyTo) return null;
+    const isMeReply = msg.replyTo.senderId === user.id;
+    const senderName = isMeReply 
+      ? 'Bạn' 
+      : (conversation.members.find(m => m.user.id === msg.replyTo.senderId)?.nickname || msg.replyTo.sender?.displayName || 'Người dùng');
+    
+    return (
+      <div style={{
+        ...styles.replyContext,
+        backgroundColor: msg.senderId === user.id ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.06)',
+        color: msg.senderId === user.id ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)'
+      }}>
+        <div style={styles.replyContextTitle}>{senderName}</div>
+        <div style={styles.replyContextBody}>
+          {msg.replyTo.isRecalled ? 'Tin nhắn đã bị thu hồi' : msg.replyTo.type === 'text' ? msg.replyTo.content : `[${msg.replyTo.type.toUpperCase()}]`}
+        </div>
+      </div>
+    );
+  };
+
   // Render nội dung tin nhắn dựa trên type
   const renderMessageContent = (msg) => {
+    if (msg.isRecalled) {
+      return <span style={{ fontStyle: 'italic', opacity: 0.7 }}>Tin nhắn đã bị thu hồi</span>;
+    }
+
     let metadata = {};
     if (msg.metadata) {
       try {
@@ -250,7 +281,7 @@ export default function ChatWindow({
       )}
 
       {/* Messages Feed */}
-      <div style={styles.chatFeed} ref={chatFeedRef}>
+      <div style={styles.chatFeed} ref={chatFeedRef} onClick={() => setActivePopoverMsgId(null)}>
         {messages.length === 0 ? (
           <div style={styles.startChat}>
             <p>Bắt đầu cuộc trò chuyện. Hãy gửi lời chào!</p>
@@ -258,13 +289,21 @@ export default function ChatWindow({
         ) : (
           messages.map(msg => {
             const isMe = msg.senderId === user.id;
+            const totalReactions = msg.reactions?.length || 0;
+            const reactionCounts = msg.reactions?.reduce((acc, r) => {
+              acc[r.type] = (acc[r.type] || 0) + 1;
+              return acc;
+            }, {}) || {};
+            const reactionTypes = Object.keys(reactionCounts).sort((a, b) => reactionCounts[b] - reactionCounts[a]);
+
             return (
               <div 
                 key={msg.id} 
                 style={{
                   ...styles.messageRow,
                   alignSelf: isMe ? 'flex-end' : 'flex-start',
-                  justifyContent: isMe ? 'flex-end' : 'flex-start'
+                  justifyContent: isMe ? 'flex-end' : 'flex-start',
+                  marginBottom: totalReactions > 0 ? '16px' : '0px'
                 }}
               >
                 {!isMe && (
@@ -276,25 +315,151 @@ export default function ChatWindow({
                 )}
                 <div style={styles.messageContentWrapper}>
                   {!isMe && isGroup && <span style={styles.senderLabel}>{getSenderName(msg)}</span>}
-                  <div 
-                    style={{
-                      ...styles.messageBubble,
-                      background: isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
-                      color: isMe ? '#ffffff' : 'var(--text-primary)',
-                      borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                    }}
-                  >
-                    {renderMessageContent(msg)}
-                    
-                    {/* Action buttons (Pin) on Hover */}
-                    <button 
-                      onClick={() => handlePinClick(msg.id)} 
-                      style={styles.bubblePinBtn}
-                      title={msg.isPinned ? "Bỏ ghim tin" : "Ghim tin"}
+                  
+                  <div style={{
+                    ...styles.bubbleWrapper,
+                    flexDirection: isMe ? 'row-reverse' : 'row'
+                  }}>
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!msg.isRecalled) {
+                          setActivePopoverMsgId(activePopoverMsgId === msg.id ? null : msg.id);
+                        }
+                      }}
+                      style={{
+                        ...styles.messageBubble,
+                        background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
+                        color: isMe ? '#ffffff' : 'var(--text-primary)',
+                        borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                        cursor: 'pointer'
+                      }}
                     >
-                      <BsPinAngle size={10} style={{transform: msg.isPinned ? 'none' : 'rotate(45deg)', color: msg.isPinned ? 'var(--accent)' : 'inherit'}} />
-                    </button>
+                      {renderReplyContext(msg)}
+                      {renderMessageContent(msg)}
+                      
+                      {/* Action buttons (Pin) on Hover */}
+                      {!msg.isRecalled && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePinClick(msg.id);
+                          }} 
+                          style={styles.bubblePinBtn}
+                          title={msg.isPinned ? "Bỏ ghim tin" : "Ghim tin"}
+                        >
+                          <BsPinAngle size={10} style={{transform: msg.isPinned ? 'none' : 'rotate(45deg)', color: msg.isPinned ? 'var(--accent)' : 'inherit'}} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Popover Action Menu */}
+                    {activePopoverMsgId === msg.id && (
+                      <div 
+                        style={{
+                          ...styles.actionPopover,
+                          right: isMe ? '0px' : 'auto',
+                          left: !isMe ? '0px' : 'auto',
+                          bottom: '100%'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* Emojis selection row */}
+                        <div style={styles.popoverEmojisRow}>
+                          {['👍', '❤️', '😂', '😮', '😭', '😡'].map(emoji => {
+                            const hasReacted = msg.reactions?.some(r => r.userId === user.id && r.type === emoji);
+                            return (
+                              <button 
+                                key={emoji} 
+                                onClick={() => {
+                                  onToggleReaction(msg.id, emoji);
+                                  setActivePopoverMsgId(null);
+                                }}
+                                style={{
+                                  ...styles.popoverEmojiBtn,
+                                  background: hasReacted ? 'rgba(255,255,255,0.15)' : 'none'
+                                }}
+                                className="btn-interactive"
+                              >
+                                {emoji}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Actions list */}
+                        <div style={styles.popoverActionsRow}>
+                          <button 
+                            onClick={() => {
+                              setReplyingTo(msg);
+                              setActivePopoverMsgId(null);
+                            }}
+                            style={styles.popoverActionItem}
+                            className="btn-interactive"
+                          >
+                            Trả lời
+                          </button>
+                          <button 
+                            onClick={() => {
+                              handlePinClick(msg.id);
+                              setActivePopoverMsgId(null);
+                            }}
+                            style={styles.popoverActionItem}
+                            className="btn-interactive"
+                          >
+                            {msg.isPinned ? 'Bỏ ghim' : 'Ghim'}
+                          </button>
+                          {isMe && (
+                            <button 
+                              onClick={() => {
+                                if (confirm('Bạn có chắc muốn thu hồi tin nhắn này đối với mọi người?')) {
+                                  onRecallMessage(msg.id);
+                                }
+                                setActivePopoverMsgId(null);
+                              }}
+                              style={{...styles.popoverActionItem, color: 'var(--danger)'}}
+                              className="btn-interactive"
+                            >
+                              Gỡ/Thu hồi
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => {
+                              if (confirm('Xóa tin nhắn này phía bạn? Người khác vẫn sẽ nhìn thấy.')) {
+                                onDeleteMessage(msg.id);
+                              }
+                              setActivePopoverMsgId(null);
+                            }}
+                            style={{...styles.popoverActionItem, color: 'var(--danger)'}}
+                            className="btn-interactive"
+                          >
+                            Xóa phía tôi
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Reaction Badges */}
+                  {totalReactions > 0 && (
+                    <div style={{
+                      ...styles.reactionsWrapper,
+                      alignSelf: isMe ? 'flex-end' : 'flex-start',
+                      justifyContent: isMe ? 'flex-end' : 'flex-start'
+                    }}>
+                      {reactionTypes.map(type => (
+                        <div 
+                          key={type} 
+                          style={styles.reactionBadge} 
+                          title={msg.reactions.filter(r => r.type === type).map(r => r.user.displayName).join(', ')}
+                        >
+                          <span>{type}</span>
+                          <span style={styles.reactionCount}>{reactionCounts[type]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <span style={{
                     ...styles.messageTime,
                     textAlign: isMe ? 'right' : 'left'
@@ -330,6 +495,8 @@ export default function ChatWindow({
         conversation={conversation}
         onSendMessage={onSendMessage} 
         socket={onSendMessage ? true : false} // Socket signal status
+        replyingTo={replyingTo}
+        setReplyingTo={setReplyingTo}
       />
     </div>
   );
@@ -587,5 +754,113 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     fontSize: '0.8rem'
+  },
+  bubbleWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    position: 'relative',
+    gap: '8px'
+  },
+  actionPopover: {
+    position: 'absolute',
+    background: 'rgba(30, 41, 66, 0.95)',
+    backdropFilter: 'blur(10px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '12px',
+    boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+    zIndex: 9999,
+    padding: '8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    width: '240px',
+    animation: 'slideUp 0.15s ease'
+  },
+  popoverEmojisRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    paddingBottom: '6px',
+    borderBottom: '1px solid rgba(255,255,255,0.08)'
+  },
+  popoverEmojiBtn: {
+    border: 'none',
+    fontSize: '1.2rem',
+    cursor: 'pointer',
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'transform 0.1s ease',
+    ':hover': {
+      transform: 'scale(1.2)'
+    }
+  },
+  popoverActionsRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
+  },
+  popoverActionItem: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-primary)',
+    textAlign: 'left',
+    padding: '6px 10px',
+    borderRadius: '6px',
+    fontSize: '0.8rem',
+    cursor: 'pointer',
+    width: '100%',
+    transition: 'background 0.15s ease',
+    ':hover': {
+      background: 'rgba(255,255,255,0.05)'
+    }
+  },
+  replyContext: {
+    borderRadius: '8px 8px 4px 4px',
+    padding: '6px 10px',
+    marginBottom: '6px',
+    fontSize: '0.75rem',
+    borderLeft: '2px solid var(--primary)',
+    maxWidth: '100%',
+    overflow: 'hidden'
+  },
+  replyContextTitle: {
+    fontWeight: 'bold',
+    marginBottom: '2px',
+    color: 'var(--primary)'
+  },
+  replyContextBody: {
+    opacity: 0.8,
+    textOverflow: 'ellipsis',
+    overflow: 'hidden',
+    whiteSpace: 'nowrap'
+  },
+  reactionsWrapper: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '4px',
+    marginTop: '2px'
+  },
+  reactionBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '3px',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '12px',
+    padding: '2px 6px',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+    transition: 'background 0.15s ease',
+    ':hover': {
+      backgroundColor: 'rgba(255,255,255,0.15)'
+    }
+  },
+  reactionCount: {
+    fontWeight: 'bold',
+    color: 'var(--text-secondary)',
+    fontSize: '0.7rem'
   }
 };

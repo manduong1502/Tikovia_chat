@@ -137,6 +137,16 @@ export default function App() {
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isPinned, pinnedBy: message.pinnedBy, pinnedAt: message.pinnedAt } : m));
     });
 
+    // Lắng nghe cập nhật cảm xúc tin nhắn
+    newSocket.on('message-reaction-updated', ({ messageId, reactions }) => {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
+    });
+
+    // Lắng nghe tin nhắn bị thu hồi
+    newSocket.on('message-recalled', ({ messageId }) => {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isRecalled: true, content: null, metadata: null, isPinned: false, pinnedBy: null, pinnedAt: null } : m));
+    });
+
     // Lắng nghe nhắc hẹn đến giờ kích hoạt
     newSocket.on('reminder-trigger', (reminder) => {
       // 1. Hiện thông báo đẩy trên trình duyệt
@@ -261,6 +271,51 @@ export default function App() {
     }
   };
 
+  // Thả / hủy / đổi cảm xúc qua socket
+  const handleToggleReaction = (messageId, emojiType) => {
+    if (socket && activeConversation) {
+      socket.emit('toggle-reaction', {
+        messageId,
+        userId: user.id,
+        type: emojiType,
+        conversationId: activeConversation.id
+      });
+    }
+  };
+
+  // Thu hồi / Gỡ tin nhắn qua socket
+  const handleRecallMessage = (messageId) => {
+    if (socket && activeConversation) {
+      socket.emit('recall-message', {
+        messageId,
+        conversationId: activeConversation.id,
+        userId: user.id
+      });
+    }
+  };
+
+  // Xóa tin nhắn phía tôi qua REST API
+  const handleDeleteMessageForMe = async (messageId) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/chat/messages/${messageId}/delete-for-me`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (res.ok) {
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Lỗi khi xóa tin nhắn');
+      }
+    } catch (e) {
+      console.error('Lỗi xóa tin nhắn:', e);
+    }
+  };
+
   // Nhận tín hiệu gọi thoại/video từ nút đầu trang chat
   const handleStartCall = (isVideoCall) => {
     if (!activeConversation) return;
@@ -331,6 +386,9 @@ export default function App() {
           typingUsers={typingUsers}
           onSendMessage={handleSendMessage}
           onPinMessage={handlePinMessage}
+          onToggleReaction={handleToggleReaction}
+          onRecallMessage={handleRecallMessage}
+          onDeleteMessage={handleDeleteMessageForMe}
           onStartCall={handleStartCall}
           toggleRightSidebar={() => {
             const nextState = !showRightSidebar;

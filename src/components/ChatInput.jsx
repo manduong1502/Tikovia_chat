@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { FiSmile, FiMoreHorizontal, FiMic, FiImage, FiSend, FiPaperclip, FiClock, FiMapPin, FiX } from 'react-icons/fi';
 import stickerPacks from '../stickers.json';
 
-export default function ChatInput({ token, conversation, onSendMessage }) {
+export default function ChatInput({ token, conversation, onSendMessage, replyingTo, setReplyingTo }) {
   const [text, setText] = useState('');
   const [showStickers, setShowStickers] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -97,12 +97,14 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
         conversationId: conversation.id,
         type: type,
         content: data.url,
+        replyToId: replyingTo?.id || null,
         metadata: {
           fileSize: data.fileSize,
           mimeType: data.mimeType,
           fileName: data.fileName
         }
       });
+      if (setReplyingTo) setReplyingTo(null);
     } catch (e) {
       console.error(e);
       alert(e.message);
@@ -131,9 +133,11 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
       conversationId: conversation.id,
       type: 'sticker',
       content: stickerId,
+      replyToId: replyingTo?.id || null,
       metadata: { stickerId }
     });
     setShowStickers(false);
+    if (setReplyingTo) setReplyingTo(null);
   };
 
   // Gửi tin nhắn văn bản
@@ -142,10 +146,12 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
     onSendMessage({
       conversationId: conversation.id,
       type: 'text',
-      content: text
+      content: text,
+      replyToId: replyingTo?.id || null
     });
     setText('');
     setShowMentions(false);
+    if (setReplyingTo) setReplyingTo(null);
   };
 
   // Chia sẻ vị trí hiện tại
@@ -170,6 +176,7 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
         conversationId: conversation.id,
         type: 'location',
         content: `📍 ${address}`,
+        replyToId: replyingTo?.id || null,
         metadata: {
           lat: latitude,
           lng: longitude,
@@ -177,6 +184,7 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
         }
       });
       setShowMoreMenu(false);
+      if (setReplyingTo) setReplyingTo(null);
     }, (err) => {
       alert('Không thể truy cập vị trí của bạn: ' + err.message);
     });
@@ -196,10 +204,12 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
         conversationId: conversation.id,
         type: 'reminder',
         content: `⏰ Nhắc hẹn: "${reminderTitle}"`,
+        replyToId: replyingTo?.id || null,
         metadata: {
           remindAt: new Date(reminderTime).toISOString()
         }
       });
+      if (setReplyingTo) setReplyingTo(null);
 
       // 2. Gọi API tạo nhắc hẹn trên server để thiết lập cron trigger (bên socket.on('send-message') sẽ tự động chạy hoặc gọi API)
       const res = await fetch(`${API_URL}/chat/reminders`, {
@@ -287,6 +297,21 @@ export default function ChatInput({ token, conversation, onSendMessage }) {
 
   return (
     <div style={styles.container} className="glass">
+      {/* 0. Reply Preview Bar */}
+      {replyingTo && (
+        <div style={styles.replyPreviewBar}>
+          <div style={styles.replyPreviewInfo}>
+            <span style={styles.replyPreviewTitle}>Đang trả lời <strong>{replyingTo.senderId === conversation.members.find(m => m.user.id === replyingTo.senderId)?.user.id ? 'Bạn' : (conversation.members.find(m => m.user.id === replyingTo.senderId)?.nickname || replyingTo.sender?.displayName || 'Người dùng')}</strong></span>
+            <span style={styles.replyPreviewContent}>
+              {replyingTo.type === 'text' ? replyingTo.content : `[${replyingTo.type.toUpperCase()}]`}
+            </span>
+          </div>
+          <button onClick={() => setReplyingTo(null)} style={styles.replyPreviewCloseBtn} className="btn-interactive">
+            <FiX size={16} />
+          </button>
+        </div>
+      )}
+
       {/* 1. Popover Tag tên (@mention) */}
       {showMentions && mentionFilteredMembers.length > 0 && (
         <div style={{...styles.mentionsContainer, bottom: mentionCoords.bottom, left: mentionCoords.left}} className="glass-card mentions-popover">
@@ -802,5 +827,45 @@ const styles = {
     border: '1px solid var(--border-color)',
     fontWeight: '600',
     cursor: 'pointer'
+  },
+  replyPreviewBar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderLeft: '3px solid var(--primary)',
+    padding: '8px 16px',
+    borderRadius: '8px',
+    marginBottom: '10px',
+    animation: 'slideDown 0.2s ease'
+  },
+  replyPreviewInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    fontSize: '0.8rem',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    flex: 1
+  },
+  replyPreviewTitle: {
+    color: 'var(--primary)',
+    fontWeight: '500'
+  },
+  replyPreviewContent: {
+    color: 'var(--text-secondary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+  replyPreviewCloseBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    padding: '4px',
+    display: 'flex',
+    alignItems: 'center'
   }
 };
