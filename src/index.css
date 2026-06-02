@@ -292,8 +292,10 @@ body {
 }
 
 /* Mặc định ẩn các phần tử chỉ dành cho mobile khi ở màn hình lớn */
-.more-item-mobile-only {
-  display: none !important;
+@media (min-width: 769px) {
+  .more-item-mobile-only {
+    display: none !important;
+  }
 }
 
 @media (max-width: 480px) {
