@@ -271,7 +271,7 @@ export default function App() {
       const registration = await navigator.serviceWorker.ready;
       
       currentStep = 'Tải khoá VAPID từ máy chủ';
-      const keyRes = await fetch(`${API_URL}/chat/push-key`, {
+      const keyRes = await fetch(`${API_URL}/chat/device-key`, {
         headers: { 'Authorization': `Bearer ${userToken}` }
       });
       if (!keyRes.ok) {
@@ -307,7 +307,7 @@ export default function App() {
       });
 
       currentStep = 'Đồng bộ token đăng ký lên máy chủ';
-      const subRes = await fetch(`${API_URL}/chat/push-subscribe`, {
+      const subRes = await fetch(`${API_URL}/chat/device-token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
