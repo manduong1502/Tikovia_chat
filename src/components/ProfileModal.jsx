@@ -15,7 +15,10 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate }) 
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const API_URL = 'http://localhost:5000/api/auth/profile';
+  const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/auth/profile';
+  const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').endsWith('/api')
+    ? (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').slice(0, -4)
+    : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -90,7 +93,7 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate }) 
       setError('');
       setSuccess('');
       
-      const res = await fetch('http://localhost:5000/api/chat/upload', {
+      const res = await fetch(`${BASE_URL}/api/chat/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -101,7 +104,7 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate }) 
       if (!res.ok) throw new Error('Không thể tải ảnh lên server');
 
       const data = await res.json();
-      const fullUrl = `http://localhost:5000${data.url}`;
+      const fullUrl = `${BASE_URL}${data.url}`;
       setAvatarUrl(fullUrl);
       setSuccess('Tải ảnh đại diện lên thành công!');
     } catch (err) {

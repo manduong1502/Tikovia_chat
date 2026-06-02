@@ -35,7 +35,7 @@ export default function App() {
 
   const activeConversationRef = useRef(null);
 
-  const API_URL = 'http://localhost:5000/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   // Đồng bộ activeConversationRef để lướt socket dùng đúng state mới nhất
   useEffect(() => {
@@ -89,7 +89,8 @@ export default function App() {
   useEffect(() => {
     if (!token || !user) return;
 
-    const newSocket = io('http://localhost:5000');
+    const socketUrl = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
+    const newSocket = io(socketUrl);
     setSocket(newSocket);
 
     newSocket.on('connect', () => {

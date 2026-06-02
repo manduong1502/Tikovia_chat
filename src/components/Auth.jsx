@@ -9,7 +9,7 @@ export default function Auth({ onAuthSuccess }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const API_URL = 'http://localhost:5000/api/auth';
+  const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/auth';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,7 +46,18 @@ export default function Auth({ onAuthSuccess }) {
 
   return (
     <div style={styles.container}>
+      {/* Background Floating Blobs */}
+      <div className="bg-blob blob-1"></div>
+      <div className="bg-blob blob-2"></div>
+      <div className="bg-blob blob-3"></div>
+
       <div style={styles.authCard} className="glass-card anim-scale-in auth-card">
+        {/* Brand Logo Header */}
+        <div style={styles.logoContainer}>
+          <div style={styles.logoGlow}></div>
+          <span style={styles.logoIcon}>💬</span>
+        </div>
+
         <h2 style={styles.title}>{isLogin ? 'Đăng nhập ChatTikovia' : 'Đăng ký Tài khoản'}</h2>
         <p style={styles.subtitle}>
           {isLogin ? 'Ứng dụng chat nội bộ bảo mật của doanh nghiệp' : 'Điền thông tin của bạn để bắt đầu'}
@@ -140,7 +151,9 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: 'radial-gradient(circle at top right, rgba(0, 122, 255, 0.15) 0%, rgba(11, 15, 25, 1) 70%)',
+    background: '#0b0f19',
+    position: 'relative',
+    overflow: 'hidden',
   },
   authCard: {
     width: '100%',
@@ -148,26 +161,62 @@ const styles = {
     padding: '40px',
     display: 'flex',
     flexDirection: 'column',
+    position: 'relative',
+    zIndex: 10,
+    background: 'rgba(26, 34, 50, 0.45)',
+    backdropFilter: 'blur(30px)',
+    WebkitBackdropFilter: 'blur(30px)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    boxShadow: 'var(--shadow-lg)',
+  },
+  logoContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '64px',
+    height: '64px',
+    borderRadius: '18px',
+    background: 'linear-gradient(135deg, rgba(7, 102, 255, 0.25) 0%, rgba(0, 82, 204, 0.45) 100%)',
+    border: '1px solid rgba(7, 102, 255, 0.35)',
+    margin: '0 auto 20px auto',
+    position: 'relative',
+    boxShadow: '0 8px 25px rgba(7, 102, 255, 0.35)',
+  },
+  logoGlow: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 'inherit',
+    background: 'inherit',
+    filter: 'blur(8px)',
+    opacity: 0.7,
+    zIndex: 1,
+  },
+  logoIcon: {
+    fontSize: '28px',
+    zIndex: 2,
   },
   title: {
-    fontSize: '1.8rem',
+    fontSize: '1.75rem',
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: '8px',
     background: 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%)',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
+    letterSpacing: '-0.5px',
   },
   subtitle: {
-    fontSize: '0.9rem',
+    fontSize: '0.85rem',
     color: 'var(--text-secondary)',
     textAlign: 'center',
-    marginBottom: '30px',
+    marginBottom: '32px',
+    lineHeight: '1.4',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px',
+    gap: '18px',
   },
   inputGroup: {
     display: 'flex',
@@ -175,41 +224,40 @@ const styles = {
     gap: '6px',
   },
   label: {
-    fontSize: '0.85rem',
+    fontSize: '0.8rem',
     fontWeight: '600',
-    color: 'var(--text-primary)',
+    color: 'var(--text-secondary)',
+    letterSpacing: '0.2px',
   },
   input: {
     padding: '12px 16px',
     borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid var(--border-color)',
+    background: 'rgba(255, 255, 255, 0.04)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
     color: 'var(--text-primary)',
     fontSize: '0.95rem',
     outline: 'none',
     transition: 'all var(--transition-fast)',
-    ':focus': {
-      border: '1px solid var(--primary)',
-      background: 'rgba(255, 255, 255, 0.08)',
-    }
+    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.2)',
   },
   submitBtn: {
-    padding: '14px',
+    padding: '13px',
     borderRadius: 'var(--radius-sm)',
     background: 'var(--primary-gradient)',
     color: '#ffffff',
     border: 'none',
-    fontSize: '1rem',
+    fontSize: '0.95rem',
     fontWeight: '600',
     cursor: 'pointer',
-    marginTop: '10px',
-    boxShadow: '0 4px 14px rgba(0, 122, 255, 0.4)',
+    marginTop: '12px',
+    boxShadow: '0 6px 20px rgba(7, 102, 255, 0.35)',
+    transition: 'all var(--transition-fast)',
   },
   errorAlert: {
     background: 'rgba(239, 68, 68, 0.15)',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
+    border: '1px solid rgba(239, 68, 68, 0.25)',
     color: '#f87171',
-    padding: '12px',
+    padding: '11px 14px',
     borderRadius: 'var(--radius-sm)',
     fontSize: '0.85rem',
     marginBottom: '20px',
@@ -218,17 +266,19 @@ const styles = {
   switchAuth: {
     display: 'flex',
     justifyContent: 'center',
+    alignItems: 'center',
     gap: '8px',
-    marginTop: '25px',
-    fontSize: '0.9rem',
+    marginTop: '28px',
+    fontSize: '0.85rem',
     color: 'var(--text-secondary)',
   },
   switchBtn: {
     background: 'none',
     border: 'none',
-    color: 'var(--primary)',
+    color: '#60a5fa',
     fontWeight: '600',
     cursor: 'pointer',
-    fontSize: '0.9rem',
+    fontSize: '0.85rem',
+    transition: 'color 0.2s ease',
   }
 };

@@ -21,6 +21,8 @@ export default function ChatWindow({
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const messagesEndRef = useRef(null);
   const chatFeedRef = useRef(null);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
   // Cuộn xuống đáy khi có tin nhắn mới
   useEffect(() => {
@@ -127,10 +129,10 @@ export default function ChatWindow({
         return (
           <div style={styles.imageWrapper}>
             <img 
-              src={`http://localhost:5000${msg.content}`} 
+              src={`${BASE_URL}${msg.content}`} 
               alt="Uploaded" 
               style={styles.chatImage} 
-              onClick={() => window.open(`http://localhost:5000${msg.content}`, '_blank')}
+              onClick={() => window.open(`${BASE_URL}${msg.content}`, '_blank')}
             />
           </div>
         );
@@ -143,7 +145,7 @@ export default function ChatWindow({
               <span style={styles.fileName}>{msg.content.substring(msg.content.lastIndexOf('/') + 1)}</span>
               <span style={styles.fileSize}>{(metadata.fileSize / 1024 / 1024).toFixed(2)} MB</span>
             </div>
-            <a href={`http://localhost:5000${msg.content}`} download style={styles.fileDownload}>
+            <a href={`${BASE_URL}${msg.content}`} download style={styles.fileDownload}>
               <FiDownload size={18} />
             </a>
           </div>
@@ -152,7 +154,7 @@ export default function ChatWindow({
       case 'voice':
         return (
           <div style={styles.voiceBox}>
-            <audio src={`http://localhost:5000${msg.content}`} controls style={styles.voiceAudio} />
+            <audio src={`${BASE_URL}${msg.content}`} controls style={styles.voiceAudio} />
           </div>
         );
 

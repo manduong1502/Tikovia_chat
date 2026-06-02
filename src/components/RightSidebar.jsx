@@ -24,7 +24,8 @@ export default function RightSidebar({
   const [searchResults, setSearchResults] = useState([]);
   const [isSearchingMsg, setIsSearchingMsg] = useState(false);
 
-  const API_URL = 'http://localhost:5000/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
   // Load kho lưu trữ media khi mở sidebar hoặc đổi cuộc hội thoại
   useEffect(() => {
@@ -275,9 +276,9 @@ export default function RightSidebar({
                   {mediaGallery.images.map(img => (
                     <img
                       key={img.id}
-                      src={`http://localhost:5000${img.url}`}
+                      src={`${BASE_URL}${img.url}`}
                       alt=""
-                      onClick={() => window.open(`http://localhost:5000${img.url}`, '_blank')}
+                      onClick={() => window.open(`${BASE_URL}${img.url}`, '_blank')}
                       style={styles.galleryImage}
                     />
                   ))}
@@ -299,7 +300,7 @@ export default function RightSidebar({
                           {file.senderName} • {(file.size / 1024 / 1024).toFixed(2)} MB
                         </span>
                       </div>
-                      <a href={`http://localhost:5000${file.url}`} download style={styles.fileDownload}>
+                      <a href={`${BASE_URL}${file.url}`} download style={styles.fileDownload}>
                         <FiDownload size={16} />
                       </a>
                     </div>

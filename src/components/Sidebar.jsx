@@ -24,7 +24,7 @@ export default function Sidebar({
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'direct', 'group'
   const [uncontactedUsers, setUncontactedUsers] = useState([]);
 
-  const API_URL = 'http://localhost:5000/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   // Tìm kiếm người dùng mới từ ô tìm kiếm chính
   useEffect(() => {
