@@ -127,14 +127,14 @@ self.addEventListener('notificationclick', (event) => {
     type: 'window',
     includeUncontrolled: true
   }).then((windowClients) => {
-    // Tìm xem tab ứng dụng có đang mở sẵn không
+    // Tìm xem có bất kỳ tab ứng dụng nào đang mở sẵn không để tránh mở nhiều tab trùng lặp
     for (let i = 0; i < windowClients.length; i++) {
       const client = windowClients[i];
-      if (client.url === urlToOpen && 'focus' in client) {
+      if ('focus' in client) {
         return client.focus();
       }
     }
-    // Nếu tab chưa mở, mở tab mới
+    // Nếu chưa có tab nào mở, mở tab mới
     if (clients.openWindow) {
       return clients.openWindow(urlToOpen);
     }
