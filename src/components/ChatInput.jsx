@@ -693,7 +693,8 @@ const styles = {
     padding: '12px 16px',
     borderTop: '1px solid var(--border-color)',
     position: 'relative',
-    background: 'var(--bg-secondary)'
+    background: 'var(--bg-secondary)',
+    flexShrink: 0
   },
   inputBar: {
     display: 'flex',

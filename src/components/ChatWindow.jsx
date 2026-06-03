@@ -751,7 +751,8 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottom: '1px solid var(--border-color)',
-    zIndex: 5
+    zIndex: 5,
+    flexShrink: 0
   },
   headerInfo: {
     display: 'flex',

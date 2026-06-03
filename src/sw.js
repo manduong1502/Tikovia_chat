@@ -77,7 +77,7 @@ self.addEventListener('push', (event) => {
     
     const options = {
       body: data.body || 'Bạn có tin nhắn mới',
-      icon: '/pwa-192x192.png',
+      icon: data.icon || '/pwa-192x192.png', // Dùng avatar của người gửi nếu có, ngược lại dùng logo mặc định
       badge: '/pwa-192x192.png',
       vibrate: [100, 50, 100],
       data: {
