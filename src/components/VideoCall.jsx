@@ -68,6 +68,13 @@ export default function VideoCall({
     };
   }, [socket, user]);
 
+  // Tự động kích hoạt gọi đi khi trạng thái chuyển sang 'calling' (Người gọi - Caller)
+  useEffect(() => {
+    if (callState === 'calling' && callInfo && callInfo.to && !localStream) {
+      handleStartCall(callInfo.isVideo);
+    }
+  }, [callState, callInfo, localStream]);
+
   // Xử lý sự kiện cuộc gọi qua Socket.io
   useEffect(() => {
     if (!socket) return;
