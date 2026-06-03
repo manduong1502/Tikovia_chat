@@ -15,11 +15,14 @@ export default function VideoCall({
   remoteStream,
   setRemoteStream,
   peerInstance,
-  setPeerInstance
+  setPeerInstance,
+  conversation
 }) {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const currentCallRef = useRef(null);
+  const callStartTimeRef = useRef(null);
+  const callWasConnectedRef = useRef(false);
 
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
@@ -89,6 +92,8 @@ export default function VideoCall({
     // Đối phương đồng ý nghe cuộc gọi
     socket.on('call-accepted', () => {
       console.log('Đối phương đã chấp nhận cuộc gọi!');
+      callWasConnectedRef.current = true;
+      callStartTimeRef.current = Date.now();
       setCallState('connected');
     });
 
@@ -159,14 +164,22 @@ export default function VideoCall({
       setLocalStream(stream);
       setVideoEnabled(callInfo.isVideo);
 
+      callWasConnectedRef.current = true;
+      callStartTimeRef.current = Date.now();
       setCallState('connected');
 
       // Báo socket đã đồng ý
       socket.emit('answer-call', { to: callInfo.from });
 
       // Trả lời cuộc gọi PeerJS
-      if (peerInstance) {
-        // PeerJS lắng nghe sự kiện 'call' trước đó
+      if (currentCallRef.current) {
+        console.log('Đang trả lời cuộc gọi đã nhận trong Ref...');
+        currentCallRef.current.answer(stream);
+        currentCallRef.current.on('stream', (userRemoteStream) => {
+          setRemoteStream(userRemoteStream);
+        });
+      } else if (peerInstance) {
+        console.log('Chưa nhận tín hiệu cuộc gọi PeerJS, đang chờ nhận tín hiệu...');
         peerInstance.on('call', (call) => {
           call.answer(stream);
           currentCallRef.current = call;
@@ -197,6 +210,36 @@ export default function VideoCall({
 
   // Dọn dẹp luồng stream và reset state
   const cleanupCall = () => {
+    // 1. Lưu nhật ký cuộc gọi vào phòng chat
+    if (conversation && socket && callInfo) {
+      const isCaller = callInfo.from === user.id;
+      // Chỉ để máy người gọi gửi tin nhắn lưu nhật ký cuộc gọi tránh bị trùng 2 lần
+      if (isCaller) {
+        let logText = '';
+        if (callWasConnectedRef.current && callStartTimeRef.current) {
+          const durationSec = Math.round((Date.now() - callStartTimeRef.current) / 1000);
+          const formatTime = (sec) => {
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+          };
+          logText = `📞 Cuộc gọi ${callInfo.isVideo ? 'video' : 'thoại'} kết thúc. Thời lượng: ${formatTime(durationSec)}`;
+        } else {
+          logText = `📞 Cuộc gọi nhỡ`;
+        }
+
+        if (logText) {
+          socket.emit('send-message', {
+            conversationId: conversation.id,
+            senderId: user.id,
+            type: 'text',
+            content: logText
+          });
+        }
+      }
+    }
+
+    // 2. Dọn dẹp các luồng stream
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
     }
@@ -207,6 +250,8 @@ export default function VideoCall({
     setRemoteStream(null);
     setCallState('idle');
     setCallInfo(null);
+    callWasConnectedRef.current = false;
+    callStartTimeRef.current = null;
   };
 
   // Bật/tắt micro

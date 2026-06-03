@@ -715,6 +715,7 @@ export default function App() {
         setRemoteStream={setRemoteStream}
         peerInstance={peerInstance}
         setPeerInstance={setPeerInstance}
+        conversation={activeConversation}
       />
 
       {/* 5. Overlay Trang cá nhân (Profile) */}
