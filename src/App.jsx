@@ -109,17 +109,31 @@ export default function App() {
     setMobileActiveView('list');
   };
 
-  // Khởi tạo Socket.io
+  // Khởi tạo Socket.io với cấu hình tự động kết nối lại mạnh mẽ
   useEffect(() => {
     if (!token || !user) return;
 
     const socketUrl = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
-    const newSocket = io(socketUrl);
+    const newSocket = io(socketUrl, {
+      transports: ['websocket', 'polling'], // Đảm bảo hoạt động kể cả khi tường lửa chặn Websocket
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000
+    });
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
       console.log('Socket.io connected:', newSocket.id);
       newSocket.emit('register-user', user.id);
+      
+      // QUAN TRỌNG: Tự động tham gia lại phòng chat đang xem khi socket kết nối/kết nối lại
+      const activeConv = activeConversationRef.current;
+      if (activeConv) {
+        newSocket.emit('join-conversation', activeConv.id);
+        console.log(`[Socket.io] Tự động tham gia lại phòng chat: ${activeConv.id}`);
+      }
       
       // Tự động đồng bộ Push Subscription từ LocalStorage lên server qua socket khi kết nối thành công!
       const savedSub = localStorage.getItem('chat_push_subscription');
