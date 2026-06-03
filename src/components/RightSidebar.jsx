@@ -27,6 +27,21 @@ export default function RightSidebar({
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
+  // Quyết định URL tệp hiển thị (Cục bộ hay Proxy Google Drive)
+  const getFileUrl = (urlPath) => {
+    if (!urlPath) return '';
+    if (urlPath.includes('drive.google.com')) {
+      const match = urlPath.match(/[?&]id=([^&]+)/) || urlPath.match(/\/file\/d\/([^/]+)/);
+      if (match && match[1]) {
+        return `${API_URL}/chat/drive-file/${match[1]}`;
+      }
+    }
+    if (urlPath.startsWith('http')) {
+      return urlPath;
+    }
+    return `${BASE_URL}${urlPath}`;
+  };
+
   // Load kho lưu trữ media khi mở sidebar hoặc đổi cuộc hội thoại
   useEffect(() => {
     if (!conversation) return;
@@ -276,9 +291,9 @@ export default function RightSidebar({
                   {mediaGallery.images.map(img => (
                     <img
                       key={img.id}
-                      src={`${BASE_URL}${img.url}`}
+                      src={getFileUrl(img.url)}
                       alt=""
-                      onClick={() => window.open(`${BASE_URL}${img.url}`, '_blank')}
+                      onClick={() => window.open(getFileUrl(img.url), '_blank')}
                       style={styles.galleryImage}
                     />
                   ))}
@@ -300,7 +315,7 @@ export default function RightSidebar({
                           {file.senderName} • {(file.size / 1024 / 1024).toFixed(2)} MB
                         </span>
                       </div>
-                      <a href={`${BASE_URL}${file.url}`} download style={styles.fileDownload}>
+                      <a href={getFileUrl(file.url)} download style={styles.fileDownload}>
                         <FiDownload size={16} />
                       </a>
                     </div>

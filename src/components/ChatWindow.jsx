@@ -33,6 +33,21 @@ export default function ChatWindow({
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
+  // Quyết định URL tệp hiển thị (Cục bộ hay Proxy Google Drive)
+  const getFileUrl = (content) => {
+    if (!content) return '';
+    if (content.includes('drive.google.com')) {
+      const match = content.match(/[?&]id=([^&]+)/) || content.match(/\/file\/d\/([^/]+)/);
+      if (match && match[1]) {
+        return `${API_URL}/chat/drive-file/${match[1]}`;
+      }
+    }
+    if (content.startsWith('http')) {
+      return content;
+    }
+    return `${BASE_URL}${content}`;
+  };
+
   // Helper định dạng ngày phân tách dạng Voz
   const getRelativeDateString = (dateString) => {
     const date = new Date(dateString);
@@ -246,10 +261,10 @@ export default function ChatWindow({
         return (
           <div style={styles.imageWrapper}>
             <img 
-              src={`${BASE_URL}${msg.content}`} 
+              src={getFileUrl(msg.content)} 
               alt="Uploaded" 
               style={styles.chatImage} 
-              onClick={() => window.open(`${BASE_URL}${msg.content}`, '_blank')}
+              onClick={() => window.open(getFileUrl(msg.content), '_blank')}
             />
           </div>
         );
@@ -259,10 +274,10 @@ export default function ChatWindow({
           <div style={styles.fileBox}>
             <div style={styles.fileIcon}>📁</div>
             <div style={styles.fileDetails}>
-              <span style={styles.fileName}>{msg.content.substring(msg.content.lastIndexOf('/') + 1)}</span>
+              <span style={styles.fileName}>{metadata.fileName || msg.content.substring(msg.content.lastIndexOf('/') + 1)}</span>
               <span style={styles.fileSize}>{(metadata.fileSize / 1024 / 1024).toFixed(2)} MB</span>
             </div>
-            <a href={`${BASE_URL}${msg.content}`} download style={styles.fileDownload}>
+            <a href={getFileUrl(msg.content)} download style={styles.fileDownload}>
               <FiDownload size={18} />
             </a>
           </div>
@@ -271,7 +286,7 @@ export default function ChatWindow({
       case 'voice':
         return (
           <div style={styles.voiceBox}>
-            <audio src={`${BASE_URL}${msg.content}`} controls style={styles.voiceAudio} />
+            <audio src={getFileUrl(msg.content)} controls style={styles.voiceAudio} />
           </div>
         );
 
