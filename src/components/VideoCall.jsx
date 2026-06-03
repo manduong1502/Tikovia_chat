@@ -47,24 +47,49 @@ export default function VideoCall({
 
   // Gắn luồng stream cục bộ vào video element
   useEffect(() => {
-    if (localStream && localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream;
+    const video = localVideoRef.current;
+    if (localStream && video) {
+      video.srcObject = localStream;
+      video.play().catch(err => {
+        console.warn("Lỗi tự động phát video cục bộ:", err);
+      });
     }
   }, [localStream, callState]);
 
   // Gắn luồng stream đối phương vào video element
   useEffect(() => {
-    if (remoteStream && remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    const video = remoteVideoRef.current;
+    if (remoteStream && video) {
+      video.srcObject = remoteStream;
+      video.play().catch(err => {
+        console.warn("Lỗi tự động phát video đối phương:", err);
+      });
     }
   }, [remoteStream, callState]);
+
+  // Thiết lập log giám sát chất lượng/kết nối WebRTC
+  const setupCallDiagnostics = (call) => {
+    if (!call) return;
+    console.log('[Diagnostics] Thiết lập giám sát cuộc gọi...');
+    if (call.peerConnection) {
+      const pc = call.peerConnection;
+      console.log(`[Diagnostics] Trạng thái RTCPeerConnection ban đầu: ice=${pc.iceConnectionState}, connection=${pc.connectionState}`);
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[Diagnostics] Thay đổi trạng thái ICE Connection: ${pc.iceConnectionState}`);
+      };
+      pc.onconnectionstatechange = () => {
+        console.log(`[Diagnostics] Thay đổi trạng thái Connection: ${pc.connectionState}`);
+      };
+    }
+  };
 
   // Trả lời cuộc gọi WebRTC (PeerJS) bằng Stream cục bộ
   const answerPeerCall = (call, stream) => {
     console.log('Answering PeerJS call with stream...');
+    setupCallDiagnostics(call);
     call.answer(stream);
     call.on('stream', (userRemoteStream) => {
-      console.log('Received remote stream in call.on("stream")');
+      console.log('Received remote stream, tracks:', userRemoteStream.getTracks().map(t => `${t.kind}: enabled=${t.enabled}, state=${t.readyState}`));
       setRemoteStream(userRemoteStream);
     });
     call.on('close', () => {
@@ -167,10 +192,16 @@ export default function VideoCall({
   // Bắt đầu cuộc gọi (Người gọi - Caller)
   const handleStartCall = async (isVideoCall) => {
     try {
+      // Bẻ khoá (Unlock) autoplay cho thẻ video đối phương ngay trong hành vi click chuột của người dùng
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.play().catch(() => {});
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: isVideoCall,
         audio: true
       });
+      localStreamRef.current = stream; // Cập nhật ref ngay lập tức tránh độ trễ React state
       setLocalStream(stream);
       setVideoEnabled(isVideoCall);
 
@@ -191,9 +222,10 @@ export default function VideoCall({
         console.log('Caller side: call-accepted received, initiating PeerJS call...');
         const call = peerInstance.call(callInfo.to, stream);
         currentCallRef.current = call;
+        setupCallDiagnostics(call);
 
         call.on('stream', (userRemoteStream) => {
-          console.log('Caller side: Received remote stream.');
+          console.log('Caller side: Received remote stream, tracks:', userRemoteStream.getTracks().map(t => `${t.kind}: enabled=${t.enabled}, state=${t.readyState}`));
           setRemoteStream(userRemoteStream);
         });
         call.on('close', () => {
@@ -216,10 +248,16 @@ export default function VideoCall({
   // Trả lời cuộc gọi (Người nghe - Receiver)
   const handleAnswerCall = async () => {
     try {
+      // Bẻ khoá (Unlock) autoplay cho thẻ video đối phương ngay trong hành vi click chuột của người dùng
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.play().catch(() => {});
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: callInfo.isVideo,
         audio: true
       });
+      localStreamRef.current = stream; // Cập nhật ref ngay lập tức tránh độ trễ React state
       setLocalStream(stream);
       setVideoEnabled(callInfo.isVideo);
 
