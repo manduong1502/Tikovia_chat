@@ -30,6 +30,7 @@ export default function ChatWindow({
   const messagesEndRef = useRef(null);
   const chatFeedRef = useRef(null);
   const touchTimeoutRef = useRef(null);
+  const lastConversationIdRef = useRef(null);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
@@ -130,10 +131,24 @@ export default function ChatWindow({
     setActivePopoverMsgId(msgId);
   };
 
-  // Cuộn xuống đáy khi có tin nhắn mới
+  // Cuộn xuống đáy khi có tin nhắn mới hoặc đổi cuộc hội thoại
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, typingUsers]);
+    if (!conversation) return;
+
+    const isNewConversation = lastConversationIdRef.current !== conversation.id;
+    lastConversationIdRef.current = conversation.id;
+
+    // Sử dụng setTimeout để đảm bảo DOM đã render hoàn thiện trước khi cuộn
+    const timer = setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({
+          behavior: isNewConversation ? 'auto' : 'smooth'
+        });
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [messages, typingUsers, conversation?.id]);
 
   // Lọc các tin nhắn được ghim
   useEffect(() => {
