@@ -590,6 +590,7 @@ export default function App() {
 
     setCallInfo({
       to: otherMember.user.id,
+      from: user.id,
       callerName: otherMember.user.displayName,
       callerAvatar: otherMember.user.avatarUrl,
       isVideo: isVideoCall

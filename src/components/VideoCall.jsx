@@ -24,6 +24,24 @@ export default function VideoCall({
   const callStartTimeRef = useRef(null);
   const callWasConnectedRef = useRef(false);
 
+  // Lưu trữ các state vào refs để tránh stale closures trong các hàm callback sự kiện
+  const conversationRef = useRef(conversation);
+  const callInfoRef = useRef(callInfo);
+  const localStreamRef = useRef(localStream);
+  const cleanupCallRef = useRef(null);
+
+  useEffect(() => {
+    conversationRef.current = conversation;
+  }, [conversation]);
+
+  useEffect(() => {
+    callInfoRef.current = callInfo;
+  }, [callInfo]);
+
+  useEffect(() => {
+    localStreamRef.current = localStream;
+  }, [localStream]);
+
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
 
@@ -40,6 +58,24 @@ export default function VideoCall({
       remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream, callState]);
+
+  // Trả lời cuộc gọi WebRTC (PeerJS) bằng Stream cục bộ
+  const answerPeerCall = (call, stream) => {
+    console.log('Answering PeerJS call with stream...');
+    call.answer(stream);
+    call.on('stream', (userRemoteStream) => {
+      console.log('Received remote stream in call.on("stream")');
+      setRemoteStream(userRemoteStream);
+    });
+    call.on('close', () => {
+      console.log('PeerJS call closed.');
+      cleanupCallRef.current?.();
+    });
+    call.on('error', (err) => {
+      console.error('PeerJS call error:', err);
+      cleanupCallRef.current?.();
+    });
+  };
 
   // Khởi tạo PeerJS khi có Socket
   useEffect(() => {
@@ -66,12 +102,15 @@ export default function VideoCall({
       console.error('PeerJS error:', err);
     });
 
-    // Lắng nghe cuộc gọi đến
-    peer.on('call', async (incomingCall) => {
-      console.log('Có cuộc gọi WebRTC đến!');
+    // Lắng nghe cuộc gọi đến duy nhất một lần (Tránh rò rỉ listener)
+    peer.on('call', (incomingCall) => {
+      console.log('Có cuộc gọi WebRTC (PeerJS) đến!');
       currentCallRef.current = incomingCall;
 
-      // Không tự động bắt máy, việc này sẽ kích hoạt sau khi người dùng bấm "Trả lời" ở UI
+      // Nếu chúng ta đã bấm trả lời và có stream cục bộ, tiến hành kết nối stream ngay lập tức
+      if (localStreamRef.current) {
+        answerPeerCall(incomingCall, localStreamRef.current);
+      }
     });
 
     setPeerInstance(peer);
@@ -109,12 +148,12 @@ export default function VideoCall({
 
     // Đối phương cúp máy hoặc từ chối
     socket.on('call-ended-by-peer', () => {
-      cleanupCall();
+      cleanupCallRef.current?.();
     });
 
     socket.on('call-failed', (data) => {
       alert(data.reason);
-      cleanupCall();
+      cleanupCallRef.current?.();
     });
 
     return () => {
@@ -149,22 +188,28 @@ export default function VideoCall({
       // Lắng nghe chấp nhận cuộc gọi
       socket.once('call-accepted', () => {
         // Thực hiện call qua PeerJS
+        console.log('Caller side: call-accepted received, initiating PeerJS call...');
         const call = peerInstance.call(callInfo.to, stream);
         currentCallRef.current = call;
 
         call.on('stream', (userRemoteStream) => {
+          console.log('Caller side: Received remote stream.');
           setRemoteStream(userRemoteStream);
         });
         call.on('close', () => {
           console.log('PeerJS call closed (caller side).');
-          cleanupCall();
+          cleanupCallRef.current?.();
+        });
+        call.on('error', (err) => {
+          console.error('PeerJS call error (caller side):', err);
+          cleanupCallRef.current?.();
         });
       });
 
     } catch (e) {
       console.error(e);
       alert('Không thể mở camera hoặc micro: ' + e.message);
-      cleanupCall();
+      cleanupCallRef.current?.();
     }
   };
 
@@ -185,30 +230,11 @@ export default function VideoCall({
       // Báo socket đã đồng ý
       socket.emit('answer-call', { to: callInfo.from });
 
-      // Trả lời cuộc gọi PeerJS
+      // Nếu cuộc gọi PeerJS đã đến trước đó và được lưu trong Ref, trả lời ngay
       if (currentCallRef.current) {
-        console.log('Đang trả lời cuộc gọi đã nhận trong Ref...');
-        currentCallRef.current.answer(stream);
-        currentCallRef.current.on('stream', (userRemoteStream) => {
-          setRemoteStream(userRemoteStream);
-        });
-        currentCallRef.current.on('close', () => {
-          console.log('PeerJS call closed (receiver side).');
-          cleanupCall();
-        });
-      } else if (peerInstance) {
-        console.log('Chưa nhận tín hiệu cuộc gọi PeerJS, đang chờ nhận tín hiệu...');
-        peerInstance.on('call', (call) => {
-          call.answer(stream);
-          currentCallRef.current = call;
-          call.on('stream', (userRemoteStream) => {
-            setRemoteStream(userRemoteStream);
-          });
-          call.on('close', () => {
-            console.log('PeerJS call closed (receiver side fallback).');
-            cleanupCall();
-          });
-        });
+        answerPeerCall(currentCallRef.current, stream);
+      } else {
+        console.log('Chờ cuộc gọi PeerJS từ đối phương kết nối tới...');
       }
     } catch (e) {
       console.error(e);
@@ -232,7 +258,7 @@ export default function VideoCall({
     if (receiverId) {
       socket.emit('end-call', { to: receiverId });
     }
-    cleanupCall();
+    cleanupCallRef.current?.();
   };
 
   // Cúp máy (Đang gọi hoặc đang kết nối)
@@ -241,14 +267,18 @@ export default function VideoCall({
     if (receiverId) {
       socket.emit('end-call', { to: receiverId });
     }
-    cleanupCall();
+    cleanupCallRef.current?.();
   };
 
   // Dọn dẹp luồng stream và reset state
   const cleanupCall = () => {
+    const currentConversation = conversationRef.current;
+    const currentCallInfo = callInfoRef.current;
+    const currentLocalStream = localStreamRef.current;
+
     // 1. Lưu nhật ký cuộc gọi vào phòng chat
-    if (conversation && socket && callInfo) {
-      const isCaller = callInfo.from === user.id;
+    if (currentConversation && socket && currentCallInfo) {
+      const isCaller = currentCallInfo.from === user.id;
       // Chỉ để máy người gọi gửi tin nhắn lưu nhật ký cuộc gọi tránh bị trùng 2 lần
       if (isCaller) {
         let logText = '';
@@ -259,14 +289,14 @@ export default function VideoCall({
             const s = sec % 60;
             return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
           };
-          logText = `📞 Cuộc gọi ${callInfo.isVideo ? 'video' : 'thoại'} kết thúc. Thời lượng: ${formatTime(durationSec)}`;
+          logText = `📞 Cuộc gọi ${currentCallInfo.isVideo ? 'video' : 'thoại'} kết thúc. Thời lượng: ${formatTime(durationSec)}`;
         } else {
           logText = `📞 Cuộc gọi nhỡ`;
         }
 
         if (logText) {
           socket.emit('send-message', {
-            conversationId: conversation.id,
+            conversationId: currentConversation.id,
             senderId: user.id,
             type: 'text',
             content: logText
@@ -276,11 +306,16 @@ export default function VideoCall({
     }
 
     // 2. Dọn dẹp các luồng stream
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+    if (currentLocalStream) {
+      currentLocalStream.getTracks().forEach(track => track.stop());
     }
     if (currentCallRef.current) {
-      currentCallRef.current.close();
+      try {
+        currentCallRef.current.close();
+      } catch (err) {
+        console.warn('Error closing current call ref:', err);
+      }
+      currentCallRef.current = null;
     }
     setLocalStream(null);
     setRemoteStream(null);
@@ -289,6 +324,10 @@ export default function VideoCall({
     callWasConnectedRef.current = false;
     callStartTimeRef.current = null;
   };
+
+  useEffect(() => {
+    cleanupCallRef.current = cleanupCall;
+  });
 
   // Bật/tắt micro
   const toggleMic = () => {
@@ -337,11 +376,11 @@ export default function VideoCall({
       {callState === 'calling' && (
         <div style={styles.callCard} className="glass-card anim-scale-in">
           <img 
-            src={`https://api.dicebear.com/7.x/adventurer/svg?seed=user`} 
+            src={callInfo?.callerAvatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=user`} 
             alt="" 
             style={{...styles.avatar, animation: 'fadeIn 1s infinite alternate'}} 
           />
-          <h3 style={styles.callerName}>Đang gọi điện...</h3>
+          <h3 style={styles.callerName}>Đang gọi cho {callInfo?.callerName || 'đối phương'}...</h3>
           <p style={styles.callStatus}>Vui lòng chờ đối phương bắt máy</p>
           <button onClick={handleEndCall} style={{...styles.roundBtn, backgroundColor: 'var(--danger)'}}>
             <FiPhoneOff size={22} />
