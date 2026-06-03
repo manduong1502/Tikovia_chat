@@ -28,6 +28,7 @@ export default function VideoCall({
   const conversationRef = useRef(conversation);
   const callInfoRef = useRef(callInfo);
   const localStreamRef = useRef(localStream);
+  const callStateRef = useRef(callState);
   const cleanupCallRef = useRef(null);
 
   useEffect(() => {
@@ -41,6 +42,10 @@ export default function VideoCall({
   useEffect(() => {
     localStreamRef.current = localStream;
   }, [localStream]);
+
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
 
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
@@ -66,6 +71,17 @@ export default function VideoCall({
       });
     }
   }, [remoteStream, callState]);
+
+  // Tự động huỷ cuộc gọi nếu đổ chuông quá lâu mà không có phản hồi (35 giây)
+  useEffect(() => {
+    if (callState === 'calling' || callState === 'incoming') {
+      const timer = setTimeout(() => {
+        console.log('[VideoCall] Cuộc gọi quá thời gian chờ (timeout), tự động huỷ...');
+        cleanupCallRef.current?.();
+      }, 35000);
+      return () => clearTimeout(timer);
+    }
+  }, [callState]);
 
   // Thiết lập log giám sát chất lượng/kết nối WebRTC
   const setupCallDiagnostics = (call) => {
@@ -163,6 +179,24 @@ export default function VideoCall({
       console.log('Incoming call via socket:', data);
     });
 
+    // Đồng bộ trạng thái cuộc gọi từ server (Đảm bảo tự phục hồi trạng thái khi chạy nền và ngắt kết nối tạm thời)
+    socket.on('call-status-sync', (data) => {
+      const { hasActiveCall, callData } = data;
+      console.log('[Socket.io] Đồng bộ trạng thái cuộc gọi từ server:', data);
+      
+      if (hasActiveCall && callData) {
+        if (callStateRef.current === 'idle') {
+          setCallInfo(callData);
+          setCallState('incoming');
+        }
+      } else {
+        if (callStateRef.current !== 'idle') {
+          console.log('[Socket.io] Cuộc gọi không còn tồn tại trên server, tiến hành dọn dẹp...');
+          cleanupCallRef.current?.();
+        }
+      }
+    });
+
     // Đối phương đồng ý nghe cuộc gọi
     socket.on('call-accepted', () => {
       console.log('Đối phương đã chấp nhận cuộc gọi!');
@@ -183,6 +217,7 @@ export default function VideoCall({
 
     return () => {
       socket.off('incoming-call');
+      socket.off('call-status-sync');
       socket.off('call-accepted');
       socket.off('call-ended-by-peer');
       socket.off('call-failed');

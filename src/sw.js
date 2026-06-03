@@ -79,7 +79,10 @@ self.addEventListener('push', (event) => {
       body: data.body || 'Bạn có tin nhắn mới',
       icon: data.icon || '/pwa-192x192.png', // Dùng avatar của người gửi nếu có, ngược lại dùng logo mặc định
       badge: '/pwa-192x192.png',
-      vibrate: [100, 50, 100],
+      vibrate: data.isCall ? [500, 500, 500, 500, 500, 500, 500, 500, 500, 500] : [100, 50, 100],
+      tag: data.tag || 'new-message',
+      renotify: true,
+      requireInteraction: !!data.isCall,
       data: {
         url: data.url || '/'
       }
