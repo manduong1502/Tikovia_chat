@@ -64,18 +64,6 @@ export default function App() {
       setUser(JSON.parse(savedUser));
     }
 
-    // Tự động reload ứng dụng khi có Service Worker mới kiểm soát trang
-    let refreshing = false;
-    const handleControllerChange = () => {
-      if (!refreshing) {
-        refreshing = true;
-        window.location.reload();
-      }
-    };
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
-    }
-
     // Lắng nghe sự kiện Online/Offline của trình duyệt
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -85,9 +73,6 @@ export default function App() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
-      }
     };
   }, []);
 
@@ -101,6 +86,17 @@ export default function App() {
   const handleLogout = async () => {
     if (socket) {
       socket.disconnect();
+    }
+    // Xóa active conversation trong IndexedDB khi đăng xuất
+    if (typeof window !== 'undefined' && 'indexedDB' in window) {
+      const request = indexedDB.open('ChatTikoviaDB', 1);
+      request.onsuccess = (e) => {
+        const db = e.target.result;
+        if (db.objectStoreNames.contains('settings')) {
+          const tx = db.transaction('settings', 'readwrite');
+          tx.objectStore('settings').delete('activeConversationId');
+        }
+      };
     }
     localStorage.removeItem('chat_token');
     localStorage.removeItem('chat_user');
@@ -145,7 +141,32 @@ export default function App() {
       const activeConv = activeConversationRef.current;
       if (activeConv && activeConv.id === newMessage.conversationId) {
         setMessages(prev => {
-          if (prev.some(m => m.id === newMessage.id)) return prev; // Tránh trùng lặp
+          // Tránh trùng lặp nếu đã tồn tại tin nhắn với ID thật
+          if (prev.some(m => m.id === newMessage.id)) return prev;
+
+          // Thay thế tin nhắn nháp (Optimistic UI) bằng tin nhắn chính thức từ DB
+          if (newMessage.tempId) {
+            const index = prev.findIndex(m => m.id === newMessage.tempId);
+            if (index !== -1) {
+              const updated = [...prev];
+              updated[index] = { ...newMessage, tempId: undefined };
+              return updated;
+            }
+          }
+
+          // Fallback: Tìm theo nội dung, người gửi và trạng thái 'sending' nếu mất tempId
+          const fallbackIndex = prev.findIndex(m => 
+            m.status === 'sending' && 
+            m.senderId === newMessage.senderId && 
+            m.content === newMessage.content &&
+            m.type === newMessage.type
+          );
+          if (fallbackIndex !== -1) {
+            const updated = [...prev];
+            updated[fallbackIndex] = { ...newMessage, tempId: undefined };
+            return updated;
+          }
+
           return [...prev, newMessage];
         });
       }
@@ -406,12 +427,35 @@ export default function App() {
     }
   }, [activeConversation, token, socket]);
 
-  // Gửi tin nhắn mới (hỗ trợ offline outbox)
+  // Đồng bộ activeConversation.id vào IndexedDB để Service Worker nhận diện cuộc trò chuyện đang xem
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'indexedDB' in window) {
+      const saveActiveConversationId = (id) => {
+        const request = indexedDB.open('ChatTikoviaDB', 1);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('settings')) {
+            db.createObjectStore('settings');
+          }
+        };
+        request.onsuccess = (e) => {
+          const db = e.target.result;
+          const tx = db.transaction('settings', 'readwrite');
+          const store = tx.objectStore('settings');
+          store.put(id, 'activeConversationId');
+        };
+      };
+      saveActiveConversationId(activeConversation ? activeConversation.id : null);
+    }
+  }, [activeConversation]);
+
+  // Gửi tin nhắn mới (hỗ trợ Optimistic UI và offline outbox)
   const handleSendMessage = (messageData) => {
     const tempId = 'temp-' + Date.now();
     const payload = {
       ...messageData,
-      senderId: user.id
+      senderId: user.id,
+      tempId // Gửi kèm tempId để server phản hồi khớp tin nhắn
     };
     
     const fullMessage = {
@@ -424,16 +468,19 @@ export default function App() {
         username: user.username
       },
       createdAt: new Date().toISOString(),
+      status: 'sending', // Tất cả tin nhắn mới gửi đi đều có status 'sending' để hiển thị tức thì
       ...messageData
     };
+
+    // Hiển thị ngay lập tức trên giao diện
+    setMessages(prev => [...prev, fullMessage]);
 
     if (isOnline && socket && socket.connected) {
       // Online gửi qua socket
       socket.emit('send-message', payload);
     } else {
-      // Offline: Lưu tạm vào outbox và render lên UI chế độ gửi tạm
+      // Offline: Lưu tạm vào outbox
       setOfflineOutbox(prev => [...prev, payload]);
-      setMessages(prev => [...prev, { ...fullMessage, status: 'sending' }]);
       console.log('Đang offline, đã lưu tin nhắn vào outbox tạm.');
     }
   };

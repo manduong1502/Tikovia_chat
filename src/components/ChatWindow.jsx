@@ -436,18 +436,17 @@ export default function ChatWindow({
                         className="chat-message-bubble"
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          if (!msg.isRecalled) {
-                            if (activePopoverMsgId === msg.id) {
-                              setActivePopoverMsgId(null);
-                            } else {
-                              handleOpenPopover(e, msg.id, isMe);
-                            }
+                          if (msg.status === 'sending' || msg.isRecalled) return;
+                          if (activePopoverMsgId === msg.id) {
+                            setActivePopoverMsgId(null);
+                          } else {
+                            handleOpenPopover(e, msg.id, isMe);
                           }
                         }}
                         onTouchStart={(e) => {
-                          if (!msg.isRecalled) {
-                            if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
-                            const currentTarget = e.currentTarget;
+                          if (msg.status === 'sending' || msg.isRecalled) return;
+                          if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
+                          const currentTarget = e.currentTarget;
                             touchTimeoutRef.current = setTimeout(() => {
                               if (!chatFeedRef.current) return;
                               const wrapperEl = currentTarget.closest('.chat-message-bubble')?.parentElement || currentTarget.parentElement;
@@ -498,10 +497,9 @@ export default function ChatWindow({
                               setPopoverStyle(positionStyle);
                               setActivePopoverMsgId(msg.id);
                               if (navigator.vibrate) navigator.vibrate(50); // Phản hồi rung nhẹ
-                            }, 400); // 400ms long press
-                          }
-                        }}
-                        onTouchEnd={() => {
+                          }, 400); // 400ms long press
+                      }}
+                      onTouchEnd={() => {
                           if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
                         }}
                         onTouchMove={() => {
@@ -529,7 +527,9 @@ export default function ChatWindow({
                           padding: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? '0' : '10px 14px',
                           color: isMe ? '#ffffff' : 'var(--text-primary)',
                           borderRadius: isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
-                          cursor: isNearNext ? 'pointer' : 'default'
+                          cursor: isNearNext ? 'pointer' : 'default',
+                          opacity: msg.status === 'sending' ? 0.6 : 1,
+                          transition: 'opacity 0.25s ease'
                         }}
                       >
                         {renderReplyContext(msg)}
@@ -537,7 +537,7 @@ export default function ChatWindow({
                       </div>
 
                       {/* Options Trigger Button next to bubble */}
-                      {!msg.isRecalled && (
+                      {!msg.isRecalled && msg.status !== 'sending' && (
                         <button 
                           onClick={(e) => {
                             if (activePopoverMsgId === msg.id) {
@@ -672,12 +672,14 @@ export default function ChatWindow({
                       </div>
                     )}
 
-                    {(!isNearNext || manuallyShownTimes.has(msg.id)) && (
+                    {(!isNearNext || manuallyShownTimes.has(msg.id) || msg.status === 'sending') && (
                       <span style={{
                         ...styles.messageTime,
                         textAlign: isMe ? 'right' : 'left'
                       }}>
-                        {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        {msg.status === 'sending' 
+                          ? 'Đang gửi...' 
+                          : new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </span>
                     )}
                   </div>
