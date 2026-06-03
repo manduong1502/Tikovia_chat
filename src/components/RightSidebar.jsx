@@ -9,7 +9,8 @@ export default function RightSidebar({
   onUpdateNickname,
   mobileActiveView,
   setMobileActiveView,
-  className
+  className,
+  onImageClick
 }) {
   const [activeTab, setActiveTab] = useState('images'); // 'images', 'files', 'links'
   const [mediaGallery, setMediaGallery] = useState({ images: [], files: [], links: [] });
@@ -293,7 +294,7 @@ export default function RightSidebar({
                       key={img.id}
                       src={getFileUrl(img.url)}
                       alt=""
-                      onClick={() => window.open(getFileUrl(img.url), '_blank')}
+                      onClick={() => onImageClick ? onImageClick(getFileUrl(img.url)) : window.open(getFileUrl(img.url), '_blank')}
                       style={styles.galleryImage}
                     />
                   ))}

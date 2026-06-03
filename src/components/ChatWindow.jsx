@@ -19,7 +19,8 @@ export default function ChatWindow({
   onlineUsers,
   mobileActiveView,
   setMobileActiveView,
-  className
+  className,
+  onImageClick
 }) {
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [activePopoverMsgId, setActivePopoverMsgId] = useState(null);
@@ -279,7 +280,7 @@ export default function ChatWindow({
               src={getFileUrl(msg.content)} 
               alt="Uploaded" 
               style={styles.chatImage} 
-              onClick={() => window.open(getFileUrl(msg.content), '_blank')}
+              onClick={() => onImageClick ? onImageClick(getFileUrl(msg.content)) : window.open(getFileUrl(msg.content), '_blank')}
             />
           </div>
         );

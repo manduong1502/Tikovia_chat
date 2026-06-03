@@ -27,6 +27,7 @@ export default function App() {
   const [showRightSidebar, setShowRightSidebar] = useState(false);
   const [mobileActiveView, setMobileActiveView] = useState('list'); // 'list', 'chat', 'options'
   const [showProfile, setShowProfile] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null);
 
   // Trạng thái thông báo đẩy (Web Push)
   const [pushStatus, setPushStatus] = useState('checking'); // 'checking', 'granted', 'prompt', 'denied', 'unsupported', 'insecure'
@@ -643,6 +644,7 @@ export default function App() {
           mobileActiveView={mobileActiveView}
           setMobileActiveView={setMobileActiveView}
           className={mobileActiveView === 'chat' ? 'mobile-show-chat' : 'mobile-hide-chat'}
+          onImageClick={(url) => setLightboxImage(url)}
         />
 
         {/* 3. Far Right Sidebar (Tùy chọn) */}
@@ -659,6 +661,7 @@ export default function App() {
             mobileActiveView={mobileActiveView}
             setMobileActiveView={setMobileActiveView}
             className={mobileActiveView === 'options' ? 'mobile-show-options' : 'mobile-hide-options'}
+            onImageClick={(url) => setLightboxImage(url)}
           />
         )}
       </div>
@@ -694,6 +697,32 @@ export default function App() {
           onEnablePush={handleEnablePushNotifications}
         />
       )}
+
+      {/* 6. Lightbox Xem Ảnh Toàn Màn Hình */}
+      {lightboxImage && (
+        <div 
+          style={styles.lightboxOverlay} 
+          onClick={() => setLightboxImage(null)}
+          className="anim-fade"
+        >
+          <button 
+            style={styles.lightboxCloseBtn} 
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxImage(null);
+            }}
+          >
+            ✕
+          </button>
+          <img 
+            src={lightboxImage} 
+            alt="Preview" 
+            style={styles.lightboxImg} 
+            onClick={(e) => e.stopPropagation()}
+            className="anim-scale-in"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -727,5 +756,42 @@ const styles = {
     height: '100%',
     width: '100%',
     overflow: 'hidden'
+  },
+  lightboxOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    zIndex: 99999,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  lightboxCloseBtn: {
+    position: 'absolute',
+    top: '20px',
+    right: '20px',
+    background: 'rgba(255, 255, 255, 0.15)',
+    border: 'none',
+    color: '#ffffff',
+    fontSize: '24px',
+    width: '44px',
+    height: '44px',
+    borderRadius: '50%',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background 0.2s',
+    zIndex: 100000
+  },
+  lightboxImg: {
+    maxWidth: '90%',
+    maxHeight: '90%',
+    objectFit: 'contain',
+    borderRadius: 'var(--radius-sm)',
+    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)'
   }
 };
