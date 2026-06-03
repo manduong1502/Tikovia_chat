@@ -398,8 +398,6 @@ export default function ChatWindow({
         return <div>{msg.content}</div>;
     }
   };
-    }
-  };
 
   return (
     <div style={styles.container} className={`anim-fade ${className || ''}`}>
