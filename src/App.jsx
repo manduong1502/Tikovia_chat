@@ -288,10 +288,29 @@ export default function App() {
       if (permission === 'granted') {
         const registration = await navigator.serviceWorker.ready;
         const subscription = await registration.pushManager.getSubscription();
-        if (subscription) {
-          setPushStatus('granted');
-        } else {
-          setPushStatus('prompt'); // Quyền được bật nhưng chưa subscribe/hoặc bị mất token
+        
+        // Tải public key từ server để so khớp
+        try {
+          const keyRes = await fetch(`${API_URL}/chat/device-key`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (keyRes.ok) {
+            const { publicKey } = await keyRes.json();
+            const savedKey = localStorage.getItem('chat_vapid_public_key');
+            
+            if (publicKey !== savedKey || !subscription) {
+              console.log('[Web Push] Phát hiện VAPID key thay đổi hoặc mất subscription. Đang đăng ký lại...');
+              localStorage.setItem('chat_vapid_public_key', publicKey);
+              await subscribeUserToPush(token);
+            } else {
+              setPushStatus('granted');
+            }
+          } else {
+            setPushStatus(subscription ? 'granted' : 'prompt');
+          }
+        } catch (fetchErr) {
+          console.warn('Lỗi kiểm tra VAPID key từ server:', fetchErr);
+          setPushStatus(subscription ? 'granted' : 'prompt');
         }
       } else if (permission === 'denied') {
         setPushStatus('denied');
@@ -354,8 +373,9 @@ export default function App() {
       });
 
       currentStep = 'Đồng bộ token đăng ký lên máy chủ qua Socket';
-      // Lưu trữ subscription vào LocalStorage để tự động đồng bộ lại khi kết nối socket
+      // Lưu trữ subscription và public key tương ứng vào LocalStorage
       localStorage.setItem('chat_push_subscription', JSON.stringify(subscription));
+      localStorage.setItem('chat_vapid_public_key', publicKey);
 
       if (socket && socket.connected) {
         return new Promise((resolve) => {
