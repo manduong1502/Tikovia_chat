@@ -45,8 +45,18 @@ export default function VideoCall({
   useEffect(() => {
     if (!socket || !user) return;
 
-    // Sử dụng PeerJS Cloud mặc định (bằng cách bỏ config host/port) để chạy ổn định cả local & cloud
-    const peer = new Peer(user.id);
+    // Sử dụng PeerJS Cloud với STUN servers để vượt tường lửa/NAT của mạng di động/VPS
+    const peer = new Peer(user.id, {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ]
+      }
+    });
 
     peer.on('open', (id) => {
       console.log('Đã đăng ký Peer ID:', id);
@@ -145,6 +155,10 @@ export default function VideoCall({
         call.on('stream', (userRemoteStream) => {
           setRemoteStream(userRemoteStream);
         });
+        call.on('close', () => {
+          console.log('PeerJS call closed (caller side).');
+          cleanupCall();
+        });
       });
 
     } catch (e) {
@@ -178,6 +192,10 @@ export default function VideoCall({
         currentCallRef.current.on('stream', (userRemoteStream) => {
           setRemoteStream(userRemoteStream);
         });
+        currentCallRef.current.on('close', () => {
+          console.log('PeerJS call closed (receiver side).');
+          cleanupCall();
+        });
       } else if (peerInstance) {
         console.log('Chưa nhận tín hiệu cuộc gọi PeerJS, đang chờ nhận tín hiệu...');
         peerInstance.on('call', (call) => {
@@ -185,6 +203,10 @@ export default function VideoCall({
           currentCallRef.current = call;
           call.on('stream', (userRemoteStream) => {
             setRemoteStream(userRemoteStream);
+          });
+          call.on('close', () => {
+            console.log('PeerJS call closed (receiver side fallback).');
+            cleanupCall();
           });
         });
       }
@@ -195,16 +217,30 @@ export default function VideoCall({
     }
   };
 
+  // Trợ giúp lấy User ID của đối phương một cách chính xác
+  const getOtherUserId = () => {
+    if (!callInfo) return null;
+    if (callInfo.to && (!callInfo.from || callInfo.from === user.id)) {
+      return callInfo.to;
+    }
+    return callInfo.from;
+  };
+
   // Từ chối cuộc gọi
   const handleDeclineCall = () => {
-    socket.emit('end-call', { to: callInfo.from });
+    const receiverId = getOtherUserId();
+    if (receiverId) {
+      socket.emit('end-call', { to: receiverId });
+    }
     cleanupCall();
   };
 
   // Cúp máy (Đang gọi hoặc đang kết nối)
   const handleEndCall = () => {
-    const receiverId = callState === 'calling' ? callInfo.to : (callInfo.from === user.id ? callInfo.to : callInfo.from);
-    socket.emit('end-call', { to: receiverId });
+    const receiverId = getOtherUserId();
+    if (receiverId) {
+      socket.emit('end-call', { to: receiverId });
+    }
     cleanupCall();
   };
 
