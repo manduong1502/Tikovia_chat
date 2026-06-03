@@ -221,6 +221,59 @@ export default function ChatWindow({
     );
   };
 
+  // Render cuộc gọi Zalo-style
+  const renderCallCard = (msg, metadata) => {
+    const isVideo = metadata?.callType === 'video';
+    const isMissed = metadata?.status === 'missed';
+    const duration = metadata?.duration || 0;
+
+    const formatDuration = (sec) => {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+    };
+
+    let IconComponent = FiPhone;
+    if (isVideo) {
+      IconComponent = FiVideo;
+    }
+
+    const title = isMissed 
+      ? `Đã nhỡ cuộc gọi ${isVideo ? 'video' : 'thoại'}`
+      : `Cuộc gọi ${isVideo ? 'video' : 'thoại'}`;
+      
+    const subtitle = isMissed
+      ? 'Cuộc gọi nhỡ'
+      : formatDuration(duration);
+
+    return (
+      <div style={styles.callCardContainer}>
+        <div style={styles.callCardHeader}>
+          <div style={{
+            ...styles.callCardIconContainer,
+            backgroundColor: isMissed ? 'var(--danger)' : 'rgba(255, 255, 255, 0.15)'
+          }}>
+            <IconComponent size={18} style={{ color: '#ffffff' }} />
+          </div>
+          <div style={styles.callCardText}>
+            <div style={styles.callCardTitle}>{title}</div>
+            <div style={styles.callCardSubtitle}>{subtitle}</div>
+          </div>
+        </div>
+        <button 
+          style={styles.callCardBtn}
+          className="btn-interactive"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartCall(isVideo);
+          }}
+        >
+          Gọi lại
+        </button>
+      </div>
+    );
+  };
+
   // Render nội dung tin nhắn dựa trên type
   const renderMessageContent = (msg) => {
     if (msg.isRecalled) {
@@ -338,8 +391,13 @@ export default function ChatWindow({
           </div>
         );
 
+      case 'call':
+        return renderCallCard(msg, metadata);
+
       default:
         return <div>{msg.content}</div>;
+    }
+  };
     }
   };
 
@@ -552,12 +610,12 @@ export default function ChatWindow({
                         }}
                         style={{
                           ...styles.messageBubble,
-                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
-                          border: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : '1px solid var(--border-color)',
-                          boxShadow: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : 'var(--shadow-sm)',
-                          padding: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? '0' : '10px 14px',
-                          color: isMe ? '#ffffff' : 'var(--text-primary)',
-                          borderRadius: isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
+                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : msg.type === 'call' ? '#2a2b2d' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
+                          border: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? 'none' : '1px solid var(--border-color)',
+                          boxShadow: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? 'none' : 'var(--shadow-sm)',
+                          padding: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? '0' : '10px 14px',
+                          color: msg.type === 'call' ? '#ffffff' : isMe ? '#ffffff' : 'var(--text-primary)',
+                          borderRadius: msg.type === 'call' ? '16px' : isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
                           cursor: isNearNext ? 'pointer' : 'default',
                           opacity: msg.status === 'sending' ? 0.6 : 1,
                           transition: 'opacity 0.25s ease'
@@ -1129,5 +1187,65 @@ const styles = {
     justifyContent: 'center',
     borderRadius: 'var(--radius-circle)',
     transition: 'all var(--transition-fast)'
+  },
+  callCardContainer: {
+    width: '240px',
+    padding: '12px 14px',
+    display: 'flex',
+    flexDirection: 'column',
+    boxSizing: 'border-box'
+  },
+  callCardHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    width: '100%'
+  },
+  callCardIconContainer: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
+  },
+  callCardText: {
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    flex: 1
+  },
+  callCardTitle: {
+    fontSize: '0.9rem',
+    fontWeight: '600',
+    color: '#ffffff',
+    whiteSpace: 'nowrap',
+    textOverflow: 'ellipsis',
+    overflow: 'hidden'
+  },
+  callCardSubtitle: {
+    fontSize: '0.75rem',
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginTop: '2px',
+    whiteSpace: 'nowrap',
+    textOverflow: 'ellipsis',
+    overflow: 'hidden'
+  },
+  callCardBtn: {
+    width: '100%',
+    padding: '8px',
+    borderRadius: '8px',
+    border: 'none',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: '0.85rem',
+    cursor: 'pointer',
+    textAlign: 'center',
+    marginTop: '12px',
+    transition: 'background-color 0.2s',
+    display: 'block',
+    boxSizing: 'border-box'
   }
 };

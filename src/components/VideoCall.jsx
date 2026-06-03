@@ -320,24 +320,31 @@ export default function VideoCall({
       // Chỉ để máy người gọi gửi tin nhắn lưu nhật ký cuộc gọi tránh bị trùng 2 lần
       if (isCaller) {
         let logText = '';
+        let durationSec = 0;
+        const callTypeLabel = currentCallInfo.isVideo ? 'video' : 'thoại';
         if (callWasConnectedRef.current && callStartTimeRef.current) {
-          const durationSec = Math.round((Date.now() - callStartTimeRef.current) / 1000);
+          durationSec = Math.round((Date.now() - callStartTimeRef.current) / 1000);
           const formatTime = (sec) => {
             const m = Math.floor(sec / 60);
             const s = sec % 60;
             return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
           };
-          logText = `📞 Cuộc gọi ${currentCallInfo.isVideo ? 'video' : 'thoại'} kết thúc. Thời lượng: ${formatTime(durationSec)}`;
+          logText = `Cuộc gọi ${callTypeLabel} kết thúc. Thời lượng: ${formatTime(durationSec)}`;
         } else {
-          logText = `📞 Cuộc gọi nhỡ`;
+          logText = `Cuộc gọi ${callTypeLabel} nhỡ`;
         }
 
         if (logText) {
           socket.emit('send-message', {
             conversationId: currentConversation.id,
             senderId: user.id,
-            type: 'text',
-            content: logText
+            type: 'call',
+            content: logText,
+            metadata: {
+              callType: currentCallInfo.isVideo ? 'video' : 'voice',
+              status: callWasConnectedRef.current ? 'connected' : 'missed',
+              duration: durationSec
+            }
           });
         }
       }
