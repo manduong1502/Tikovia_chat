@@ -37,7 +37,26 @@ export default function App() {
 
   // Offline status
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [offlineOutbox, setOfflineOutbox] = useState([]);
+  const [offlineOutbox, setOfflineOutbox] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chat_offline_outbox');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Lỗi khôi phục outbox từ localStorage:', e);
+      return [];
+    }
+  });
+
+  const offlineOutboxRef = useRef(offlineOutbox);
+
+  useEffect(() => {
+    offlineOutboxRef.current = offlineOutbox;
+    try {
+      localStorage.setItem('chat_offline_outbox', JSON.stringify(offlineOutbox));
+    } catch (e) {
+      console.error('Lỗi lưu outbox vào localStorage:', e);
+    }
+  }, [offlineOutbox]);
 
   // WebRTC Calling States
   const [callState, setCallState] = useState('idle'); // 'idle', 'calling', 'incoming', 'connected'
@@ -445,15 +464,28 @@ export default function App() {
     }
   }, [token]);
 
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+
+  // Reset hasMoreMessages khi đổi phòng chat
+  useEffect(() => {
+    setHasMoreMessages(true);
+  }, [activeConversation]);
+
   // Tải lịch sử tin nhắn khi đổi cuộc hội thoại active
   useEffect(() => {
     if (!activeConversation || !token) return;
 
-    fetch(`${API_URL}/chat/conversations/${activeConversation.id}/messages`, {
+    fetch(`${API_URL}/chat/conversations/${activeConversation.id}/messages?limit=50`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => setMessages(data))
+      .then(data => {
+        setMessages(data);
+        if (data.length < 50) {
+          setHasMoreMessages(false);
+        }
+      })
       .catch(err => console.error('Lỗi tải tin nhắn:', err));
 
     // Đăng ký join room socket
@@ -461,6 +493,33 @@ export default function App() {
       socket.emit('join-conversation', activeConversation.id);
     }
   }, [activeConversation, token, socket]);
+
+  // Tải các tin nhắn cũ hơn (Phân trang cuộc trò chuyện)
+  const fetchOlderMessages = async () => {
+    if (isLoadingOlder || !hasMoreMessages || !activeConversation || !token || messages.length === 0) return;
+
+    setIsLoadingOlder(true);
+    const oldestMessageId = messages[0].id;
+
+    try {
+      const res = await fetch(`${API_URL}/chat/conversations/${activeConversation.id}/messages?before=${oldestMessageId}&limit=50`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length < 50) {
+          setHasMoreMessages(false);
+        }
+        if (data.length > 0) {
+          setMessages(prev => [...data, ...prev]);
+        }
+      }
+    } catch (e) {
+      console.error('Lỗi tải tin nhắn cũ:', e);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  };
 
   // Đồng bộ activeConversation.id vào IndexedDB để Service Worker nhận diện cuộc trò chuyện đang xem
   useEffect(() => {
@@ -522,9 +581,10 @@ export default function App() {
 
   // Đồng bộ Outbox khi có mạng lại
   const sendOfflineOutbox = (socketConn) => {
-    if (offlineOutbox.length === 0) return;
-    console.log(`Bắt đầu đồng bộ ${offlineOutbox.length} tin nhắn từ outbox...`);
-    offlineOutbox.forEach(msg => {
+    const currentOutbox = offlineOutboxRef.current;
+    if (currentOutbox.length === 0) return;
+    console.log(`Bắt đầu đồng bộ ${currentOutbox.length} tin nhắn từ outbox...`);
+    currentOutbox.forEach(msg => {
       socketConn.emit('send-message', msg);
     });
     setOfflineOutbox([]);
@@ -680,6 +740,9 @@ export default function App() {
           setMobileActiveView={setMobileActiveView}
           className={mobileActiveView === 'chat' ? 'mobile-show-chat' : 'mobile-hide-chat'}
           onImageClick={(url) => setLightboxImage(url)}
+          fetchOlderMessages={fetchOlderMessages}
+          hasMoreMessages={hasMoreMessages}
+          isLoadingOlder={isLoadingOlder}
         />
 
         {/* 3. Far Right Sidebar (Tùy chọn) */}

@@ -38,6 +38,15 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // Tự động co giãn chiều cao của ô nhập chat (Textarea)
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+    }
+  }, [text]);
+
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   // Sử dụng stickerPacks được import từ file json
@@ -220,6 +229,16 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
     });
     setShowStickers(false);
     if (setReplyingTo) setReplyingTo(null);
+  };
+
+  // Xử lý sự kiện nhấn phím Enter để gửi và Shift+Enter để xuống dòng
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      if (!e.shiftKey) {
+        e.preventDefault();
+        handleSendText();
+      }
+    }
   };
 
   // Gửi tin nhắn văn bản
@@ -529,15 +548,15 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
             <FiSmile size={28} />
           </button>
 
-          {/* Ô nhập nhắn tin */}
-          <input
-            type="text"
+          {/* Ô nhập nhắn tin (Textarea hỗ trợ xuống dòng Shift+Enter) */}
+          <textarea
             ref={inputRef}
             placeholder="Tin nhắn"
             value={text}
             onChange={handleInputChange}
-            onKeyDown={(e) => e.key === 'Enter' && handleSendText()}
+            onKeyDown={handleKeyDown}
             style={styles.textInput}
+            rows={1}
           />
 
           {/* Nút 3 chấm */}
@@ -749,7 +768,12 @@ const styles = {
     color: 'var(--text-primary)',
     fontSize: '1rem',
     outline: 'none',
-    width: '100%'
+    width: '100%',
+    resize: 'none',
+    fontFamily: 'inherit',
+    height: '40px',
+    maxHeight: '120px',
+    lineHeight: '1.4'
   },
   sendBtn: {
     background: 'var(--primary-gradient)',

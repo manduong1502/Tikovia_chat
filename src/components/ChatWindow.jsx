@@ -20,7 +20,10 @@ export default function ChatWindow({
   mobileActiveView,
   setMobileActiveView,
   className,
-  onImageClick
+  onImageClick,
+  fetchOlderMessages,
+  hasMoreMessages,
+  isLoadingOlder
 }) {
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [activePopoverMsgId, setActivePopoverMsgId] = useState(null);
@@ -32,6 +35,8 @@ export default function ChatWindow({
   const chatFeedRef = useRef(null);
   const touchTimeoutRef = useRef(null);
   const lastConversationIdRef = useRef(null);
+  const lastScrollHeightRef = useRef(0);
+  const lastMessageCountRef = useRef(0);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
@@ -132,24 +137,64 @@ export default function ChatWindow({
     setActivePopoverMsgId(msgId);
   };
 
-  // Cuộn xuống đáy khi có tin nhắn mới hoặc đổi cuộc hội thoại
+  // Cuộn thông minh: tránh nhảy giật màn hình khi tải tin nhắn cũ, tự cuộn đáy khi có tin nhắn mới
   useEffect(() => {
     if (!conversation) return;
 
     const isNewConversation = lastConversationIdRef.current !== conversation.id;
     lastConversationIdRef.current = conversation.id;
 
-    // Sử dụng setTimeout để đảm bảo DOM đã render hoàn thiện trước khi cuộn
-    const timer = setTimeout(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({
-          behavior: isNewConversation ? 'auto' : 'smooth'
-        });
-      }
-    }, 100);
+    const feed = chatFeedRef.current;
+    if (!feed) return;
 
-    return () => clearTimeout(timer);
+    if (isNewConversation) {
+      // Đổi cuộc hội thoại: Cuộn xuống đáy ngay lập tức
+      feed.scrollTop = feed.scrollHeight;
+      lastMessageCountRef.current = messages.length;
+      lastScrollHeightRef.current = feed.scrollHeight;
+      return;
+    }
+
+    // Nếu tin nhắn được thêm vào đỉnh (tải tin nhắn cũ)
+    const isPrepended = messages.length > lastMessageCountRef.current && 
+                        messages[0]?.id !== messages[messages.length - lastMessageCountRef.current]?.id;
+
+    if (isPrepended) {
+      // Giữ nguyên vị trí cuộn tương đối bằng cách bù đắp phần chênh lệch chiều cao mới
+      const newScrollHeight = feed.scrollHeight;
+      const heightDifference = newScrollHeight - lastScrollHeightRef.current;
+      feed.scrollTop = feed.scrollTop + heightDifference;
+    } else {
+      // Nếu có tin nhắn mới hoặc đang gõ chữ
+      const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 300;
+      if (isNearBottom && messages.length > lastMessageCountRef.current) {
+        // Cuộn mượt xuống đáy
+        const timer = setTimeout(() => {
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }
+
+    lastMessageCountRef.current = messages.length;
+    lastScrollHeightRef.current = feed.scrollHeight;
   }, [messages, typingUsers, conversation?.id]);
+
+  // Lắng nghe sự kiện cuộn để kích hoạt tải thêm tin nhắn cũ
+  const handleScroll = () => {
+    const feed = chatFeedRef.current;
+    if (!feed) return;
+
+    // Cập nhật scrollHeight hiện tại của hộp thoại để so khớp khi render
+    lastScrollHeightRef.current = feed.scrollHeight;
+
+    // Nếu cuộn lên gần đỉnh (cách đỉnh <= 15px) và không trong quá trình load tin nhắn
+    if (feed.scrollTop <= 15) {
+      fetchOlderMessages();
+    }
+  };
 
   // Lọc các tin nhắn được ghim
   useEffect(() => {
@@ -334,6 +379,7 @@ export default function ChatWindow({
               alt="Uploaded" 
               style={styles.chatImage} 
               onClick={() => onImageClick ? onImageClick(getFileUrl(msg.content)) : window.open(getFileUrl(msg.content), '_blank')}
+              loading="lazy"
             />
           </div>
         );
@@ -454,7 +500,19 @@ export default function ChatWindow({
       )}
 
       {/* Messages Feed */}
-      <div style={styles.chatFeed} ref={chatFeedRef} onClick={() => setActivePopoverMsgId(null)}>
+      <div 
+        style={styles.chatFeed} 
+        ref={chatFeedRef} 
+        onClick={() => setActivePopoverMsgId(null)}
+        onScroll={handleScroll}
+      >
+        {isLoadingOlder && (
+          <div style={styles.loadingOlder}>
+            <span className="typing-dot"></span>
+            <span className="typing-dot"></span>
+            <span className="typing-dot"></span>
+          </div>
+        )}
         {messages.length === 0 ? (
           <div style={styles.startChat}>
             <p>Bắt đầu cuộc trò chuyện. Hãy gửi lời chào!</p>
@@ -1245,5 +1303,13 @@ const styles = {
     transition: 'background-color 0.2s',
     display: 'block',
     boxSizing: 'border-box'
+  },
+  loadingOlder: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '12px',
+    color: 'var(--text-secondary)'
   }
 };
