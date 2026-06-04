@@ -451,6 +451,42 @@ export default function App() {
     }
   };
 
+  // Lắng nghe tín hiệu chuyển đổi phòng chat từ Service Worker (khi click vào thông báo đẩy)
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const handleSWMessage = (event) => {
+      if (event.data && event.data.type === 'SWITCH_CONVERSATION') {
+        const { conversationId } = event.data;
+        console.log('[App] Nhận tín hiệu chuyển phòng chat từ Service Worker:', conversationId);
+        
+        // Tìm cuộc trò chuyện trong conversations
+        const targetConv = conversations.find(c => c.id === conversationId);
+        if (targetConv) {
+          setActiveConversation(targetConv);
+          setMobileActiveView('chat');
+        } else {
+          // Nếu không tìm thấy (ví dụ cuộc trò chuyện mới), tải lại danh sách rồi tìm
+          fetchConversations().then(() => {
+            setConversations(latestConvs => {
+              const conv = latestConvs.find(c => c.id === conversationId);
+              if (conv) {
+                setActiveConversation(conv);
+                setMobileActiveView('chat');
+              }
+              return latestConvs;
+            });
+          });
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleSWMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+    };
+  }, [conversations]);
+
   // Gọi fetchConversations khi login xong và kiểm tra quyền thông báo đẩy
   useEffect(() => {
     if (token) {
