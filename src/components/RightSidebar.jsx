@@ -65,19 +65,16 @@ export default function RightSidebar({
 
     setIsSearchingMsg(true);
     try {
-      // client-side filtering tin nhắn để nhanh gọn
-      // Hoặc gọi API tìm kiếm. Để đơn giản và nhanh gọn, ta fetch lịch sử tin nhắn và filter:
-      const res = await fetch(`${API_URL}/chat/conversations/${conversation.id}/messages`, {
+      // Gọi API tìm kiếm phía server (SQLite contains search) để bao quát toàn bộ lịch sử
+      const res = await fetch(`${API_URL}/chat/conversations/${conversation.id}/messages?search=${encodeURIComponent(searchMsgQuery)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const messages = await res.json();
-      
-      const filtered = messages.filter(m => 
-        m.type === 'text' && m.content.toLowerCase().includes(searchMsgQuery.toLowerCase())
-      );
-      setSearchResults(filtered);
+      if (res.ok) {
+        const messages = await res.json();
+        setSearchResults(messages);
+      }
     } catch (e) {
-      console.error(e);
+      console.error('Lỗi tìm kiếm tin nhắn:', e);
     }
   };
 
