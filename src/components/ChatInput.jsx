@@ -234,6 +234,7 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
   // Xử lý sự kiện nhấn phím Enter để gửi và Shift+Enter để xuống dòng
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
+      if (e.isComposing) return; // Bỏ qua nếu đang gõ tiếng Việt (IME composition)
       if (!e.shiftKey) {
         e.preventDefault();
         handleSendText();
