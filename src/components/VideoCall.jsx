@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Peer from 'peerjs';
-import { FiPhoneOff, FiVideo, FiVideoOff, FiMic, FiMicOff } from 'react-icons/fi';
+import { FiPhoneOff, FiVideo, FiVideoOff, FiMic, FiMicOff, FiVolume2, FiVolumeX, FiRefreshCw } from 'react-icons/fi';
 
 export default function VideoCall({
   user,
@@ -49,6 +49,34 @@ export default function VideoCall({
 
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
+  const [durationText, setDurationText] = useState('00:00');
+  const [speakerOn, setSpeakerOn] = useState(true);
+
+  // Hook tính toán thời gian cuộc gọi (timer)
+  useEffect(() => {
+    let interval;
+    if (callState === 'connected' && callStartTimeRef.current) {
+      interval = setInterval(() => {
+        const sec = Math.round((Date.now() - callStartTimeRef.current) / 1000);
+        const m = Math.floor(sec / 60).toString().padStart(2, '0');
+        const s = (sec % 60).toString().padStart(2, '0');
+        setDurationText(`${m}:${s}`);
+      }, 1000);
+    } else {
+      setDurationText('00:00');
+    }
+    return () => clearInterval(interval);
+  }, [callState]);
+
+  // Hook tắt/bật loa (âm thanh đầu ra)
+  const toggleSpeaker = () => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = !remoteVideoRef.current.muted;
+      setSpeakerOn(!remoteVideoRef.current.muted);
+    } else {
+      setSpeakerOn(!speakerOn);
+    }
+  };
 
   // Gắn luồng stream cục bộ vào video element
   useEffect(() => {
@@ -474,41 +502,117 @@ export default function VideoCall({
         ...styles.connectedContainer,
         display: callState === 'connected' ? 'block' : 'none'
       }}>
-        {/* Video đối phương (Toàn màn hình) */}
+        {/* Video đối phương (Toàn màn hình nếu là Video Call, ẩn đi nếu là Voice Call) */}
         <video 
           ref={remoteVideoRef} 
           autoPlay 
           playsInline 
           webkit-playsinline="true"
-          style={styles.remoteVideo} 
+          style={callInfo?.isVideo ? styles.remoteVideo : { display: 'none' }} 
         />
         
-        {/* Video bản thân (Thu nhỏ PiP ở góc phải) */}
-        {videoEnabled ? (
-          <video 
-            ref={localVideoRef} 
-            autoPlay 
-            playsInline 
-            webkit-playsinline="true"
-            muted 
-            style={styles.localVideo} 
-          />
-        ) : (
-          <div style={styles.localVideoPlaceholder}>Camera tắt</div>
+        {/* Video bản thân (PiP góc phải nếu là Video Call, ẩn đi nếu là Voice Call) */}
+        <video 
+          ref={localVideoRef} 
+          autoPlay 
+          playsInline 
+          webkit-playsinline="true"
+          muted 
+          style={callInfo?.isVideo && videoEnabled ? styles.localVideo : { display: 'none' }} 
+        />
+
+        {/* GIAO DIỆN GỌI THOẠI THƯỜNG (Voice Call UI) */}
+        {!callInfo?.isVideo && (
+          <div style={styles.voiceCallWrapper}>
+            {/* Center Area (Avatar, Tên, Thời gian) */}
+            <div style={styles.voiceCallCenter}>
+              <img 
+                src={callInfo?.callerAvatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=user`} 
+                alt="" 
+                style={styles.voiceCallAvatar} 
+              />
+              <h2 style={styles.voiceCallName}>{callInfo?.callerName || 'Người dùng'}</h2>
+              <div style={styles.voiceCallDuration}>Đang gọi thoại... ({durationText})</div>
+            </div>
+
+            {/* Bottom Controls (Phím chức năng) */}
+            <div style={styles.voiceControlBar}>
+              <div style={styles.controlItem}>
+                <button 
+                  disabled
+                  style={{...styles.roundBtn, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', opacity: 0.4}}
+                >
+                  <FiVideoOff size={20} />
+                </button>
+                <span style={styles.controlLabel}>Camera</span>
+              </div>
+              <div style={styles.controlItem}>
+                <button 
+                  onClick={toggleMic} 
+                  style={{...styles.roundBtn, backgroundColor: micEnabled ? 'rgba(255,255,255,0.15)' : 'var(--danger)'}}
+                >
+                  {micEnabled ? <FiMic size={20} /> : <FiMicOff size={20} />}
+                </button>
+                <span style={styles.controlLabel}>{micEnabled ? 'Tắt tiếng' : 'Bật tiếng'}</span>
+              </div>
+              <div style={styles.controlItem}>
+                <button 
+                  onClick={toggleSpeaker} 
+                  style={{...styles.roundBtn, backgroundColor: speakerOn ? 'rgba(255,255,255,0.15)' : 'var(--danger)'}}
+                >
+                  {speakerOn ? <FiVolume2 size={20} /> : <FiVolumeX size={20} />}
+                </button>
+                <span style={styles.controlLabel}>Loa</span>
+              </div>
+            </div>
+
+            {/* Nút Kết thúc (Hang up) */}
+            <div style={styles.voiceCallHangupContainer}>
+              <button onClick={handleEndCall} style={{...styles.roundBtn, width: '60px', height: '60px', backgroundColor: 'var(--danger)'}}>
+                <FiPhoneOff size={24} />
+              </button>
+              <span style={{...styles.controlLabel, marginTop: '8px'}}>Kết thúc</span>
+            </div>
+          </div>
         )}
 
-        {/* Thanh điều khiển cuộc gọi bên dưới */}
-        <div style={styles.controlBar} className="glass">
-          <button onClick={toggleMic} style={{...styles.roundBtn, backgroundColor: micEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
-            {micEnabled ? <FiMic size={20} /> : <FiMicOff size={20} />}
-          </button>
-          <button onClick={handleEndCall} style={{...styles.roundBtn, backgroundColor: 'var(--danger)'}}>
-            <FiPhoneOff size={20} />
-          </button>
-          <button onClick={toggleVideo} style={{...styles.roundBtn, backgroundColor: videoEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
-            {videoEnabled ? <FiVideo size={20} /> : <FiVideoOff size={20} />}
-          </button>
-        </div>
+        {/* GIAO DIỆN GỌI VIDEO (Video Call UI) */}
+        {callInfo?.isVideo && (
+          <div style={styles.videoCallWrapper}>
+            {/* Header overlay hiển thị thông tin đối phương và thời gian */}
+            <div style={styles.videoHeader}>
+              <div style={styles.videoHeaderContent}>
+                <img 
+                  src={callInfo?.callerAvatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=user`} 
+                  alt="" 
+                  style={styles.videoHeaderAvatar} 
+                />
+                <div>
+                  <div style={styles.videoHeaderName}>{callInfo?.callerName}</div>
+                  <div style={styles.videoHeaderDuration}>{durationText}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Placeholder local video khi camera bị tắt */}
+            {!videoEnabled && (
+              <div style={styles.localVideoPlaceholder}>Camera tắt</div>
+            )}
+
+            {/* Thanh điều khiển video nổi phía dưới */}
+            <div style={styles.controlBar} className="glass">
+              <button onClick={toggleMic} style={{...styles.roundBtn, backgroundColor: micEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
+                {micEnabled ? <FiMic size={20} /> : <FiMicOff size={20} />}
+              </button>
+              <button onClick={handleEndCall} style={{...styles.roundBtn, backgroundColor: 'var(--danger)'}}>
+                <FiPhoneOff size={20} />
+              </button>
+              <button onClick={toggleVideo} style={{...styles.roundBtn, backgroundColor: videoEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
+                {videoEnabled ? <FiVideo size={20} /> : <FiVideoOff size={20} />}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -625,6 +729,112 @@ const styles = {
     display: 'flex',
     gap: '24px',
     padding: '12px 24px',
-    borderRadius: '40px'
+    borderRadius: '40px',
+    pointerEvents: 'auto'
+  },
+  voiceCallWrapper: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '60px 24px 80px 24px',
+    background: 'radial-gradient(circle, rgba(45, 55, 72, 0.95) 0%, rgba(10, 15, 30, 0.98) 100%)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 2
+  },
+  voiceCallCenter: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginTop: '60px'
+  },
+  voiceCallAvatar: {
+    width: '130px',
+    height: '130px',
+    borderRadius: '50%',
+    border: '4px solid rgba(255, 255, 255, 0.15)',
+    boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+    objectFit: 'cover',
+    marginBottom: '20px'
+  },
+  voiceCallName: {
+    fontSize: '1.6rem',
+    fontWeight: '700',
+    color: '#ffffff',
+    margin: '0 0 8px 0'
+  },
+  voiceCallDuration: {
+    fontSize: '1rem',
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500'
+  },
+  voiceControlBar: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '30px',
+    width: '100%',
+    marginBottom: '20px'
+  },
+  controlItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  controlLabel: {
+    fontSize: '0.75rem',
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500'
+  },
+  voiceCallHangupContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    width: '100%'
+  },
+  videoCallWrapper: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    pointerEvents: 'none',
+    zIndex: 2
+  },
+  videoHeader: {
+    position: 'absolute',
+    top: '30px',
+    left: '30px',
+    zIndex: 10,
+    background: 'rgba(9, 13, 22, 0.6)',
+    backdropFilter: 'blur(8px)',
+    padding: '10px 16px',
+    borderRadius: '30px',
+    border: '1px solid rgba(255,255,255,0.1)',
+    pointerEvents: 'auto'
+  },
+  videoHeaderContent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
+  },
+  videoHeaderAvatar: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    objectFit: 'cover'
+  },
+  videoHeaderName: {
+    fontSize: '0.9rem',
+    fontWeight: '700',
+    color: '#ffffff'
+  },
+  videoHeaderDuration: {
+    fontSize: '0.75rem',
+    color: 'rgba(255, 255, 255, 0.6)'
   }
 };
