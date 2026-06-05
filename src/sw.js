@@ -84,7 +84,8 @@ self.addEventListener('push', (event) => {
       renotify: true,
       requireInteraction: !!data.isCall,
       data: {
-        url: data.url || '/'
+        url: data.url || '/',
+        conversationId: pushConvId
       }
     };
 
@@ -120,11 +121,19 @@ self.addEventListener('push', (event) => {
   }
 });
 
-// Lắng nghe sự kiện click vào thông báo đẩy
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   
-  const urlToOpen = new URL(event.notification.data?.url || '/', self.location.origin).href;
+  const notificationData = event.notification.data || {};
+  const conversationId = notificationData.conversationId;
+  
+  let targetUrl = notificationData.url || '/';
+  if (conversationId) {
+    const urlObj = new URL(targetUrl, self.location.origin);
+    urlObj.searchParams.set('convId', conversationId);
+    targetUrl = urlObj.pathname + urlObj.search;
+  }
+  const urlToOpen = new URL(targetUrl, self.location.origin).href;
 
   const promiseChain = clients.matchAll({
     type: 'window',
@@ -134,12 +143,30 @@ self.addEventListener('notificationclick', (event) => {
     for (let i = 0; i < windowClients.length; i++) {
       const client = windowClients[i];
       if ('focus' in client) {
-        return client.focus();
+        client.focus();
+        if (conversationId) {
+          // Phát tin nhắn để Client tự chuyển màn hình cuộc trò chuyện tương ứng
+          client.postMessage({
+            type: 'SWITCH_CONVERSATION',
+            conversationId: conversationId
+          });
+        }
+        return;
       }
     }
-    // Nếu chưa có tab nào mở, mở tab mới
+    // Nếu chưa có tab nào mở, mở tab mới và truyền tham số chuyển hướng
     if (clients.openWindow) {
-      return clients.openWindow(urlToOpen);
+      return clients.openWindow(urlToOpen).then((windowClient) => {
+        if (windowClient && conversationId) {
+          // Chờ 1.5 giây cho React load xong và đăng ký sự kiện trước khi bắn tín hiệu chuyển phòng
+          setTimeout(() => {
+            windowClient.postMessage({
+              type: 'SWITCH_CONVERSATION',
+              conversationId: conversationId
+            });
+          }, 1500);
+        }
+      });
     }
   });
 

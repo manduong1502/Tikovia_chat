@@ -11,7 +11,15 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [socket, setSocket] = useState(null);
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] = useState(() => {
+    try {
+      const cached = localStorage.getItem('chat_conversations_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      console.error('Lỗi khôi phục cache conversations:', e);
+      return [];
+    }
+  });
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -66,6 +74,7 @@ export default function App() {
   const [peerInstance, setPeerInstance] = useState(null);
 
   const activeConversationRef = useRef(null);
+  const conversationsRef = useRef(conversations);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -73,6 +82,11 @@ export default function App() {
   useEffect(() => {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
+
+  // Đồng bộ danh sách cuộc hội thoại vào ref để tránh stale closure
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   // Khôi phục phiên đăng nhập từ LocalStorage & tự động tải lại khi Service Worker cập nhật
   useEffect(() => {
@@ -272,6 +286,9 @@ export default function App() {
         const data = await res.json();
         setConversations(data);
 
+        // Cache danh sách cuộc trò chuyện để xem offline
+        localStorage.setItem('chat_conversations_cache', JSON.stringify(data));
+
         // Thu thập trạng thái online của các thành viên khác
         const onlineIds = [];
         data.forEach(c => {
@@ -329,7 +346,8 @@ export default function App() {
           }
         } catch (fetchErr) {
           console.warn('Lỗi kiểm tra VAPID key từ server:', fetchErr);
-          setPushStatus(subscription ? 'granted' : 'prompt');
+          // Nếu offline mà quyền đã được cấp, giữ trạng thái là granted để không hiện banner
+          setPushStatus('granted');
         }
       } else if (permission === 'denied') {
         setPushStatus('denied');
@@ -417,7 +435,12 @@ export default function App() {
       }
     } catch (e) {
       console.error('Lỗi thiết lập thông báo đẩy:', e);
-      setPushStatus('prompt');
+      // Nếu offline mà quyền đã được cấp, giữ trạng thái là granted để không hiện banner
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        setPushStatus('granted');
+      } else {
+        setPushStatus('prompt');
+      }
       return { success: false, error: `[Bản vá - Lỗi tại bước: ${currentStep}] ${e.message || 'Lỗi mạng hoặc kết nối.'}` };
     }
   };
@@ -460,8 +483,9 @@ export default function App() {
         const { conversationId } = event.data;
         console.log('[App] Nhận tín hiệu chuyển phòng chat từ Service Worker:', conversationId);
         
-        // Tìm cuộc trò chuyện trong conversations
-        const targetConv = conversations.find(c => c.id === conversationId);
+        // Tìm cuộc trò chuyện dùng ref để tránh stale closure
+        const currentConvs = conversationsRef.current;
+        const targetConv = currentConvs.find(c => c.id === conversationId);
         if (targetConv) {
           setActiveConversation(targetConv);
           setMobileActiveView('chat');
@@ -485,6 +509,27 @@ export default function App() {
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleSWMessage);
     };
+  }, [token]);
+
+  // Tự động kiểm tra và chuyển hướng phòng chat từ URL query parameter (convId)
+  useEffect(() => {
+    if (conversations && conversations.length > 0) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const convId = urlParams.get('convId');
+      if (convId) {
+        const target = conversations.find(c => c.id === convId);
+        if (target) {
+          console.log('[App] Tự động mở cuộc trò chuyện từ URL:', convId);
+          setActiveConversation(target);
+          setMobileActiveView('chat');
+          
+          // Xóa query parameter khỏi thanh địa chỉ mà không reload trang
+          const url = new URL(window.location.href);
+          url.searchParams.delete('convId');
+          window.history.replaceState({}, '', url.pathname + url.search);
+        }
+      }
+    }
   }, [conversations]);
 
   // Gọi fetchConversations khi login xong và kiểm tra quyền thông báo đẩy

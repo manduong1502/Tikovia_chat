@@ -72,13 +72,13 @@ export default function VideoCall({
     }
   }, [remoteStream, callState]);
 
-  // Tự động huỷ cuộc gọi nếu đổ chuông quá lâu mà không có phản hồi (35 giây)
+  // Tự động huỷ cuộc gọi nếu đổ chuông quá lâu mà không có phản hồi (15 giây)
   useEffect(() => {
     if (callState === 'calling' || callState === 'incoming') {
       const timer = setTimeout(() => {
         console.log('[VideoCall] Cuộc gọi quá thời gian chờ (timeout), tự động huỷ...');
         cleanupCallRef.current?.();
-      }, 35000);
+      }, 15000);
       return () => clearTimeout(timer);
     }
   }, [callState]);
@@ -248,7 +248,8 @@ export default function VideoCall({
         from: user.id,
         callerName: user.displayName,
         callerAvatar: user.avatarUrl,
-        isVideo: isVideoCall
+        isVideo: isVideoCall,
+        conversationId: conversationRef.current?.id
       });
 
       // Lắng nghe chấp nhận cuộc gọi
@@ -469,43 +470,46 @@ export default function VideoCall({
       )}
 
       {/* 3. Màn hình Cuộc gọi kết nối thành công (Connected) */}
-      {callState === 'connected' && (
-        <div style={styles.connectedContainer}>
-          {/* Video đối phương (Toàn màn hình) */}
+      <div style={{
+        ...styles.connectedContainer,
+        display: callState === 'connected' ? 'block' : 'none'
+      }}>
+        {/* Video đối phương (Toàn màn hình) */}
+        <video 
+          ref={remoteVideoRef} 
+          autoPlay 
+          playsInline 
+          webkit-playsinline="true"
+          style={styles.remoteVideo} 
+        />
+        
+        {/* Video bản thân (Thu nhỏ PiP ở góc phải) */}
+        {videoEnabled ? (
           <video 
-            ref={remoteVideoRef} 
+            ref={localVideoRef} 
             autoPlay 
             playsInline 
-            style={styles.remoteVideo} 
+            webkit-playsinline="true"
+            muted 
+            style={styles.localVideo} 
           />
-          
-          {/* Video bản thân (Thu nhỏ PiP ở góc phải) */}
-          {videoEnabled ? (
-            <video 
-              ref={localVideoRef} 
-              autoPlay 
-              playsInline 
-              muted 
-              style={styles.localVideo} 
-            />
-          ) : (
-            <div style={styles.localVideoPlaceholder}>Camera tắt</div>
-          )}
+        ) : (
+          <div style={styles.localVideoPlaceholder}>Camera tắt</div>
+        )}
 
-          {/* Thanh điều khiển cuộc gọi bên dưới */}
-          <div style={styles.controlBar} className="glass">
-            <button onClick={toggleMic} style={{...styles.roundBtn, backgroundColor: micEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
-              {micEnabled ? <FiMic size={20} /> : <FiMicOff size={20} />}
-            </button>
-            <button onClick={handleEndCall} style={{...styles.roundBtn, backgroundColor: 'var(--danger)'}}>
-              <FiPhoneOff size={20} />
-            </button>
-            <button onClick={toggleVideo} style={{...styles.roundBtn, backgroundColor: videoEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
-              {videoEnabled ? <FiVideo size={20} /> : <FiVideoOff size={20} />}
-            </button>
-          </div>
+        {/* Thanh điều khiển cuộc gọi bên dưới */}
+        <div style={styles.controlBar} className="glass">
+          <button onClick={toggleMic} style={{...styles.roundBtn, backgroundColor: micEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
+            {micEnabled ? <FiMic size={20} /> : <FiMicOff size={20} />}
+          </button>
+          <button onClick={handleEndCall} style={{...styles.roundBtn, backgroundColor: 'var(--danger)'}}>
+            <FiPhoneOff size={20} />
+          </button>
+          <button onClick={toggleVideo} style={{...styles.roundBtn, backgroundColor: videoEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
+            {videoEnabled ? <FiVideo size={20} /> : <FiVideoOff size={20} />}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
