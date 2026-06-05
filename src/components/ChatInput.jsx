@@ -563,7 +563,7 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
           {/* Nút 3 chấm */}
           <button 
             onClick={() => { setShowMoreMenu(!showMoreMenu); setShowStickers(false); }} 
-            style={{...styles.iconBtn, color: showMoreMenu ? 'var(--primary)' : '#e2e8f0'}} 
+            style={{...styles.iconBtn, color: showMoreMenu ? 'var(--primary)' : 'var(--text-secondary)'}} 
             className="btn-interactive"
           >
             <FiMoreHorizontal size={26} />
@@ -756,9 +756,9 @@ const styles = {
     flexShrink: 0
   },
   imageBtn: {
-    background: 'rgba(255, 255, 255, 0.05)',
-    color: 'var(--text-primary)',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    background: 'var(--btn-image-bg)',
+    color: 'var(--btn-image-color)',
+    border: '1px solid var(--border-color)',
     borderRadius: '50%',
     width: '32px',
     height: '32px',

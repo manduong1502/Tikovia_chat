@@ -296,9 +296,9 @@ export default function ChatWindow({
         <div style={styles.callCardHeader}>
           <div style={{
             ...styles.callCardIconContainer,
-            backgroundColor: isMissed ? 'var(--danger)' : 'rgba(255, 255, 255, 0.15)'
+            backgroundColor: isMissed ? 'var(--danger)' : 'rgba(99, 102, 241, 0.12)'
           }}>
-            <IconComponent size={18} style={{ color: '#ffffff' }} />
+            <IconComponent size={18} style={{ color: isMissed ? '#ffffff' : 'var(--primary)' }} />
           </div>
           <div style={styles.callCardText}>
             <div style={styles.callCardTitle}>{title}</div>
@@ -690,11 +690,11 @@ export default function ChatWindow({
                         }}
                         style={{
                           ...styles.messageBubble,
-                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : msg.type === 'call' ? 'rgba(255, 255, 255, 0.06)' : undefined,
-                          border: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? 'none' : undefined,
+                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : msg.type === 'call' ? 'var(--bg-glass-active)' : undefined,
+                          border: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : msg.type === 'call' ? '1px solid var(--border-color)' : undefined,
                           boxShadow: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? 'none' : undefined,
                           padding: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? '0' : '10px 14px',
-                          color: msg.type === 'call' ? '#ffffff' : isMe ? '#ffffff' : 'var(--text-primary)',
+                          color: msg.type === 'call' ? 'var(--text-primary)' : isMe ? '#ffffff' : 'var(--text-primary)',
                           borderRadius: msg.type === 'call' ? '16px' : isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
                           cursor: !isGroupEnd ? 'pointer' : 'default',
                           opacity: msg.status === 'sending' ? 0.6 : 1,
@@ -966,8 +966,8 @@ const styles = {
     gap: '8px'
   },
   headerBtn: {
-    background: 'rgba(255, 255, 255, 0.06)',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
     width: '38px',
     height: '38px',
@@ -1013,7 +1013,7 @@ const styles = {
     width: '100%'
   },
   dateSeparatorText: {
-    background: 'var(--bg-surface)',
+    background: 'var(--bg-secondary)',
     color: 'var(--text-secondary)',
     padding: '6px 14px',
     borderRadius: 'var(--radius-md)',
@@ -1305,14 +1305,14 @@ const styles = {
   callCardTitle: {
     fontSize: '0.9rem',
     fontWeight: '600',
-    color: '#ffffff',
+    color: 'var(--text-primary)',
     whiteSpace: 'nowrap',
     textOverflow: 'ellipsis',
     overflow: 'hidden'
   },
   callCardSubtitle: {
     fontSize: '0.75rem',
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: 'var(--text-secondary)',
     marginTop: '2px',
     whiteSpace: 'nowrap',
     textOverflow: 'ellipsis',
@@ -1322,9 +1322,9 @@ const styles = {
     width: '100%',
     padding: '8px',
     borderRadius: '8px',
-    border: 'none',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    color: '#ffffff',
+    border: '1px solid rgba(99, 102, 241, 0.15)',
+    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+    color: 'var(--primary)',
     fontWeight: '600',
     fontSize: '0.85rem',
     cursor: 'pointer',
