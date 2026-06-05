@@ -53,11 +53,15 @@ export default function Auth({ onAuthSuccess }) {
       <div className="bg-blob blob-2"></div>
       <div className="bg-blob blob-3"></div>
 
-      <div style={styles.authCard} className="glass-card anim-scale-in auth-card">
+      <div style={styles.authCard} className="glass-card anim-scale-in auth-card" key={isLogin ? 'login' : 'register'}>
         {/* Brand Logo Header */}
         <div style={styles.logoContainer}>
           <div style={styles.logoGlow}></div>
-          <span style={styles.logoIcon}>💬</span>
+          <div style={{ zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{color: '#ffffff'}}>
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </div>
         </div>
 
         <h2 style={styles.title}>{isLogin ? 'Đăng nhập ChatTikovia' : 'Đăng ký Tài khoản'}</h2>
@@ -76,6 +80,7 @@ export default function Auth({ onAuthSuccess }) {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Nhập tên đăng nhập"
+              className="input-premium"
               style={styles.input}
             />
           </div>
@@ -90,6 +95,7 @@ export default function Auth({ onAuthSuccess }) {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Nhập tên hiển thị (Ví dụ: Nguyễn Văn A)"
+                  className="input-premium"
                   style={styles.input}
                 />
               </div>
@@ -100,6 +106,7 @@ export default function Auth({ onAuthSuccess }) {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Nhập số điện thoại (tùy chọn)"
+                  className="input-premium"
                   style={styles.input}
                 />
               </div>
@@ -115,6 +122,7 @@ export default function Auth({ onAuthSuccess }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Nhập mật khẩu"
+                className="input-premium"
                 style={{ ...styles.input, width: '100%', paddingRight: '44px' }}
               />
               <button
@@ -147,6 +155,7 @@ export default function Auth({ onAuthSuccess }) {
               setError('');
             }}
             style={styles.switchBtn}
+            className="btn-interactive"
           >
             {isLogin ? 'Đăng ký ngay' : 'Đăng nhập'}
           </button>
@@ -163,36 +172,37 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    background: '#0b0f19',
+    background: '#070a13',
     position: 'relative',
     overflow: 'hidden',
   },
   authCard: {
     width: '100%',
-    maxWidth: '420px',
-    padding: '40px',
+    maxWidth: '400px',
+    padding: '40px 32px',
     display: 'flex',
     flexDirection: 'column',
     position: 'relative',
     zIndex: 10,
-    background: 'rgba(26, 34, 50, 0.45)',
+    background: 'rgba(17, 21, 32, 0.65)',
     backdropFilter: 'blur(30px)',
     WebkitBackdropFilter: 'blur(30px)',
     border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: 'var(--radius-md)',
     boxShadow: 'var(--shadow-lg)',
   },
   logoContainer: {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    width: '64px',
-    height: '64px',
-    borderRadius: '18px',
-    background: 'linear-gradient(135deg, rgba(7, 102, 255, 0.25) 0%, rgba(0, 82, 204, 0.45) 100%)',
-    border: '1px solid rgba(7, 102, 255, 0.35)',
+    width: '60px',
+    height: '60px',
+    borderRadius: '16px',
+    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(59, 130, 246, 0.45) 100%)',
+    border: '1px solid rgba(99, 102, 241, 0.35)',
     margin: '0 auto 20px auto',
     position: 'relative',
-    boxShadow: '0 8px 25px rgba(7, 102, 255, 0.35)',
+    boxShadow: '0 8px 25px rgba(99, 102, 241, 0.35)',
   },
   logoGlow: {
     position: 'absolute',
@@ -200,16 +210,12 @@ const styles = {
     height: '100%',
     borderRadius: 'inherit',
     background: 'inherit',
-    filter: 'blur(8px)',
-    opacity: 0.7,
+    filter: 'blur(10px)',
+    opacity: 0.8,
     zIndex: 1,
   },
-  logoIcon: {
-    fontSize: '28px',
-    zIndex: 2,
-  },
   title: {
-    fontSize: '1.75rem',
+    fontSize: '1.65rem',
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: '8px',
@@ -220,13 +226,13 @@ const styles = {
     fontSize: '0.85rem',
     color: 'var(--text-secondary)',
     textAlign: 'center',
-    marginBottom: '32px',
-    lineHeight: '1.4',
+    marginBottom: '28px',
+    lineHeight: '1.45',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '18px',
+    gap: '16px',
   },
   inputGroup: {
     display: 'flex',
@@ -234,21 +240,22 @@ const styles = {
     gap: '6px',
   },
   label: {
-    fontSize: '0.8rem',
+    fontSize: '0.78rem',
     fontWeight: '600',
     color: 'var(--text-secondary)',
     letterSpacing: '0.2px',
+    paddingLeft: '2px'
   },
   input: {
     padding: '12px 16px',
     borderRadius: 'var(--radius-sm)',
-    background: 'var(--bg-surface)',
+    background: 'rgba(255, 255, 255, 0.02)',
     border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
-    fontSize: '0.95rem',
+    fontSize: '0.92rem',
     outline: 'none',
-    transition: 'all var(--transition-fast)',
-    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.05)',
+    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+    width: '100%'
   },
   submitBtn: {
     padding: '13px',
@@ -256,21 +263,21 @@ const styles = {
     background: 'var(--primary-gradient)',
     color: '#ffffff',
     border: 'none',
-    fontSize: '0.95rem',
+    fontSize: '0.92rem',
     fontWeight: '600',
     cursor: 'pointer',
     marginTop: '12px',
-    boxShadow: '0 6px 20px rgba(7, 102, 255, 0.35)',
-    transition: 'all var(--transition-fast)',
+    boxShadow: '0 6px 20px rgba(99, 102, 241, 0.35)',
+    transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
   },
   errorAlert: {
-    background: 'rgba(239, 68, 68, 0.15)',
-    border: '1px solid rgba(239, 68, 68, 0.25)',
-    color: '#f87171',
+    background: 'rgba(244, 63, 94, 0.15)',
+    border: '1px solid rgba(244, 63, 94, 0.25)',
+    color: '#fb7185',
     padding: '11px 14px',
     borderRadius: 'var(--radius-sm)',
-    fontSize: '0.85rem',
-    marginBottom: '20px',
+    fontSize: '0.82rem',
+    marginBottom: '16px',
     textAlign: 'center',
   },
   switchAuth: {
@@ -278,8 +285,8 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     gap: '8px',
-    marginTop: '28px',
-    fontSize: '0.85rem',
+    marginTop: '24px',
+    fontSize: '0.82rem',
     color: 'var(--text-secondary)',
   },
   switchBtn: {
@@ -288,7 +295,7 @@ const styles = {
     color: 'var(--primary)',
     fontWeight: '600',
     cursor: 'pointer',
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
     transition: 'color 0.2s ease',
   },
   eyeBtn: {

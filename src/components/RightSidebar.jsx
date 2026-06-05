@@ -125,7 +125,7 @@ export default function RightSidebar({
       <div style={styles.header}>
         <button 
           onClick={onClose} 
-          className="mobile-back-btn" 
+          className="mobile-back-btn btn-interactive" 
           style={styles.backBtn}
         >
           <FiChevronLeft size={24} />
@@ -139,26 +139,28 @@ export default function RightSidebar({
       <div style={styles.content}>
         {/* Info Card */}
         <div style={styles.infoCard}>
-          <img src={getChatAvatar()} alt="" style={styles.avatar} />
+          <div style={styles.avatarWrapper}>
+            <img src={getChatAvatar()} alt="" style={styles.avatar} />
+          </div>
           <h4 style={styles.titleName}>{getChatTitle()}</h4>
           <span style={styles.titleSub}>{conversation.isGroup ? 'Cuộc hội thoại nhóm' : 'Chat cá nhân'}</span>
         </div>
 
         {/* Hàng nút hành động kiểu Zalo (Image 3) */}
         <div style={styles.actionRow}>
-          <div style={styles.actionItem} onClick={() => setIsSearchingMsg(true)}>
+          <div style={styles.actionItem} onClick={() => setIsSearchingMsg(true)} className="btn-interactive">
             <div style={styles.actionCircle}><FiSearch size={18} /></div>
             <span style={styles.actionLabel}>Tìm tin nhắn</span>
           </div>
-          <div style={styles.actionItem}>
+          <div style={styles.actionItem} className="btn-interactive">
             <div style={styles.actionCircle}><FiUser size={18} /></div>
             <span style={styles.actionLabel}>Trang cá nhân</span>
           </div>
-          <div style={styles.actionItem}>
+          <div style={styles.actionItem} className="btn-interactive">
             <div style={styles.actionCircle}><FiImage size={18} /></div>
             <span style={styles.actionLabel}>Đổi hình nền</span>
           </div>
-          <div style={styles.actionItem}>
+          <div style={styles.actionItem} className="btn-interactive">
             <div style={styles.actionCircle}><FiBell size={18} /></div>
             <span style={styles.actionLabel}>Tắt thông báo</span>
           </div>
@@ -167,26 +169,27 @@ export default function RightSidebar({
         {/* 1. Tìm kiếm tin nhắn */}
         <div style={styles.section} className="glass-card">
           <div style={styles.sectionHeader}>
-            <FiSearch size={16} />
+            <FiSearch size={16} style={{ color: 'var(--primary)' }} />
             <span>Tìm tin nhắn trò chuyện</span>
           </div>
           <div style={styles.searchBox}>
             <input
               type="text"
-              placeholder="Nhập nội dung tin nhắn..."
+              placeholder="Nhập nội dung..."
               value={searchMsgQuery}
               onChange={(e) => setSearchMsgQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearchMessages()}
-              style={styles.searchInput}
+              className="input-premium"
+              style={{ flex: 1, padding: '8px 10px', fontSize: '0.8rem' }}
             />
-            <button onClick={handleSearchMessages} style={styles.searchBtn}>Tìm</button>
+            <button onClick={handleSearchMessages} style={styles.searchBtn} className="btn-interactive">Tìm</button>
           </div>
 
           {isSearchingMsg && (
             <div style={styles.searchResultsContainer}>
               <div style={styles.searchResultHeader}>
                 Kết quả: {searchResults.length} tin nhắn
-                <button onClick={() => { setSearchMsgQuery(''); setSearchResults([]); setIsSearchingMsg(false); }} style={styles.clearSearchBtn}>Xóa</button>
+                <button onClick={() => { setSearchMsgQuery(''); setSearchResults([]); setIsSearchingMsg(false); }} style={styles.clearSearchBtn} className="btn-interactive">Xóa</button>
               </div>
               <div style={styles.searchResultsList}>
                 {searchResults.map(msg => (
@@ -208,7 +211,7 @@ export default function RightSidebar({
         {/* 2. Thành viên & Đổi biệt danh */}
         <div style={styles.section} className="glass-card">
           <div style={styles.sectionHeader}>
-            <FiEdit3 size={16} />
+            <FiEdit3 size={16} style={{ color: 'var(--primary)' }} />
             <span>Thành viên & Biệt danh</span>
           </div>
           <div style={styles.memberList}>
@@ -227,10 +230,11 @@ export default function RightSidebar({
                         placeholder="Đặt biệt danh..."
                         value={newNickname}
                         onChange={(e) => setNewNickname(e.target.value)}
-                        style={styles.editNicknameInput}
+                        className="input-premium"
+                        style={{ flex: 1, padding: '4px 6px', fontSize: '0.75rem' }}
                       />
-                      <button onClick={() => handleSaveNickname(member.user.id)} style={styles.saveNicknameBtn}>Lưu</button>
-                      <button onClick={() => setIsEditingNickname(false)} style={styles.cancelNicknameBtn}>Hủy</button>
+                      <button onClick={() => handleSaveNickname(member.user.id)} style={styles.saveNicknameBtn} className="btn-interactive">Lưu</button>
+                      <button onClick={() => setIsEditingNickname(false)} style={styles.cancelNicknameBtn} className="btn-interactive">Hủy</button>
                     </div>
                   ) : (
                     <button
@@ -240,6 +244,7 @@ export default function RightSidebar({
                         setNewNickname(member.nickname || '');
                       }}
                       style={styles.editNicknameBtn}
+                      className="btn-interactive"
                     >
                       Sửa biệt danh
                     </button>
@@ -253,7 +258,7 @@ export default function RightSidebar({
         {/* 3. Kho lưu trữ Media (Ảnh, File, Link) */}
         <div style={{...styles.section, flex: 1, display: 'flex', flexDirection: 'column'}} className="glass-card">
           <div style={styles.sectionHeader}>
-            <FiImage size={16} />
+            <FiImage size={16} style={{ color: 'var(--primary)' }} />
             <span>Kho dữ liệu cuộc trò chuyện</span>
           </div>
           
@@ -262,18 +267,21 @@ export default function RightSidebar({
             <button
               onClick={() => setActiveTab('images')}
               style={{...styles.tabBtn, ...(activeTab === 'images' ? styles.activeTabBtn : {})}}
+              className="btn-interactive"
             >
               Ảnh
             </button>
             <button
               onClick={() => setActiveTab('files')}
               style={{...styles.tabBtn, ...(activeTab === 'files' ? styles.activeTabBtn : {})}}
+              className="btn-interactive"
             >
               Tài liệu
             </button>
             <button
               onClick={() => setActiveTab('links')}
               style={{...styles.tabBtn, ...(activeTab === 'links' ? styles.activeTabBtn : {})}}
+              className="btn-interactive"
             >
               Liên kết
             </button>
@@ -293,6 +301,7 @@ export default function RightSidebar({
                       alt=""
                       onClick={() => onImageClick ? onImageClick(getFileUrl(img.url)) : window.open(getFileUrl(img.url), '_blank')}
                       style={styles.galleryImage}
+                      className="btn-interactive"
                     />
                   ))}
                 </div>
@@ -313,7 +322,7 @@ export default function RightSidebar({
                           {file.senderName} • {(file.size / 1024 / 1024).toFixed(2)} MB
                         </span>
                       </div>
-                      <a href={getFileUrl(file.url)} download style={styles.fileDownload}>
+                      <a href={getFileUrl(file.url)} download style={styles.fileDownload} className="btn-interactive">
                         <FiDownload size={16} />
                       </a>
                     </div>
@@ -353,6 +362,9 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     borderLeft: '1px solid var(--border-color)',
+    background: 'var(--bg-glass)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
     zIndex: 10
   },
   header: {
@@ -404,19 +416,29 @@ const styles = {
     textAlign: 'center',
     padding: '10px 0'
   },
+  avatarWrapper: {
+    position: 'relative',
+    borderRadius: '50%',
+    padding: '2px',
+    background: 'var(--primary-gradient)',
+    boxShadow: '0 0 12px var(--border-glow)',
+    marginBottom: '10px'
+  },
   avatar: {
     width: '64px',
     height: '64px',
     borderRadius: 'var(--radius-circle)',
-    marginBottom: '10px',
-    objectFit: 'cover'
+    objectFit: 'cover',
+    display: 'block',
+    border: '2px solid var(--bg-secondary)'
   },
   titleName: {
-    fontSize: '1.05rem',
-    fontWeight: '600'
+    fontSize: '1.02rem',
+    fontWeight: '600',
+    letterSpacing: '-0.01em'
   },
   titleSub: {
-    fontSize: '0.75rem',
+    fontSize: '0.72rem',
     color: 'var(--text-secondary)',
     marginTop: '2px'
   },
@@ -438,12 +460,12 @@ const styles = {
     width: '38px',
     height: '38px',
     borderRadius: '50%',
-    background: 'var(--bg-surface)',
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.05)',
     color: 'var(--text-primary)',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'background var(--transition-fast)'
+    justifyContent: 'center'
   },
   actionLabel: {
     fontSize: '0.7rem',
@@ -454,14 +476,17 @@ const styles = {
     padding: '14px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px'
+    gap: '10px',
+    background: 'rgba(255, 255, 255, 0.01)',
+    border: '1px solid rgba(255, 255, 255, 0.03)',
+    borderRadius: '16px'
   },
   sectionHeader: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
     fontWeight: '600',
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
     color: 'var(--text-primary)',
     borderBottom: '1px solid var(--border-color)',
     paddingBottom: '8px'
@@ -469,16 +494,6 @@ const styles = {
   searchBox: {
     display: 'flex',
     gap: '6px'
-  },
-  searchInput: {
-    flex: 1,
-    padding: '8px 10px',
-    borderRadius: 'var(--radius-sm)',
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-color)',
-    color: 'var(--text-primary)',
-    fontSize: '0.8rem',
-    outline: 'none'
   },
   searchBtn: {
     background: 'var(--primary-gradient)',
@@ -488,13 +503,15 @@ const styles = {
     borderRadius: 'var(--radius-sm)',
     fontSize: '0.8rem',
     fontWeight: '600',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
   },
   searchResultsContainer: {
     marginTop: '10px',
-    background: 'var(--bg-surface)',
+    background: 'rgba(255, 255, 255, 0.02)',
     borderRadius: 'var(--radius-sm)',
-    padding: '8px'
+    padding: '8px',
+    border: '1px solid var(--border-color)'
   },
   searchResultHeader: {
     display: 'flex',
@@ -579,23 +596,12 @@ const styles = {
     fontSize: '0.75rem',
     cursor: 'pointer',
     padding: 0,
-    textDecoration: 'underline',
-    ':hover': { color: 'var(--primary)' }
+    textDecoration: 'underline'
   },
   editNicknameBox: {
     display: 'flex',
     gap: '4px',
     marginTop: '4px'
-  },
-  editNicknameInput: {
-    flex: 1,
-    padding: '4px 6px',
-    borderRadius: '4px',
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-color)',
-    color: 'var(--text-primary)',
-    fontSize: '0.75rem',
-    outline: 'none'
   },
   saveNicknameBtn: {
     background: 'var(--primary)',
@@ -656,10 +662,8 @@ const styles = {
     width: '100%',
     height: '70px',
     objectFit: 'cover',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    transition: 'transform 0.15s ease',
-    ':hover': { transform: 'scale(1.05)' }
+    borderRadius: '8px',
+    cursor: 'pointer'
   },
   fileList: {
     display: 'flex',
@@ -670,9 +674,10 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    padding: '6px',
-    background: 'var(--bg-surface)',
-    borderRadius: '4px'
+    padding: '8px 10px',
+    background: 'rgba(255, 255, 255, 0.02)',
+    border: '1px solid rgba(255, 255, 255, 0.04)',
+    borderRadius: '10px'
   },
   fileInfo: {
     flex: 1,
@@ -693,7 +698,9 @@ const styles = {
   },
   fileDownload: {
     color: 'var(--primary)',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center'
   },
   linkList: {
     display: 'flex',
@@ -703,9 +710,10 @@ const styles = {
   linkItem: {
     display: 'flex',
     gap: '8px',
-    padding: '6px',
-    background: 'var(--bg-surface)',
-    borderRadius: '4px'
+    padding: '8px 10px',
+    background: 'rgba(255, 255, 255, 0.02)',
+    border: '1px solid rgba(255, 255, 255, 0.04)',
+    borderRadius: '10px'
   },
   linkInfo: {
     flex: 1,

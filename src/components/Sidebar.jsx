@@ -241,6 +241,7 @@ export default function Sidebar({
             placeholder="Tìm kiếm cuộc trò chuyện..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            className="input-premium"
             style={styles.searchInput}
           />
           <FiMaximize style={{position: 'absolute', right: '12px', color: 'var(--text-secondary)', cursor: 'pointer'}} title="Quét mã QR" />
@@ -311,8 +312,11 @@ export default function Sidebar({
               return (
                 <div
                   key={conv.id}
-                  onClick={() => setActiveConversation(conv)}
-                  style={{...styles.listItem, ...(isSelected ? styles.listActiveItem : {})}}
+                  onClick={() => {
+                    setActiveConversation(conv);
+                    setMobileActiveView('chat');
+                  }}
+                  className={`sidebar-item-premium ${isSelected ? 'active' : ''}`}
                 >
                   <div style={styles.avatarWrapper}>
                     <img src={avatar} alt="" style={styles.listAvatar} />
@@ -356,7 +360,7 @@ export default function Sidebar({
                   <div
                     key={u.id}
                     onClick={() => handleStartDirectChat(u)}
-                    style={styles.listItem}
+                    className="sidebar-item-premium"
                   >
                     <div style={styles.avatarWrapper}>
                       <img src={u.avatarUrl} alt="" style={styles.listAvatar} />
@@ -570,32 +574,34 @@ const styles = {
   searchInput: {
     width: '100%',
     padding: '10px 12px 10px 36px',
-    borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid var(--border-color)',
-    color: 'var(--text-primary)',
-    fontSize: '0.85rem',
-    outline: 'none'
+    fontSize: '0.85rem'
   },
   tabsContainer: {
     display: 'flex',
-    padding: '8px 20px',
-    gap: '8px'
+    padding: '4px',
+    margin: '8px 20px',
+    gap: '4px',
+    background: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: '24px',
+    border: '1px solid var(--border-color)'
   },
   tab: {
+    flex: 1,
     background: 'none',
     border: 'none',
     color: 'var(--text-secondary)',
     fontSize: '0.8rem',
     fontWeight: '600',
-    padding: '6px 12px',
+    padding: '7px 12px',
     borderRadius: '20px',
     cursor: 'pointer',
-    transition: 'all var(--transition-fast)'
+    textAlign: 'center',
+    transition: 'all var(--transition-spring)'
   },
   activeTab: {
-    background: 'rgba(0, 122, 255, 0.15)',
-    color: 'var(--primary)'
+    background: 'var(--primary-gradient)',
+    color: '#ffffff',
+    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)'
   },
   listContainer: {
     flex: 1,

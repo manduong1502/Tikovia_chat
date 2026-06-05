@@ -653,9 +653,11 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
 const styles = {
   uploadProgressOverlay: {
     padding: '12px 16px',
-    background: 'var(--bg-glass-active)',
+    background: 'rgba(17, 21, 32, 0.85)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
     border: '1px solid var(--border-color)',
-    borderRadius: 'var(--radius-md)',
+    borderRadius: '16px',
     marginBottom: '10px',
     boxShadow: 'var(--shadow-md)',
     zIndex: 10
@@ -710,24 +712,31 @@ const styles = {
     marginTop: '2px'
   },
   container: {
-    padding: '12px 16px',
-    borderTop: '1px solid var(--border-color)',
+    padding: '8px 16px 16px 16px',
+    borderTop: 'none',
     position: 'relative',
-    background: 'var(--bg-secondary)',
+    background: 'transparent',
     flexShrink: 0
   },
   inputBar: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    background: 'none'
+    gap: '8px',
+    background: 'var(--bg-glass)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '28px',
+    padding: '6px 12px 6px 16px',
+    boxShadow: 'var(--shadow-md)',
+    transition: 'border-color 0.2s, box-shadow 0.2s'
   },
   iconBtn: {
     background: 'none',
     border: 'none',
-    color: '#e2e8f0',
+    color: 'var(--text-secondary)',
     cursor: 'pointer',
-    padding: '4px',
+    padding: '6px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -737,9 +746,9 @@ const styles = {
   smileBtn: {
     background: 'none',
     border: 'none',
-    color: '#cbd5e1',
+    color: 'var(--text-secondary)',
     cursor: 'pointer',
-    padding: '4px',
+    padding: '6px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -747,32 +756,32 @@ const styles = {
     flexShrink: 0
   },
   imageBtn: {
-    background: 'var(--btn-image-bg)',
-    color: 'var(--btn-image-color)',
-    border: 'none',
-    borderRadius: 'var(--radius-sm)',
-    width: '36px',
-    height: '36px',
+    background: 'rgba(255, 255, 255, 0.05)',
+    color: 'var(--text-primary)',
+    border: '1px solid rgba(255, 255, 255, 0.05)',
+    borderRadius: '50%',
+    width: '32px',
+    height: '32px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
     padding: '0',
     flexShrink: 0,
-    transition: 'background var(--transition-fast), transform var(--transition-fast)'
+    transition: 'all var(--transition-fast)'
   },
   textInput: {
     flex: 1,
-    padding: '10px 4px',
+    padding: '8px 0',
     background: 'transparent',
     border: 'none',
     color: 'var(--text-primary)',
-    fontSize: '1rem',
+    fontSize: '0.95rem',
     outline: 'none',
     width: '100%',
     resize: 'none',
     fontFamily: 'inherit',
-    height: '40px',
+    height: '24px',
     maxHeight: '120px',
     lineHeight: '1.4'
   },
@@ -780,23 +789,30 @@ const styles = {
     background: 'var(--primary-gradient)',
     color: 'white',
     border: 'none',
-    width: '38px',
-    height: '38px',
+    width: '32px',
+    height: '32px',
     borderRadius: 'var(--radius-circle)',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 4px 10px rgba(0, 122, 255, 0.3)'
+    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+    flexShrink: 0
   },
   // Sticker Popover
   stickerContainer: {
     position: 'absolute',
-    bottom: '72px',
-    left: '20px',
+    bottom: '76px',
+    left: '16px',
     width: '320px',
-    padding: '12px',
-    zIndex: 20
+    padding: '16px',
+    zIndex: 20,
+    background: 'rgba(17, 21, 32, 0.85)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '20px',
+    boxShadow: 'var(--shadow-lg)'
   },
   stickerHeader: {
     display: 'flex',
@@ -853,11 +869,17 @@ const styles = {
   // More options Popover
   moreMenuContainer: {
     position: 'absolute',
-    bottom: '72px',
-    left: '60px',
+    bottom: '76px',
+    left: '48px',
     padding: '16px',
     zIndex: 20,
-    width: '240px'
+    width: '260px',
+    background: 'rgba(17, 21, 32, 0.85)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '20px',
+    boxShadow: 'var(--shadow-lg)'
   },
   moreGrid: {
     display: 'flex',
@@ -889,10 +911,16 @@ const styles = {
   mentionsContainer: {
     position: 'absolute',
     zIndex: 30,
-    width: '200px',
-    maxHeight: '160px',
+    width: '220px',
+    maxHeight: '180px',
     overflowY: 'auto',
-    padding: '6px'
+    padding: '8px',
+    background: 'rgba(17, 21, 32, 0.85)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '16px',
+    boxShadow: 'var(--shadow-lg)'
   },
   mentionItem: {
     display: 'flex',
@@ -914,11 +942,14 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     background: 'rgba(239, 68, 68, 0.08)',
-    border: '1px dashed rgba(239, 68, 68, 0.3)',
-    borderRadius: '24px',
-    padding: '6px 16px',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid rgba(239, 68, 68, 0.2)',
+    borderRadius: '28px',
+    padding: '8px 16px',
     width: '100%',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    boxShadow: 'var(--shadow-sm)'
   },
   recordDot: {
     width: '10px',
@@ -961,7 +992,9 @@ const styles = {
     left: 0,
     width: '100vw',
     height: '100vh',
-    background: 'rgba(0,0,0,0.5)',
+    background: 'rgba(0,0,0,0.4)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -969,7 +1002,13 @@ const styles = {
   },
   modalContent: {
     width: '380px',
-    padding: '24px'
+    padding: '24px',
+    background: 'rgba(17, 21, 32, 0.85)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '20px',
+    boxShadow: 'var(--shadow-lg)'
   },
   modalHeader: {
     display: 'flex',
@@ -1001,11 +1040,12 @@ const styles = {
   modalInput: {
     padding: '10px 12px',
     borderRadius: 'var(--radius-sm)',
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-color)',
+    background: 'rgba(255, 255, 255, 0.03)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
     color: 'var(--text-primary)',
     fontSize: '0.9rem',
-    outline: 'none'
+    outline: 'none',
+    transition: 'all 0.2s ease'
   },
   modalFooter: {
     display: 'flex',
@@ -1025,7 +1065,7 @@ const styles = {
   btnSecondary: {
     padding: '10px 16px',
     borderRadius: 'var(--radius-sm)',
-    background: 'var(--bg-surface)',
+    background: 'rgba(255, 255, 255, 0.05)',
     color: 'var(--text-primary)',
     border: '1px solid var(--border-color)',
     fontWeight: '600',
@@ -1035,11 +1075,14 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    background: 'var(--bg-surface)',
-    borderLeft: '3px solid var(--primary)',
+    background: 'rgba(255, 255, 255, 0.04)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    border: '1px solid var(--border-color)',
+    borderLeft: '4px solid var(--primary)',
     padding: '8px 16px',
-    borderRadius: 'var(--radius-sm)',
-    marginBottom: '10px',
+    borderRadius: '14px',
+    marginBottom: '8px',
     animation: 'slideDown 0.2s ease'
   },
   replyPreviewInfo: {

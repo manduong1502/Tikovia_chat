@@ -527,11 +527,11 @@ export default function ChatWindow({
             }, {}) || {};
             const reactionTypes = Object.keys(reactionCounts).sort((a, b) => reactionCounts[b] - reactionCounts[a]);
 
-            // Kiểm tra tin nhắn kế tiếp có cùng người gửi và gửi cách nhau dưới 5p không
+            // Kiểm tra tin nhắn kế tiếp có cùng người gửi và gửi cách nhau dưới 2 phút không
             const nextMsg = messages[index + 1];
             const isNearNext = nextMsg && 
               nextMsg.senderId === msg.senderId && 
-              (new Date(nextMsg.createdAt) - new Date(msg.createdAt)) < 5 * 60 * 1000;
+              (new Date(nextMsg.createdAt) - new Date(msg.createdAt)) < 2 * 60 * 1000;
 
             const prevMsg = messages[index - 1];
             const showDateSeparator = !prevMsg || 
@@ -539,7 +539,15 @@ export default function ChatWindow({
 
             const isGroupStart = !prevMsg || 
               prevMsg.senderId !== msg.senderId || 
-              (new Date(msg.createdAt) - new Date(prevMsg.createdAt)) >= 5 * 60 * 1000;
+              (new Date(msg.createdAt) - new Date(prevMsg.createdAt)) >= 2 * 60 * 1000 ||
+              showDateSeparator;
+
+            const isGroupEnd = !nextMsg ||
+              nextMsg.senderId !== msg.senderId ||
+              (new Date(nextMsg.createdAt) - new Date(msg.createdAt)) >= 2 * 60 * 1000 ||
+              (new Date(nextMsg.createdAt).toDateString() !== new Date(msg.createdAt).toDateString());
+
+            const isSingle = isGroupStart && isGroupEnd;
 
             return (
               <React.Fragment key={msg.id}>
@@ -556,12 +564,12 @@ export default function ChatWindow({
                     ...styles.messageRow,
                     alignSelf: isMe ? 'flex-end' : 'flex-start',
                     justifyContent: isMe ? 'flex-end' : 'flex-start',
-                    marginBottom: totalReactions > 0 ? '16px' : '0px'
+                    marginBottom: totalReactions > 0 ? '16px' : isGroupEnd ? '12px' : '3px'
                   }}
                 >
                   {!isMe && (
-                    isNearNext ? (
-                      <div style={{ width: '32px', height: '32px', marginBottom: '16px' }} />
+                    !isGroupEnd ? (
+                      <div style={{ width: '32px', height: '32px' }} />
                     ) : (
                       <img 
                         src={msg.sender?.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${msg.sender?.username || msg.sender?.id || 'user'}`} 
@@ -578,7 +586,23 @@ export default function ChatWindow({
                       flexDirection: isMe ? 'row-reverse' : 'row'
                     }}>
                       <div 
-                        className="chat-message-bubble"
+                        className={`chat-message-bubble ${
+                          msg.isRecalled 
+                            ? '' 
+                            : (msg.type === 'image' || msg.type === 'sticker') 
+                            ? 'bubble-media' 
+                            : msg.type === 'call' 
+                            ? 'bubble-call' 
+                            : isMe 
+                            ? 'bubble-sent-premium' 
+                            : 'bubble-received-premium'
+                        } ${
+                          !isSingle
+                            ? (isMe
+                                ? (isGroupStart ? 'bubble-group-sent-start' : isGroupEnd ? 'bubble-group-sent-end' : 'bubble-group-sent-middle')
+                                : (isGroupStart ? 'bubble-group-received-start' : isGroupEnd ? 'bubble-group-received-end' : 'bubble-group-received-middle'))
+                            : ''
+                        }`}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           if (msg.status === 'sending' || msg.isRecalled) return;
@@ -652,7 +676,7 @@ export default function ChatWindow({
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (isNearNext) {
+                          if (!isGroupEnd) {
                             setManuallyShownTimes(prev => {
                               const newSet = new Set(prev);
                               if (newSet.has(msg.id)) {
@@ -666,15 +690,15 @@ export default function ChatWindow({
                         }}
                         style={{
                           ...styles.messageBubble,
-                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : msg.type === 'call' ? '#2a2b2d' : isMe ? 'var(--primary-gradient)' : 'var(--bg-glass-active)',
-                          border: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? 'none' : '1px solid var(--border-color)',
-                          boxShadow: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? 'none' : 'var(--shadow-sm)',
+                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : msg.type === 'call' ? 'rgba(255, 255, 255, 0.06)' : undefined,
+                          border: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? 'none' : undefined,
+                          boxShadow: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? 'none' : undefined,
                           padding: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? '0' : '10px 14px',
                           color: msg.type === 'call' ? '#ffffff' : isMe ? '#ffffff' : 'var(--text-primary)',
                           borderRadius: msg.type === 'call' ? '16px' : isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
-                          cursor: isNearNext ? 'pointer' : 'default',
+                          cursor: !isGroupEnd ? 'pointer' : 'default',
                           opacity: msg.status === 'sending' ? 0.6 : 1,
-                          transition: 'opacity 0.25s ease'
+                          transition: 'all 0.25s ease'
                         }}
                       >
                         {renderReplyContext(msg)}
@@ -817,7 +841,7 @@ export default function ChatWindow({
                       </div>
                     )}
 
-                    {(!isNearNext || manuallyShownTimes.has(msg.id) || msg.status === 'sending') && (
+                    {(isGroupEnd || manuallyShownTimes.has(msg.id) || msg.status === 'sending') && (
                       <span style={{
                         ...styles.messageTime,
                         textAlign: isMe ? 'right' : 'left'
@@ -872,6 +896,7 @@ const styles = {
     flexDirection: 'column',
     position: 'relative',
     background: 'var(--bg-chat-gradient)',
+    overflow: 'hidden'
   },
   emptyContainer: {
     flex: 1,
@@ -891,11 +916,17 @@ const styles = {
     opacity: 0.6
   },
   header: {
-    padding: '16px 24px',
+    margin: '16px 16px 8px 16px',
+    padding: '12px 20px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottom: '1px solid var(--border-color)',
+    background: 'var(--bg-glass)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '20px',
+    boxShadow: 'var(--shadow-sm)',
     zIndex: 5,
     flexShrink: 0
   },
@@ -916,35 +947,36 @@ const styles = {
     padding: '4px'
   },
   avatar: {
-    width: '42px',
-    height: '42px',
+    width: '40px',
+    height: '40px',
     borderRadius: 'var(--radius-circle)',
     objectFit: 'cover'
   },
   title: {
-    fontSize: '1rem',
-    fontWeight: '600'
+    fontSize: '0.95rem',
+    fontWeight: '600',
+    letterSpacing: '-0.01em'
   },
   status: {
-    fontSize: '0.75rem',
+    fontSize: '0.72rem',
     color: 'var(--text-secondary)'
   },
   headerActions: {
     display: 'flex',
-    gap: '10px'
+    gap: '8px'
   },
   headerBtn: {
-    background: 'rgba(255, 255, 255, 0.05)',
-    border: 'none',
+    background: 'rgba(255, 255, 255, 0.06)',
+    border: '1px solid rgba(255, 255, 255, 0.05)',
     color: 'var(--text-primary)',
-    width: '36px',
-    height: '36px',
+    width: '38px',
+    height: '38px',
     borderRadius: 'var(--radius-circle)',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'all var(--transition-fast)'
+    transition: 'all 0.25s var(--transition-spring)'
   },
   pinBanner: {
     background: 'rgba(0, 122, 255, 0.08)',
@@ -1009,7 +1041,7 @@ const styles = {
     width: '32px',
     height: '32px',
     borderRadius: 'var(--radius-circle)',
-    marginBottom: '16px'
+    marginBottom: '0px'
   },
   messageContentWrapper: {
     display: 'flex',
@@ -1134,11 +1166,12 @@ const styles = {
   },
   actionPopover: {
     position: 'absolute',
-    background: 'var(--bg-glass-active)',
-    backdropFilter: 'blur(12px)',
-    border: '1px solid var(--border-color)',
-    borderRadius: 'var(--radius-md)',
-    boxShadow: 'var(--shadow-md)',
+    background: 'rgba(17, 21, 32, 0.85)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: '16px',
+    boxShadow: '0 16px 40px -8px rgba(0, 0, 0, 0.5)',
     zIndex: 9999,
     padding: '8px',
     display: 'flex',
@@ -1155,18 +1188,15 @@ const styles = {
   },
   popoverEmojiBtn: {
     border: 'none',
-    fontSize: '1.2rem',
+    fontSize: '1.25rem',
     cursor: 'pointer',
-    width: '28px',
-    height: '28px',
+    width: '32px',
+    height: '32px',
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'transform 0.1s ease',
-    ':hover': {
-      transform: 'scale(1.2)'
-    }
+    transition: 'all 0.2s var(--transition-spring)'
   },
   popoverActionsRow: {
     display: 'flex',
@@ -1178,12 +1208,12 @@ const styles = {
     border: 'none',
     color: 'var(--text-primary)',
     textAlign: 'left',
-    padding: '6px 10px',
-    borderRadius: '6px',
-    fontSize: '0.8rem',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    fontSize: '0.82rem',
     cursor: 'pointer',
     width: '100%',
-    transition: 'background 0.15s ease',
+    transition: 'background 0.2s ease',
     ':hover': {
       background: 'rgba(255,255,255,0.05)'
     }

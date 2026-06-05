@@ -187,8 +187,8 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
     <div style={styles.overlay}>
       <div style={styles.modalContent} className="glass-card anim-scale-in profile-modal-content">
         <div style={styles.header}>
-          <h3>Cập nhật Trang cá nhân</h3>
-          <button onClick={onClose} style={styles.closeBtn}><FiX size={20} /></button>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: '600' }}>Cập nhật Trang cá nhân</h3>
+          <button onClick={onClose} style={styles.closeBtn} className="btn-interactive"><FiX size={20} /></button>
         </div>
 
         {error && <div style={styles.errorAlert}>{error}</div>}
@@ -197,13 +197,15 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
         <form onSubmit={handleSave} style={styles.form}>
           {/* Avatar Edit preview */}
           <div style={styles.avatarContainer}>
-            <img src={avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.username || user.id || 'user'}`} alt="Avatar" style={styles.avatarPreview} />
+            <div style={styles.avatarWrapper}>
+              <img src={avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.username || user.id || 'user'}`} alt="Avatar" style={styles.avatarPreview} />
+            </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button type="button" onClick={handleRandomAvatar} style={styles.randomAvatarBtn} title="Tạo avatar ngẫu nhiên">
+              <button type="button" onClick={handleRandomAvatar} style={styles.randomAvatarBtn} className="btn-interactive" title="Tạo avatar ngẫu nhiên">
                 <FiCamera size={16} />
                 <span>Ngẫu nhiên</span>
               </button>
-              <button type="button" onClick={() => avatarFileInputRef.current?.click()} style={styles.randomAvatarBtn} title="Tải ảnh từ máy tính">
+              <button type="button" onClick={() => avatarFileInputRef.current?.click()} style={styles.randomAvatarBtn} className="btn-interactive" title="Tải ảnh từ máy tính">
                 <span style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>📤</span>
                 <span>Tải ảnh lên</span>
               </button>
@@ -219,7 +221,7 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
 
           <div style={styles.inputGroup}>
             <label style={styles.label}>Tên tài khoản (Không thể sửa)</label>
-            <input type="text" value={user.username} disabled style={{...styles.input, opacity: 0.5, cursor: 'not-allowed'}} />
+            <input type="text" value={user.username} disabled className="input-premium" style={{ opacity: 0.5, cursor: 'not-allowed' }} />
           </div>
 
           <div style={styles.inputGroup}>
@@ -230,7 +232,8 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
               value={displayName} 
               onChange={(e) => setDisplayName(e.target.value)} 
               placeholder="Nhập tên hiển thị..." 
-              style={styles.input} 
+              className="input-premium"
+              style={{ padding: '10px 12px', fontSize: '0.9rem' }}
             />
           </div>
 
@@ -241,7 +244,8 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
               value={phone} 
               onChange={(e) => setPhone(e.target.value)} 
               placeholder="Nhập số điện thoại mới..." 
-              style={styles.input} 
+              className="input-premium"
+              style={{ padding: '10px 12px', fontSize: '0.9rem' }}
             />
           </div>
 
@@ -252,13 +256,14 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
               value={avatarUrl} 
               onChange={(e) => setAvatarUrl(e.target.value)} 
               placeholder="https://..." 
-              style={styles.input} 
+              className="input-premium"
+              style={{ padding: '10px 12px', fontSize: '0.9rem' }}
             />
           </div>
 
           {/* Cấu hình Thông báo đẩy điện thoại */}
           <div style={{...styles.passwordSection, borderTop: '1px solid var(--border-color)', paddingTop: '15px', marginTop: '10px'}}>
-            <h4 style={{fontSize: '0.85rem', marginBottom: '10px', color: 'var(--accent)'}}>Thông báo điện thoại</h4>
+            <h4 style={{fontSize: '0.85rem', marginBottom: '10px', color: 'var(--primary)', fontWeight: '600'}}>Thông báo điện thoại</h4>
             <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                 <span style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>
@@ -269,19 +274,20 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
                     type="button" 
                     onClick={onEnablePush}
                     style={{...styles.btnPrimary, padding: '6px 12px', fontSize: '0.75rem', borderRadius: '12px'}}
+                    className="btn-interactive"
                   >
                     {pushStatus === 'granted' ? 'Đăng ký lại' : 'Bật ngay'}
                   </button>
                 )}
               </div>
-              <p style={{fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.1rem'}}>
+              <p style={{fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.2rem'}}>
                 {getHelpText(pushStatus)}
               </p>
             </div>
           </div>
 
           <div style={{...styles.passwordSection, borderTop: '1px solid var(--border-color)', paddingTop: '15px', marginTop: '10px'}}>
-            <h4 style={{fontSize: '0.85rem', marginBottom: '10px', color: 'var(--accent)'}}>Thay đổi mật khẩu (Không bắt buộc)</h4>
+            <h4 style={{fontSize: '0.85rem', marginBottom: '10px', color: 'var(--primary)', fontWeight: '600'}}>Thay đổi mật khẩu (Không bắt buộc)</h4>
             
             <div style={{...styles.inputGroup, marginBottom: '12px'}}>
               <label style={styles.label}>Mật khẩu hiện tại</label>
@@ -291,12 +297,14 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
                   value={password} 
                   onChange={(e) => setPassword(e.target.value)} 
                   placeholder="Nhập mật khẩu cũ..." 
-                  style={{ ...styles.input, width: '100%', paddingRight: '44px' }} 
+                  className="input-premium"
+                  style={{ width: '100%', padding: '10px 44px 10px 12px', fontSize: '0.9rem' }} 
                 />
                 <button
                   type="button"
                   onClick={() => setShowOldPassword(!showOldPassword)}
                   style={styles.eyeBtn}
+                  className="btn-interactive"
                   title={showOldPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                 >
                   {showOldPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
@@ -312,12 +320,14 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
                   value={newPassword} 
                   onChange={(e) => setNewPassword(e.target.value)} 
                   placeholder="Nhập mật khẩu mới..." 
-                  style={{ ...styles.input, width: '100%', paddingRight: '44px' }} 
+                  className="input-premium"
+                  style={{ width: '100%', padding: '10px 44px 10px 12px', fontSize: '0.9rem' }} 
                 />
                 <button
                   type="button"
                   onClick={() => setShowNewPassword(!showNewPassword)}
                   style={styles.eyeBtn}
+                  className="btn-interactive"
                   title={showNewPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                 >
                   {showNewPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
@@ -327,8 +337,8 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
           </div>
 
           <div style={styles.footer}>
-            <button type="button" onClick={onClose} style={styles.btnSecondary}>Hủy bỏ</button>
-            <button type="submit" disabled={loading} style={styles.btnPrimary}>
+            <button type="button" onClick={onClose} style={styles.btnSecondary} className="btn-interactive">Hủy bỏ</button>
+            <button type="submit" disabled={loading} style={styles.btnPrimary} className="btn-interactive">
               {loading ? 'Đang lưu...' : 'Lưu thay đổi'}
             </button>
           </div>
@@ -345,7 +355,9 @@ const styles = {
     left: 0,
     width: '100vw',
     height: '100vh',
-    background: 'rgba(0,0,0,0.6)',
+    background: 'rgba(0, 0, 0, 0.4)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -353,7 +365,7 @@ const styles = {
   },
   modalContent: {
     width: '420px',
-    padding: '24px',
+    padding: '28px',
     maxHeight: '90vh',
     overflowY: 'auto'
   },
@@ -363,13 +375,17 @@ const styles = {
     alignItems: 'center',
     marginBottom: '20px',
     borderBottom: '1px solid var(--border-color)',
-    paddingBottom: '10px'
+    paddingBottom: '12px'
   },
   closeBtn: {
     background: 'none',
     border: 'none',
     color: 'var(--text-primary)',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px'
   },
   form: {
     display: 'flex',
@@ -383,27 +399,32 @@ const styles = {
     gap: '10px',
     marginBottom: '10px'
   },
+  avatarWrapper: {
+    position: 'relative',
+    borderRadius: '50%',
+    padding: '3px',
+    background: 'var(--primary-gradient)',
+    boxShadow: '0 0 16px var(--border-glow)'
+  },
   avatarPreview: {
     width: '80px',
     height: '80px',
     borderRadius: '50%',
     objectFit: 'cover',
-    border: '2px solid var(--primary)'
+    display: 'block',
+    border: '2px solid var(--bg-secondary)'
   },
   randomAvatarBtn: {
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-color)',
+    background: 'rgba(255, 255, 255, 0.04)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
     color: 'var(--text-primary)',
-    padding: '5px 12px',
+    padding: '6px 12px',
     borderRadius: '16px',
     cursor: 'pointer',
     fontSize: '0.75rem',
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
-    ':hover': {
-      background: 'rgba(255,255,255,0.1)'
-    }
+    gap: '6px'
   },
   inputGroup: {
     display: 'flex',
@@ -413,36 +434,30 @@ const styles = {
   label: {
     fontSize: '0.75rem',
     color: 'var(--text-secondary)',
-    fontWeight: '600'
-  },
-  input: {
-    padding: '10px 12px',
-    borderRadius: 'var(--radius-sm)',
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-color)',
-    color: 'var(--text-primary)',
-    fontSize: '0.9rem',
-    outline: 'none'
+    fontWeight: '600',
+    letterSpacing: '0.01em'
   },
   errorAlert: {
-    background: 'rgba(239, 68, 68, 0.15)',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
-    color: '#f87171',
-    padding: '10px',
+    background: 'rgba(239, 68, 68, 0.12)',
+    border: '1px solid rgba(239, 68, 68, 0.2)',
+    color: '#fca5a5',
+    padding: '10px 14px',
     borderRadius: 'var(--radius-sm)',
     fontSize: '0.8rem',
     marginBottom: '15px',
-    textAlign: 'center'
+    textAlign: 'center',
+    fontWeight: '500'
   },
   successAlert: {
-    background: 'rgba(34, 197, 94, 0.15)',
-    border: '1px solid rgba(34, 197, 94, 0.3)',
-    color: '#4ade80',
-    padding: '10px',
+    background: 'rgba(34, 197, 94, 0.12)',
+    border: '1px solid rgba(34, 197, 94, 0.2)',
+    color: '#a7f3d0',
+    padding: '10px 14px',
     borderRadius: 'var(--radius-sm)',
     fontSize: '0.8rem',
     marginBottom: '15px',
-    textAlign: 'center'
+    textAlign: 'center',
+    fontWeight: '500'
   },
   footer: {
     display: 'flex',
@@ -457,12 +472,13 @@ const styles = {
     color: 'white',
     border: 'none',
     fontWeight: '600',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)'
   },
   btnSecondary: {
     padding: '10px 16px',
     borderRadius: 'var(--radius-sm)',
-    background: 'var(--bg-surface)',
+    background: 'rgba(255, 255, 255, 0.05)',
     color: 'var(--text-primary)',
     border: '1px solid var(--border-color)',
     fontWeight: '600',
