@@ -137,7 +137,7 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
     try {
       setLoading(true);
       setError('');
-      setSuccess('');
+      setSuccess('Đang tải ảnh lên...');
       
       const res = await fetch(`${BASE_URL}/api/chat/upload`, {
         method: 'POST',
@@ -152,9 +152,32 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
       const data = await res.json();
       const fullUrl = `${BASE_URL}${data.url}`;
       setAvatarUrl(fullUrl);
-      setSuccess('Tải ảnh đại diện lên thành công!');
+      setSuccess('Tải ảnh đại diện lên thành công! Đang tự động lưu...');
+
+      // Tự động lưu profile với ảnh đại diện mới ngay lập tức
+      const saveRes = await fetch(API_URL, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          displayName,
+          phone,
+          avatarUrl: fullUrl
+        })
+      });
+
+      const saveData = await saveRes.json();
+      if (!saveRes.ok) {
+        throw new Error(saveData.error || 'Lỗi cập nhật ảnh đại diện mới');
+      }
+
+      localStorage.setItem('chat_user', JSON.stringify(saveData.user));
+      onProfileUpdate(saveData.user);
+      setSuccess('Cập nhật ảnh đại diện thành công!');
     } catch (err) {
-      setError(err.message || 'Lỗi khi upload ảnh');
+      setError(err.message || 'Lỗi khi upload và lưu ảnh đại diện');
     } finally {
       setLoading(false);
     }
