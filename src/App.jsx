@@ -6,6 +6,8 @@ import ChatWindow from './components/ChatWindow';
 import RightSidebar from './components/RightSidebar';
 import VideoCall from './components/VideoCall';
 import ProfileModal from './components/ProfileModal';
+import NetworkBanner from './components/NetworkBanner';
+
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -148,6 +150,7 @@ export default function App() {
 
     const socketUrl = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
     const newSocket = io(socketUrl, {
+      auth: { token },
       transports: ['websocket', 'polling'], // Đảm bảo hoạt động kể cả khi tường lửa chặn Websocket
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -758,12 +761,8 @@ export default function App() {
 
   return (
     <div style={styles.appContainer}>
-      {/* Thanh cảnh báo offline */}
-      {!isOnline && (
-        <div style={styles.offlineBanner}>
-          ⚠️ Bạn đang mất kết nối Internet. Tin nhắn sẽ tự động gửi đi khi khôi phục mạng.
-        </div>
-      )}
+      <NetworkBanner />
+
 
       <div style={styles.mainLayout}>
         {/* 1. Left Sidebar */}
