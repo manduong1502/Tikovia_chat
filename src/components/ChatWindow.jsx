@@ -1004,7 +1004,10 @@ const styles = {
     padding: '12px 16px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px'
+    gap: '6px',
+    WebkitOverflowScrolling: 'touch',
+    willChange: 'scroll-position',
+    transform: 'translate3d(0, 0, 0)'
   },
   dateSeparator: {
     display: 'flex',

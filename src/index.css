@@ -1,7 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-family: 'Be Vietnam Pro', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   
   /* Modern Premium Dark Theme (Default) */
   --bg-primary: #0a0d14;
@@ -562,6 +562,25 @@ body {
   border-radius: 0 4px 4px 0;
   box-shadow: 0 0 8px var(--primary);
 }
+
+/* Tối ưu hiệu năng cuộn & giảm giật lag đồ họa (GPU Acceleration) */
+.scroll-optimized {
+  will-change: scroll-position;
+  transform: translate3d(0, 0, 0);
+  -webkit-overflow-scrolling: touch;
+}
+
+.glass, .glass-card, .chat-message-bubble, .sidebar-item-premium, .message-row-hover {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Tối ưu render hình ảnh */
+img {
+  image-rendering: -webkit-optimize-contrast;
+}
+
 
 
 

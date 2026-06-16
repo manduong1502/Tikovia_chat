@@ -606,7 +606,10 @@ const styles = {
   listContainer: {
     flex: 1,
     overflowY: 'auto',
-    padding: '8px 12px'
+    padding: '8px 12px',
+    WebkitOverflowScrolling: 'touch',
+    willChange: 'scroll-position',
+    transform: 'translate3d(0, 0, 0)'
   },
   emptyState: {
     color: 'var(--text-muted)',

@@ -7,9 +7,29 @@ import RightSidebar from './components/RightSidebar';
 import VideoCall from './components/VideoCall';
 import ProfileModal from './components/ProfileModal';
 import NetworkBanner from './components/NetworkBanner';
-
+import { useRegisterSW } from 'virtual:pwa-register/react';
 
 export default function App() {
+  // Tự động phát hiện và cập nhật Service Worker khi có code mới trên server
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegistered(r) {
+      // Quét tìm bản cập nhật mới mỗi 30 giây chạy ngầm
+      r && setInterval(() => {
+        r.update();
+      }, 30000);
+    },
+  });
+
+  useEffect(() => {
+    if (needRefresh) {
+      console.log('[PWA] Phát hiện phiên bản mới của ứng dụng. Đang tự động cập nhật và reload...');
+      updateServiceWorker(true);
+    }
+  }, [needRefresh]);
+
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [socket, setSocket] = useState(null);
