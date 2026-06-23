@@ -338,7 +338,19 @@ export default function ChatWindow({
       case 'text':
         // Định dạng liên kết URL và tag @
         const urlRegex = /(https?:\/\/[^\s]+)/g;
-        let renderedText = msg.content;
+        
+        // Hàm escape các thẻ HTML thô chống tấn công XSS
+        const escapeHTML = (str) => {
+          if (!str) return '';
+          return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+        };
+
+        let renderedText = escapeHTML(msg.content);
         
         // Match urls
         renderedText = renderedText.replace(urlRegex, (url) => {
