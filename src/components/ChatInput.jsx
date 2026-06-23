@@ -202,11 +202,77 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
     });
   };
 
+  // Hàm nén ảnh ở phía Client bằng HTML5 Canvas trước khi upload
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          // Kích thước tối đa FullHD 1920x1080
+          const MAX_WIDTH = 1920;
+          const MAX_HEIGHT = 1080;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Chuyển đổi sang Blob dạng JPEG với chất lượng nén 75%
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                // Tạo một File object mới giữ nguyên tên file gốc nhưng đổi đuôi sang .jpg
+                const cleanName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+                const compressedFile = new File([blob], `${cleanName}.jpg`, {
+                  type: 'image/jpeg',
+                  lastModified: Date.now()
+                });
+                console.log(`[Image Compression] Dung lượng gốc: ${(file.size / 1024 / 1024).toFixed(2)}MB -> Dung lượng nén: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+                resolve(compressedFile);
+              } else {
+                resolve(file);
+              }
+            },
+            'image/jpeg',
+            0.75
+          );
+        };
+        img.onerror = () => resolve(file);
+      };
+      reader.onerror = () => resolve(file);
+    });
+  };
+
   // Chọn hình ảnh
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      handleFileUpload(file, 'image');
+      // Chỉ nén ảnh tĩnh, bỏ qua ảnh gif động để tránh mất hiệu ứng động
+      if (file.type.startsWith('image/') && file.type !== 'image/gif') {
+        const compressed = await compressImage(file);
+        handleFileUpload(compressed, 'image');
+      } else {
+        handleFileUpload(file, 'image');
+      }
     }
   };
 
