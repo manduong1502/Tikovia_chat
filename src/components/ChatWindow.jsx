@@ -206,7 +206,7 @@ export default function ChatWindow({
     return (
       <div style={styles.emptyContainer} className={`anim-fade ${className || ''}`}>
         <img 
-          src="https://api.dicebear.com/7.x/shapes/svg?seed=ChatTikovia" 
+          src="/pwa-192x192.png" 
           alt="ChatTikovia" 
           style={styles.emptyImg} 
         />
@@ -228,9 +228,9 @@ export default function ChatWindow({
 
   const getChatAvatar = () => {
     if (isGroup) {
-      return conversation.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(conversation.name)}`;
+      return conversation.avatarUrl || null;
     }
-    return otherMember?.user.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${otherMember?.user.username || otherMember?.user.id || 'user'}`;
+    return otherMember?.user.avatarUrl || null;
   };
 
   // Tìm biệt danh của người gửi tin nhắn
@@ -375,10 +375,8 @@ export default function ChatWindow({
             src={stickerSrc} 
             alt="Sticker" 
             onError={(e) => {
-              if (!isUrl) {
-                // Fallback nếu không có tệp sticker trên đĩa, lấy sticker online mẫu
-                e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${metadata.stickerId || 'sticker'}`;
-              }
+                // Fallback nếu không có tệp sticker trên đĩa, lấy favicon làm mặc định
+                e.target.src = '/favicon.svg';
             }}
             style={styles.stickerImg} 
           />

@@ -114,10 +114,10 @@ export default function RightSidebar({
 
   const getChatAvatar = () => {
     if (conversation.isGroup) {
-      return conversation.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(conversation.name)}`;
+      return conversation.avatarUrl || null;
     }
     const otherMember = conversation.members.find(m => m.user.id !== user.id);
-    return otherMember?.user.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${otherMember?.user.username || otherMember?.user.id || 'user'}`;
+    return otherMember?.user.avatarUrl || null;
   };
 
   return (

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Peer from 'peerjs';
 import { FiPhoneOff, FiVideo, FiVideoOff, FiMic, FiMicOff, FiVolume2, FiVolumeX, FiRefreshCw } from 'react-icons/fi';
+import Avatar from './Avatar';
 
 export default function VideoCall({
   user,
@@ -467,7 +468,7 @@ export default function VideoCall({
       {/* 1. Màn hình người nhận chuông gọi đến */}
       {callState === 'incoming' && (
         <div style={styles.callCard} className="glass-card anim-scale-in">
-          <img src={callInfo.callerAvatar} alt="" style={styles.avatar} />
+          <Avatar url={callInfo.callerAvatar} name={callInfo.callerName} size={90} style={{ ...styles.avatar, margin: '0 auto 16px auto' }} />
           <h3 style={styles.callerName}>{callInfo.callerName}</h3>
           <p style={styles.callStatus}>Cuộc gọi {callInfo.isVideo ? 'Video' : 'Thoại'} đến...</p>
           <div style={styles.actionButtons}>
@@ -484,10 +485,11 @@ export default function VideoCall({
       {/* 2. Màn hình đổ chuông gọi đi */}
       {callState === 'calling' && (
         <div style={styles.callCard} className="glass-card anim-scale-in">
-          <img 
-            src={callInfo?.callerAvatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=user`} 
-            alt="" 
-            style={{...styles.avatar, animation: 'fadeIn 1s infinite alternate'}} 
+          <Avatar 
+            url={callInfo?.callerAvatar} 
+            name={callInfo?.callerName || 'User'} 
+            size={90} 
+            style={{...styles.avatar, animation: 'fadeIn 1s infinite alternate', margin: '0 auto 16px auto'}} 
           />
           <h3 style={styles.callerName}>Đang gọi cho {callInfo?.callerName || 'đối phương'}...</h3>
           <p style={styles.callStatus}>Vui lòng chờ đối phương bắt máy</p>
@@ -526,10 +528,11 @@ export default function VideoCall({
           <div style={styles.voiceCallWrapper}>
             {/* Center Area (Avatar, Tên, Thời gian) */}
             <div style={styles.voiceCallCenter}>
-              <img 
-                src={callInfo?.callerAvatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=user`} 
-                alt="" 
-                style={styles.voiceCallAvatar} 
+              <Avatar 
+                url={callInfo?.callerAvatar} 
+                name={callInfo?.callerName || 'User'} 
+                size={130} 
+                style={{...styles.voiceCallAvatar, margin: '0 auto 20px auto'}} 
               />
               <h2 style={styles.voiceCallName}>{callInfo?.callerName || 'Người dùng'}</h2>
               <div style={styles.voiceCallDuration}>Đang gọi thoại... ({durationText})</div>
@@ -582,9 +585,10 @@ export default function VideoCall({
             {/* Header overlay hiển thị thông tin đối phương và thời gian */}
             <div style={styles.videoHeader}>
               <div style={styles.videoHeaderContent}>
-                <img 
-                  src={callInfo?.callerAvatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=user`} 
-                  alt="" 
+                <Avatar 
+                  url={callInfo?.callerAvatar} 
+                  name={callInfo?.callerName || 'User'} 
+                  size={40} 
                   style={styles.videoHeaderAvatar} 
                 />
                 <div>

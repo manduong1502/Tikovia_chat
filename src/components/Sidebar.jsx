@@ -180,7 +180,7 @@ export default function Sidebar({
     if (conv.isGroup) {
       return {
         name: conv.name,
-        avatar: conv.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(conv.name)}`,
+        avatar: conv.avatarUrl || null,
         isOnline: false
       };
     } else {
@@ -188,7 +188,7 @@ export default function Sidebar({
       const isOnline = onlineUsers.includes(otherMember?.user.id);
       return {
         name: otherMember?.nickname || otherMember?.user.displayName || 'Người dùng Zalo',
-        avatar: otherMember?.user.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${otherMember?.user.username || otherMember?.user.id || 'user'}`,
+        avatar: otherMember?.user.avatarUrl || null,
         isOnline
       };
     }
