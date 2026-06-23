@@ -377,29 +377,7 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* Bottom Nav Bar cho Mobile */}
-      <div className="bottom-nav">
-        <button className="bottom-nav-item active">
-          <FiMessageSquare size={20} />
-          <span>Tin nhắn</span>
-        </button>
-        <button className="bottom-nav-item">
-          <FiUsers size={20} />
-          <span>Danh bạ</span>
-        </button>
-        <button className="bottom-nav-item">
-          <FiCompass size={20} />
-          <span>Khám phá</span>
-        </button>
-        <button className="bottom-nav-item">
-          <FiBookOpen size={20} />
-          <span>Nhật ký</span>
-        </button>
-        <button className="bottom-nav-item" onClick={onShowProfile}>
-          <FiUser size={20} />
-          <span>Cá nhân</span>
-        </button>
-      </div>
+
 
       {/* Create Group Modal */}
       {showCreateGroup && (

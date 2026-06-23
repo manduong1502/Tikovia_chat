@@ -219,9 +219,10 @@ body {
   overflow: hidden;
 }
 
-/* Bottom Nav bar for mobile list screen */
-.bottom-nav {
-  display: none; /* Desktop hides it */
+
+/* Floating Bottom Nav for Mobile */
+.bottom-nav-floating {
+  display: none; /* Hidden on desktop */
 }
 
 @media (max-width: 768px) {
@@ -245,40 +246,66 @@ body {
     font-size: 1.05rem !important;
   }
 
-  .bottom-nav {
+  .bottom-nav-floating {
     display: flex;
-    justify-content: space-around;
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    height: 64px;
+    background: var(--bg-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    box-shadow: var(--shadow-lg);
+    z-index: 999;
     align-items: center;
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border-color);
-    height: 60px;
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 20;
+    justify-content: space-around;
+    padding: 0 8px;
+    box-sizing: border-box;
+    transition: all 0.3s var(--transition-normal);
   }
-  
-  .bottom-nav-item {
+
+  .bottom-nav-item-floating {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     color: var(--text-secondary);
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 500;
-    gap: 4px;
+    gap: 2px;
     background: none;
     border: none;
     cursor: pointer;
     flex: 1;
+    height: 100%;
+    z-index: 2;
+    position: relative;
+    transition: color 0.25s ease, transform 0.15s ease;
   }
 
-  .bottom-nav-item.active {
+  .bottom-nav-item-floating.active {
     color: var(--primary);
+    font-weight: 600;
   }
 
-  /* Responsive layout toggle classes */
+  .bottom-nav-item-floating:active {
+    transform: scale(0.92);
+  }
+
+  /* Sliding Capsule Background Indicator */
+  .bottom-nav-capsule {
+    position: absolute;
+    height: 46px;
+    background: rgba(99, 102, 241, 0.09);
+    border: 1px solid rgba(99, 102, 241, 0.12);
+    border-radius: 14px;
+    z-index: 1;
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    pointer-events: none;
+  }
   .mobile-show-list {
     display: flex !important;
     width: 100% !important;
@@ -313,7 +340,7 @@ body {
 
   /* Adjustment for list items on mobile to have padding-bottom to avoid overlay by bottom navigation */
   .mobile-list-padding {
-    padding-bottom: 70px !important;
+    padding-bottom: 96px !important;
   }
 
   /* Hiển thị nút back trên mobile */
@@ -580,6 +607,21 @@ body {
 img {
   image-rendering: -webkit-optimize-contrast;
 }
+
+/* Mobile-only View Placeholder Styling */
+.mobile-only-view {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .mobile-only-view.mobile-show-list {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-right: none !important;
+  }
+}
+
 
 
 

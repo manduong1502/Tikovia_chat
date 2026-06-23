@@ -5,9 +5,12 @@ import Sidebar from './components/Sidebar';
 import ChatWindow from './components/ChatWindow';
 import RightSidebar from './components/RightSidebar';
 import VideoCall from './components/VideoCall';
-import ProfileModal from './components/ProfileModal';
+import ProfileView from './components/ProfileView';
 import NetworkBanner from './components/NetworkBanner';
 import { useRegisterSW } from 'virtual:pwa-register/react';
+import Avatar from './components/Avatar';
+import { FiMessageSquare, FiUsers, FiCompass, FiBookOpen, FiUser, FiSearch } from 'react-icons/fi';
+
 
 export default function App() {
   // Tự động phát hiện và cập nhật Service Worker khi có code mới trên server
@@ -775,6 +778,372 @@ export default function App() {
     fetchConversations();
   };
 
+  const bottomNavItems = [
+    { id: 'list', label: 'Tin nhắn', icon: FiMessageSquare },
+    { id: 'contacts', label: 'Danh bạ', icon: FiUsers },
+    { id: 'discover', label: 'Khám phá', icon: FiCompass },
+    { id: 'diary', label: 'Nhật ký', icon: FiBookOpen },
+    { id: 'profile', label: 'Cá nhân', icon: FiUser },
+  ];
+
+  let activeTabId = showProfile ? 'profile' : mobileActiveView;
+  if (activeTabId === 'chat' || activeTabId === 'options') {
+    activeTabId = 'list';
+  }
+  const activeIndex = bottomNavItems.findIndex(item => item.id === activeTabId);
+  const capsuleStyle = activeIndex !== -1 ? {
+    width: 'calc(20% - 12px)',
+    left: `calc(${activeIndex * 20}% + 6px)`,
+  } : {};
+
+  const showBottomNav = ['list', 'contacts', 'discover', 'diary', 'profile'].includes(mobileActiveView) || showProfile;
+
+  // Style configurations for custom views
+  const sidebarPlaceholderStyle = {
+    width: '340px',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    borderRight: '1px solid var(--border-color)',
+    zIndex: 10
+  };
+
+  const placeholderHeaderStyle = {
+    padding: '20px',
+    borderBottom: '1px solid var(--border-color)',
+    marginBottom: '15px'
+  };
+
+  const placeholderTitleStyle = {
+    fontSize: '1.2rem',
+    fontWeight: '700',
+    color: 'var(--text-primary)',
+    margin: 0
+  };
+
+  const placeholderSubStyle = {
+    fontSize: '0.75rem',
+    color: 'var(--text-secondary)'
+  };
+
+  const contactCategoryStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  };
+
+  const contactCategoryHeaderStyle = {
+    fontSize: '0.75rem',
+    fontWeight: '700',
+    color: 'var(--primary)',
+    marginBottom: '4px'
+  };
+
+  const contactItemStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-sm)',
+    background: 'rgba(255, 255, 255, 0.02)',
+    border: '1px solid transparent',
+    cursor: 'pointer'
+  };
+
+  const contactNameStyle = {
+    fontSize: '0.88rem',
+    fontWeight: '600',
+    color: 'var(--text-primary)'
+  };
+
+  const contactStatusStyle = {
+    fontSize: '0.75rem',
+    color: 'var(--text-secondary)'
+  };
+
+  const discoverBannerStyle = {
+    background: 'var(--primary-gradient)',
+    padding: '16px',
+    borderRadius: 'var(--radius-md)',
+    boxShadow: '0 8px 24px rgba(99, 102, 241, 0.2)',
+    marginBottom: '15px'
+  };
+
+  const discoverGridStyle = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '12px',
+    marginTop: '10px'
+  };
+
+  const discoverItemStyle = {
+    background: 'rgba(255, 255, 255, 0.02)',
+    border: '1px solid var(--border-color)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center',
+    cursor: 'pointer'
+  };
+
+  const discoverIconStyle = {
+    width: '40px',
+    height: '40px',
+    borderRadius: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1.3rem',
+    marginBottom: '8px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+  };
+
+  const discoverItemTitleStyle = {
+    fontSize: '0.85rem',
+    fontWeight: '700',
+    color: 'var(--text-primary)',
+    marginBottom: '2px'
+  };
+
+  const discoverItemDescStyle = {
+    fontSize: '0.7rem',
+    color: 'var(--text-secondary)'
+  };
+
+  const diaryPostBoxStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '14px',
+    borderRadius: 'var(--radius-sm)',
+    background: 'rgba(255,255,255,0.02)',
+    border: '1px solid var(--border-color)'
+  };
+
+  const diaryInputStyle = {
+    flex: 1,
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '20px',
+    padding: '8px 16px',
+    fontSize: '0.82rem',
+    color: 'var(--text-primary)',
+    outline: 'none',
+    cursor: 'pointer'
+  };
+
+  const diaryPostCardStyle = {
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
+  };
+
+  const diaryPostHeaderStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
+  };
+
+  const diaryPostAuthorStyle = {
+    fontSize: '0.88rem',
+    fontWeight: '600',
+    color: 'var(--text-primary)'
+  };
+
+  const diaryPostTimeStyle = {
+    fontSize: '0.7rem',
+    color: 'var(--text-muted)'
+  };
+
+  const diaryPostContentStyle = {
+    fontSize: '0.85rem',
+    lineHeight: '1.25rem',
+    color: 'var(--text-primary)'
+  };
+
+  const diaryPostFooterStyle = {
+    display: 'flex',
+    gap: '12px',
+    borderTop: '1px solid var(--border-color)',
+    paddingTop: '10px',
+    marginTop: '4px'
+  };
+
+  const diaryActionBtnStyle = {
+    background: 'rgba(255,255,255,0.02)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '14px',
+    padding: '4px 12px',
+    fontSize: '0.75rem',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px'
+  };
+
+  const renderContactsView = () => {
+    return (
+      <div className={`glass mobile-only-view mobile-list-padding ${mobileActiveView === 'contacts' ? 'mobile-show-list' : 'mobile-hide-list'}`} style={sidebarPlaceholderStyle}>
+        <div style={placeholderHeaderStyle}>
+          <h3 style={placeholderTitleStyle}>Danh bạ</h3>
+          <span style={placeholderSubStyle}>Danh sách bạn bè & nhóm</span>
+        </div>
+        <div style={{ padding: '0 20px 10px 20px' }}>
+          <div style={styles.searchWrapper}>
+            <FiSearch style={styles.searchIcon} />
+            <input
+              type="text"
+              placeholder="Tìm kiếm danh bạ..."
+              className="input-premium"
+              style={styles.searchInput}
+              readOnly
+            />
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px' }}>
+          <div style={contactCategoryStyle}>
+            <div style={contactCategoryHeaderStyle}>🏷️ Danh mục</div>
+            <div style={contactItemStyle} className="btn-interactive">
+              <span style={{ fontSize: '1.2rem' }}>🤝</span>
+              <div>
+                <div style={contactNameStyle}>Lời mời kết bạn</div>
+                <div style={contactStatusStyle}>3 lời mời đang chờ</div>
+              </div>
+              <span className="badge-count" style={{ marginLeft: 'auto' }}>3</span>
+            </div>
+            <div style={contactItemStyle} className="btn-interactive">
+              <span style={{ fontSize: '1.2rem' }}>👥</span>
+              <div>
+                <div style={contactNameStyle}>Danh sách nhóm</div>
+                <div style={contactStatusStyle}>Quản lý các nhóm chat</div>
+              </div>
+            </div>
+          </div>
+          
+          <div style={{ ...contactCategoryStyle, marginTop: '20px' }}>
+            <div style={contactCategoryHeaderStyle}>👤 Bạn bè mới truy cập</div>
+            {[
+              { name: 'Nguyễn Hoài Nam', username: 'namnh', avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=nam', status: 'Trực tuyến', online: true },
+              { name: 'Phạm Minh Tuấn', username: 'tuanpm', avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=tuan', status: 'Hoạt động 5 phút trước', online: false },
+              { name: 'Lê Thuỳ Trang', username: 'tranglt', avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=trang', status: 'Trực tuyến', online: true }
+            ].map((c, i) => (
+              <div key={i} style={contactItemStyle} className="btn-interactive">
+                <Avatar url={c.avatar} name={c.name} size={36} isOnline={c.online} />
+                <div>
+                  <div style={contactNameStyle}>{c.name}</div>
+                  <div style={contactStatusStyle}>@{c.username} • {c.status}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDiscoverView = () => {
+    return (
+      <div className={`glass mobile-only-view mobile-list-padding ${mobileActiveView === 'discover' ? 'mobile-show-list' : 'mobile-hide-list'}`} style={sidebarPlaceholderStyle}>
+        <div style={placeholderHeaderStyle}>
+          <h3 style={placeholderTitleStyle}>Khám phá</h3>
+          <span style={placeholderSubStyle}>Tiện ích & Dịch vụ</span>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px' }}>
+          <div style={discoverBannerStyle}>
+            <div style={{ fontWeight: '700', fontSize: '1rem', color: '#fff', marginBottom: '4px' }}>Khám Phá Tikovia Space</div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)' }}>Trải nghiệm hệ sinh thái mini app đỉnh cao</div>
+          </div>
+          
+          <div style={{ marginTop: '20px' }}>
+            <div style={contactCategoryHeaderStyle}>🚀 Mini Apps nổi bật</div>
+            <div style={discoverGridStyle}>
+              {[
+                { title: 'Trò chơi', desc: 'Giải trí đỉnh cao', icon: '🎮', color: 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)' },
+                { title: 'Âm nhạc', desc: 'Nghe nhạc online', icon: '🎵', color: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)' },
+                { title: 'Thời tiết', desc: 'Dự báo chi tiết', icon: '🌤️', color: 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)' },
+                { title: 'Tin tức', desc: 'Cập nhật 24h', icon: '📰', color: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
+                { title: 'Quét QR', desc: 'Tiện ích quét nhanh', icon: '🔍', color: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
+                { title: 'Ví điện tử', desc: 'Thanh toán tiện lợi', icon: '💳', color: 'linear-gradient(135deg, #64748b 0%, #475569 100%)' }
+              ].map((app, i) => (
+                <div key={i} style={discoverItemStyle} className="btn-interactive">
+                  <div style={{ ...discoverIconStyle, background: app.color }}>{app.icon}</div>
+                  <div style={discoverItemTitleStyle}>{app.title}</div>
+                  <div style={discoverItemDescStyle}>{app.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDiaryView = () => {
+    return (
+      <div className={`glass mobile-only-view mobile-list-padding ${mobileActiveView === 'diary' ? 'mobile-show-list' : 'mobile-hide-list'}`} style={sidebarPlaceholderStyle}>
+        <div style={placeholderHeaderStyle}>
+          <h3 style={placeholderTitleStyle}>Nhật ký</h3>
+          <span style={placeholderSubStyle}>Khoảnh khắc đáng nhớ</span>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px' }}>
+          {/* Post Box */}
+          <div style={diaryPostBoxStyle} className="glass-card">
+            <Avatar url={user.avatarUrl} name={user.displayName} size={36} />
+            <input
+              type="text"
+              placeholder="Hôm nay bạn thế nào?"
+              style={diaryInputStyle}
+              readOnly
+            />
+            <span style={{ fontSize: '1.2rem', cursor: 'pointer' }}>📷</span>
+          </div>
+  
+          {/* Feeds */}
+          <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {[
+              {
+                author: 'Nguyễn Hoài Nam',
+                avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=nam',
+                time: '1 giờ trước',
+                content: 'Vừa hoàn thành xong giao diện mới của Tikovia Chat! Trông mượt mà và xịn xò thực sự 😍',
+                likes: 12,
+                comments: 4
+              },
+              {
+                author: 'Lê Thuỳ Trang',
+                avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=trang',
+                time: '5 giờ trước',
+                content: 'Cuối tuần bình yên bên tách cà phê ☕ Chúc mọi người một ngày mới tràn đầy năng lượng nha!',
+                likes: 24,
+                comments: 8
+              }
+            ].map((post, i) => (
+              <div key={i} style={diaryPostCardStyle} className="glass-card">
+                <div style={diaryPostHeaderStyle}>
+                  <Avatar url={post.avatar} name={post.author} size={36} />
+                  <div>
+                    <div style={diaryPostAuthorStyle}>{post.author}</div>
+                    <div style={diaryPostTimeStyle}>{post.time}</div>
+                  </div>
+                </div>
+                <div style={diaryPostContentStyle}>{post.content}</div>
+                <div style={diaryPostFooterStyle}>
+                  <button style={diaryActionBtnStyle} className="btn-interactive" type="button">❤️ {post.likes}</button>
+                  <button style={diaryActionBtnStyle} className="btn-interactive" type="button">💬 {post.comments}</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
   if (!token || !user) {
     return <Auth onAuthSuccess={handleAuthSuccess} />;
   }
@@ -812,6 +1181,11 @@ export default function App() {
             setDismissedPushBanner(true);
           }}
         />
+
+        {/* Mock custom views for contacts, discover, diary */}
+        {renderContactsView()}
+        {renderDiscoverView()}
+        {renderDiaryView()}
 
         {/* 2. Center Chat window */}
         <ChatWindow
@@ -884,16 +1258,22 @@ export default function App() {
 
       {/* 5. Overlay Trang cá nhân (Profile) */}
       {showProfile && (
-        <ProfileModal
+        <ProfileView
           user={user}
           token={token}
-          onClose={() => setShowProfile(false)}
+          onClose={() => {
+            setShowProfile(false);
+            if (mobileActiveView === 'profile') {
+              setMobileActiveView('list');
+            }
+          }}
           onProfileUpdate={(updatedUser) => {
             setUser(updatedUser);
             fetchConversations();
           }}
           pushStatus={pushStatus}
           onEnablePush={handleEnablePushNotifications}
+          mobileActiveView={mobileActiveView}
         />
       )}
 
@@ -922,8 +1302,39 @@ export default function App() {
           />
         </div>
       )}
+
+      {/* 7. Floating Bottom Navigation Bar (Mobile only) */}
+      {showBottomNav && (
+        <div className="bottom-nav-floating">
+          <div className="bottom-nav-capsule" style={capsuleStyle}></div>
+          {bottomNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTabId === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  if (item.id === 'profile') {
+                    setShowProfile(true);
+                    setMobileActiveView('profile');
+                  } else {
+                    setShowProfile(false);
+                    setMobileActiveView(item.id);
+                  }
+                }}
+                className={`bottom-nav-item-floating ${isActive ? 'active' : ''}`}
+              >
+                <Icon size={20} />
+                <span style={{ fontSize: '0.68rem', marginTop: '2px' }}>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
+
 }
 
 const styles = {
