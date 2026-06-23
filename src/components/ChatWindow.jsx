@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FiPhone, FiVideo, FiSidebar, FiDownload, FiMapPin, FiClock, FiChevronLeft } from 'react-icons/fi';
 import { BsPinAngle } from 'react-icons/bs';
 import ChatInput from './ChatInput';
+import Avatar from './Avatar';
 
 export default function ChatWindow({
   user,
@@ -470,7 +471,7 @@ export default function ChatWindow({
           >
             <FiChevronLeft size={24} />
           </button>
-          <img src={getChatAvatar()} alt="" style={styles.avatar} />
+          <Avatar url={getChatAvatar()} name={getChatTitle()} size={40} isOnline={!isGroup && isOnline} />
           <div>
             <h3 style={styles.title}>{getChatTitle()}</h3>
             <span style={styles.status}>
@@ -583,10 +584,11 @@ export default function ChatWindow({
                     !isGroupEnd ? (
                       <div style={{ width: '32px', height: '32px' }} />
                     ) : (
-                      <img 
-                        src={msg.sender?.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${msg.sender?.username || msg.sender?.id || 'user'}`} 
-                        alt="" 
-                        style={styles.messageAvatar} 
+                      <Avatar 
+                        url={msg.sender?.avatarUrl} 
+                        name={msg.sender?.displayName || msg.sender?.username || 'User'} 
+                        size={32} 
+                        style={styles.messageAvatar}
                       />
                     )
                   )}

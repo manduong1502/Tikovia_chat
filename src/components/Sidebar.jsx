@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiLogOut, FiUsers, FiSearch, FiX, FiPlus, FiMessageSquare, FiCompass, FiBookOpen, FiUser, FiMaximize, FiSun, FiMoon } from 'react-icons/fi';
+import Avatar from './Avatar';
 
 export default function Sidebar({
   user,
@@ -198,7 +199,7 @@ export default function Sidebar({
       {/* Header */}
       <div style={styles.header}>
         <div style={{...styles.userInfo, cursor: 'pointer'}} onClick={onShowProfile} title="Xem trang cá nhân">
-          <img src={user.avatarUrl} alt="Avatar" style={styles.avatar} />
+          <Avatar url={user.avatarUrl} name={user.displayName} size={40} />
           <div>
             <h4 style={styles.userName}>{user.displayName}</h4>
             <span style={styles.userStatus}><span className="badge-status status-online" style={{display: 'inline-block', marginRight: '5px'}}></span>Trực tuyến</span>
@@ -318,10 +319,7 @@ export default function Sidebar({
                   }}
                   className={`sidebar-item-premium ${isSelected ? 'active' : ''}`}
                 >
-                  <div style={styles.avatarWrapper}>
-                    <img src={avatar} alt="" style={styles.listAvatar} />
-                    {isOnline && <span className="badge-status status-online" style={styles.onlineBadge}></span>}
-                  </div>
+                  <Avatar url={avatar} name={name} size={42} isOnline={isOnline} />
                   <div style={styles.itemContent}>
                     <div style={styles.itemHeader}>
                       <span style={styles.itemTitle}>{name}</span>
@@ -362,10 +360,7 @@ export default function Sidebar({
                     onClick={() => handleStartDirectChat(u)}
                     className="sidebar-item-premium"
                   >
-                    <div style={styles.avatarWrapper}>
-                      <img src={u.avatarUrl} alt="" style={styles.listAvatar} />
-                      {u.status === 'online' && <span className="badge-status status-online" style={styles.onlineBadge}></span>}
-                    </div>
+                    <Avatar url={u.avatarUrl} name={u.displayName} size={42} isOnline={u.status === 'online'} />
                     <div style={styles.itemContent}>
                       <div style={styles.itemHeader}>
                         <span style={styles.itemTitle}>{u.displayName}</span>
@@ -459,7 +454,7 @@ export default function Sidebar({
                   const isChecked = selectedUsers.some(su => su.id === u.id);
                   return (
                     <div key={u.id} style={styles.resultItem} onClick={() => handleUserSelect(u)}>
-                      <img src={u.avatarUrl} alt="" style={styles.resultAvatar} />
+                      <Avatar url={u.avatarUrl} name={u.displayName} size={36} />
                       <div style={styles.resultInfo}>
                         <span style={styles.resultName}>{u.displayName}</span>
                         <span style={styles.resultSub}>{u.username}</span>

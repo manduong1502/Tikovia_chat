@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiX, FiEdit3, FiSearch, FiImage, FiFileText, FiLink, FiDownload, FiChevronLeft, FiUser, FiBell } from 'react-icons/fi';
+import Avatar from './Avatar';
 
 export default function RightSidebar({
   user,
@@ -139,9 +140,7 @@ export default function RightSidebar({
       <div style={styles.content}>
         {/* Info Card */}
         <div style={styles.infoCard}>
-          <div style={styles.avatarWrapper}>
-            <img src={getChatAvatar()} alt="" style={styles.avatar} />
-          </div>
+          <Avatar url={getChatAvatar()} name={getChatTitle()} size={70} style={{ margin: '0 auto 12px auto' }} />
           <h4 style={styles.titleName}>{getChatTitle()}</h4>
           <span style={styles.titleSub}>{conversation.isGroup ? 'Cuộc hội thoại nhóm' : 'Chat cá nhân'}</span>
         </div>
@@ -217,7 +216,7 @@ export default function RightSidebar({
           <div style={styles.memberList}>
             {conversation.members.map(member => (
               <div key={member.user.id} style={styles.memberItem}>
-                <img src={member.user.avatarUrl} alt="" style={styles.memberAvatar} />
+                <Avatar url={member.user.avatarUrl} name={member.user.displayName} size={36} />
                 <div style={styles.memberInfo}>
                   <div style={styles.memberNameWrapper}>
                     <span style={styles.memberName}>{member.user.displayName}</span>

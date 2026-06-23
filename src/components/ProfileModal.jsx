@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { FiX, FiCamera, FiEye, FiEyeOff } from 'react-icons/fi';
+import Avatar from './Avatar';
 
 export default function ProfileModal({ user, token, onClose, onProfileUpdate, pushStatus, onEnablePush }) {
   const [displayName, setDisplayName] = useState(user.displayName || '');
@@ -197,8 +198,14 @@ export default function ProfileModal({ user, token, onClose, onProfileUpdate, pu
         <form onSubmit={handleSave} style={styles.form}>
           {/* Avatar Edit preview */}
           <div style={styles.avatarContainer}>
-            <div style={styles.avatarWrapper}>
-              <img src={avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.username || user.id || 'user'}`} alt="Avatar" style={styles.avatarPreview} />
+            <div style={{
+              position: 'relative',
+              borderRadius: '50%',
+              padding: '3px',
+              background: 'var(--primary-gradient)',
+              boxShadow: '0 0 16px var(--border-glow)'
+            }}>
+              <Avatar url={avatarUrl} name={displayName || user.displayName || user.username} size={80} />
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" onClick={handleRandomAvatar} style={styles.randomAvatarBtn} className="btn-interactive" title="Tạo avatar ngẫu nhiên">
