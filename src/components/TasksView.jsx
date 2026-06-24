@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiCheckSquare, FiMessageSquare, FiClock, FiUser, FiChevronLeft, FiAlertCircle, FiTrash2, FiPlay, FiCheck, FiX } from 'react-icons/fi';
+import { FiCheckSquare, FiMessageSquare, FiClock, FiUser, FiChevronLeft, FiAlertCircle, FiPlay, FiCheck, FiX } from 'react-icons/fi';
 import Avatar from './Avatar';
 
 export default function TasksView({
@@ -55,7 +55,6 @@ export default function TasksView({
 
     socket.on('task-status-updated', handleTaskStatusUpdated);
 
-    // Bất cứ khi nào có tin nhắn mới loại 'task' phát ra từ người khác
     const handleReceiveMessage = (msg) => {
       if (msg.type === 'task') {
         fetchTasksList();
@@ -80,7 +79,6 @@ export default function TasksView({
         body: JSON.stringify({ status: newStatus })
       });
       if (res.ok) {
-        // Cập nhật state cục bộ
         setTasks(prev => {
           const updateItem = (item) => item.id === taskId ? { ...item, status: newStatus } : item;
           return {
@@ -97,14 +95,16 @@ export default function TasksView({
     }
   };
 
-  const getDueTimeInfo = (dueDate, status) => {
+  // Tối ưu hóa hiệu năng: Lấy thời gian hiện tại một lần duy nhất trước khi render
+  const nowTime = new Date();
+
+  const getDueTimeInfo = (dueDate, status, now) => {
     if (!dueDate) return { text: 'Không có hạn chót', color: 'var(--text-secondary)' };
-    const now = new Date();
     const due = new Date(dueDate);
     const diffMs = due - now;
 
     if (status === 'done') {
-      return { text: `Hạn chót: ${due.toLocaleString('vi-VN')}`, color: '#10b981' };
+      return { text: `Hạn chót: ${due.toLocaleString('vi-VN')}`, color: 'var(--secondary)' };
     }
     if (status === 'cancelled') {
       return { text: `Hạn chót: ${due.toLocaleString('vi-VN')}`, color: 'var(--text-secondary)' };
@@ -121,7 +121,7 @@ export default function TasksView({
       } else {
         text = `Quá hạn ít phút`;
       }
-      return { text, color: '#f43f5e', isOverdue: true };
+      return { text, color: 'var(--danger)', isOverdue: true };
     } else {
       const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffHrs / 24);
@@ -133,7 +133,7 @@ export default function TasksView({
       } else {
         text = `Còn ít phút`;
       }
-      return { text: `Hạn: ${due.toLocaleString('vi-VN')} (${text})`, color: '#f59e0b' };
+      return { text: `Hạn: ${due.toLocaleString('vi-VN')} (${text})`, color: 'var(--accent)' };
     }
   };
 
@@ -148,7 +148,7 @@ export default function TasksView({
     if (statusFilter === 'done') return task.status === 'done';
     if (statusFilter === 'overdue') {
       if (task.status === 'done' || task.status === 'cancelled' || !task.dueDate) return false;
-      return new Date(task.dueDate) < new Date();
+      return new Date(task.dueDate) < nowTime;
     }
     return true;
   });
@@ -159,7 +159,7 @@ export default function TasksView({
     if (t.status === 'pending') acc.pending += 1;
     if (t.status === 'in_progress') acc.in_progress += 1;
     if (t.status === 'done') acc.done += 1;
-    if (t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done' && t.status !== 'cancelled') {
+    if (t.dueDate && new Date(t.dueDate) < nowTime && t.status !== 'done' && t.status !== 'cancelled') {
       acc.overdue += 1;
     }
     return acc;
@@ -175,6 +175,7 @@ export default function TasksView({
               onClick={() => setMobileActiveView('list')} 
               className="mobile-back-btn"
               style={styles.backBtn}
+              aria-label="Quay lại"
             >
               <FiChevronLeft size={24} />
             </button>
@@ -185,15 +186,23 @@ export default function TasksView({
           </div>
         </div>
         {onClose && (
-          <button onClick={onClose} style={styles.closeBtn} className="btn-interactive desktop-only">
+          <button 
+            onClick={onClose} 
+            style={styles.closeBtn} 
+            className="btn-interactive desktop-only"
+            aria-label="Đóng bảng công việc"
+          >
             Đóng
           </button>
         )}
       </div>
 
-      {/* Tabs */}
-      <div style={styles.tabsWrapper}>
+      {/* Tabs - Accessibility ARIA Role added */}
+      <div style={styles.tabsWrapper} role="tablist" aria-label="Phân loại công việc">
         <button 
+          role="tab"
+          aria-selected={activeTab === 'received'}
+          tabIndex={0}
           style={{ ...styles.tabBtn, ...(activeTab === 'received' ? styles.activeTabBtn : {}) }}
           onClick={() => { setActiveTab('received'); setStatusFilter('all'); }}
           className="btn-interactive"
@@ -201,6 +210,9 @@ export default function TasksView({
           Được giao cho tôi ({tasks.assignedToMe.length})
         </button>
         <button 
+          role="tab"
+          aria-selected={activeTab === 'assigned'}
+          tabIndex={0}
           style={{ ...styles.tabBtn, ...(activeTab === 'assigned' ? styles.activeTabBtn : {}) }}
           onClick={() => { setActiveTab('assigned'); setStatusFilter('all'); }}
           className="btn-interactive"
@@ -213,21 +225,23 @@ export default function TasksView({
       <div style={styles.statsContainer}>
         {[
           { id: 'all', label: 'Tổng số', count: stats.total, color: 'var(--text-primary)', bg: 'rgba(255,255,255,0.03)' },
-          { id: 'pending', label: 'Cần làm', count: stats.pending, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
-          { id: 'in_progress', label: 'Đang làm', count: stats.in_progress, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)' },
-          { id: 'done', label: 'Hoàn thành', count: stats.done, color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
-          { id: 'overdue', label: 'Quá hạn', count: stats.overdue, color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.1)' }
+          { id: 'pending', label: 'Cần làm', count: stats.pending, color: 'var(--accent)', bg: 'rgba(245, 158, 11, 0.08)' },
+          { id: 'in_progress', label: 'Đang làm', count: stats.in_progress, color: 'var(--primary)', bg: 'rgba(99, 102, 241, 0.08)' },
+          { id: 'done', label: 'Hoàn thành', count: stats.done, color: 'var(--secondary)', bg: 'rgba(16, 185, 129, 0.08)' },
+          { id: 'overdue', label: 'Quá hạn', count: stats.overdue, color: 'var(--danger)', bg: 'rgba(244, 63, 94, 0.08)' }
         ].map(stat => (
           <div 
             key={stat.id}
+            role="button"
+            tabIndex={0}
             onClick={() => setStatusFilter(stat.id)}
             style={{ 
               ...styles.statCard, 
               backgroundColor: stat.bg,
               borderColor: statusFilter === stat.id ? stat.color : 'var(--border-color)',
-              cursor: 'pointer'
             }}
             className="btn-interactive"
+            aria-label={`${stat.label}: ${stat.count} công việc`}
           >
             <span style={{ ...styles.statCount, color: stat.color }}>{stat.count}</span>
             <span style={styles.statLabel}>{stat.label}</span>
@@ -235,7 +249,7 @@ export default function TasksView({
         ))}
       </div>
 
-      {/* Tasks Feed List */}
+      {/* Tasks Feed List - Content-visibility optimization for rendering performance */}
       <div style={styles.taskListContainer} className="scroll-optimized">
         {loading ? (
           <div style={styles.emptyState}>
@@ -253,28 +267,41 @@ export default function TasksView({
           filteredTasks.map(task => {
             const isReceived = activeTab === 'received';
             const partner = isReceived ? task.assigner : task.assignee;
-            const dueInfo = getDueTimeInfo(task.dueDate, task.status);
+            const dueInfo = getDueTimeInfo(task.dueDate, task.status, nowTime);
 
-            // Format Status text
+            // Format Status text & token colors
             let statusLabel = 'Chờ làm';
-            let statusColor = '#f59e0b';
-            let statusBg = 'rgba(245, 158, 11, 0.15)';
+            let statusColor = 'var(--accent)';
+            let statusBg = 'rgba(245, 158, 11, 0.12)';
             if (task.status === 'in_progress') {
               statusLabel = 'Đang làm';
-              statusColor = '#3b82f6';
-              statusBg = 'rgba(59, 130, 246, 0.15)';
+              statusColor = 'var(--primary)';
+              statusBg = 'rgba(99, 102, 241, 0.12)';
             } else if (task.status === 'done') {
               statusLabel = 'Hoàn thành';
-              statusColor = '#10b981';
-              statusBg = 'rgba(16, 185, 129, 0.15)';
+              statusColor = 'var(--secondary)';
+              statusBg = 'rgba(16, 185, 129, 0.12)';
             } else if (task.status === 'cancelled') {
               statusLabel = 'Đã hủy';
-              statusColor = '#f43f5e';
-              statusBg = 'rgba(244, 63, 94, 0.15)';
+              statusColor = 'var(--danger)';
+              statusBg = 'rgba(244, 63, 94, 0.12)';
             }
 
+            const isOverdue = dueInfo.isOverdue;
+            const isDone = task.status === 'done';
+
             return (
-              <div key={task.id} style={styles.taskItemCard} className="glass-card anim-scale-in">
+              <div 
+                key={task.id} 
+                style={{ 
+                  ...styles.taskItemCard,
+                  opacity: isDone ? 0.7 : 1,
+                  border: isOverdue ? '1px solid var(--danger)' : '1px solid var(--border-color)',
+                  boxShadow: isOverdue ? '0 0 12px rgba(244, 63, 94, 0.12)' : 'var(--shadow-sm)',
+                  contentVisibility: 'auto' // Optimized rendering performance for below-fold items
+                }} 
+                className="glass-card anim-scale-in"
+              >
                 <div style={styles.taskItemHeader}>
                   <div style={styles.taskItemPartner}>
                     <Avatar url={partner?.avatarUrl} name={partner?.displayName} size={36} />
@@ -293,12 +320,16 @@ export default function TasksView({
                 </div>
 
                 <div style={styles.taskItemBody}>
-                  <h4 style={styles.taskItemTitle}>{task.title}</h4>
+                  <h4 style={{ 
+                    ...styles.taskItemTitle,
+                    textDecoration: isDone ? 'line-through' : 'none',
+                    color: isDone ? 'var(--text-secondary)' : 'var(--text-primary)'
+                  }}>{task.title}</h4>
                   {task.description && <p style={styles.taskItemDesc}>{task.description}</p>}
                 </div>
 
                 <div style={styles.taskItemMeta}>
-                  <div style={{ ...styles.taskItemMetaItem, color: dueInfo.color }}>
+                  <div style={{ ...styles.taskItemMetaItem, color: dueInfo.color, fontWeight: isOverdue ? '600' : 'normal' }}>
                     <FiClock size={14} />
                     <span>{dueInfo.text}</span>
                   </div>
@@ -314,6 +345,7 @@ export default function TasksView({
                     style={styles.actionLinkBtn}
                     className="btn-interactive"
                     title="Đi tới cuộc trò chuyện"
+                    aria-label="Mở cuộc trò chuyện chứa công việc này"
                   >
                     <FiMessageSquare size={16} />
                     <span>Đi tới chat</span>
@@ -324,7 +356,8 @@ export default function TasksView({
                       <button 
                         onClick={() => handleUpdateTaskStatus(task.id, 'in_progress')}
                         style={styles.btnStart}
-                        className="btn-interactive"
+                        className="btn-interactive touch-optimized-btn"
+                        aria-label="Bắt đầu thực hiện công việc"
                       >
                         <FiPlay size={14} />
                         Bắt đầu
@@ -334,7 +367,8 @@ export default function TasksView({
                       <button 
                         onClick={() => handleUpdateTaskStatus(task.id, 'done')}
                         style={styles.btnDone}
-                        className="btn-interactive"
+                        className="btn-interactive touch-optimized-btn"
+                        aria-label="Xác nhận hoàn thành công việc"
                       >
                         <FiCheck size={14} />
                         Hoàn thành
@@ -344,7 +378,8 @@ export default function TasksView({
                       <button 
                         onClick={() => handleUpdateTaskStatus(task.id, 'cancelled')}
                         style={styles.btnCancel}
-                        className="btn-interactive"
+                        className="btn-interactive touch-optimized-btn"
+                        aria-label="Hủy bỏ công việc"
                       >
                         <FiX size={14} />
                         Hủy
@@ -414,26 +449,27 @@ const styles = {
     color: 'var(--text-primary)'
   },
   closeBtn: {
-    background: 'rgba(255, 255, 255, 0.05)',
+    background: 'var(--bg-surface)',
     border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
-    padding: '6px 14px',
+    padding: '8px 16px',
     borderRadius: '14px',
     fontSize: '0.82rem',
     fontWeight: '600',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'all var(--transition-fast)'
   },
   tabsWrapper: {
     display: 'flex',
     padding: '4px',
-    background: 'rgba(255,255,255,0.02)',
+    background: 'var(--bg-surface)',
     borderRadius: '16px',
     margin: '0 16px 12px 16px',
     border: '1px solid var(--border-color)'
   },
   tabBtn: {
     flex: 1,
-    padding: '10px',
+    padding: '12px',
     background: 'none',
     border: 'none',
     borderRadius: '12px',
@@ -457,8 +493,8 @@ const styles = {
   },
   statCard: {
     flex: 1,
-    minWidth: '76px',
-    padding: '10px 8px',
+    minWidth: '82px',
+    padding: '12px 8px',
     borderRadius: '14px',
     border: '1px solid var(--border-color)',
     display: 'flex',
@@ -474,12 +510,12 @@ const styles = {
   statLabel: {
     fontSize: '0.65rem',
     color: 'var(--text-secondary)',
-    fontWeight: '500'
+    fontWeight: '600'
   },
   taskListContainer: {
     flex: 1,
     overflowY: 'auto',
-    padding: '0 16px 96px 16px', // chừa khoảng cách cho bottom nav di động
+    padding: '0 16px 96px 16px',
     display: 'flex',
     flexDirection: 'column',
     gap: '12px'
@@ -495,12 +531,13 @@ const styles = {
   },
   taskItemCard: {
     padding: '16px',
-    background: 'rgba(255, 255, 255, 0.02)',
+    background: 'var(--bg-glass-active)',
     border: '1px solid var(--border-color)',
     borderRadius: '18px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px'
+    gap: '12px',
+    transition: 'opacity 0.25s, transform 0.25s'
   },
   taskItemHeader: {
     display: 'flex',
@@ -535,14 +572,13 @@ const styles = {
   },
   taskItemTitle: {
     fontSize: '0.92rem',
-    fontWeight: '700',
-    color: 'var(--text-primary)'
+    fontWeight: '700'
   },
   taskItemDesc: {
     fontSize: '0.8rem',
     color: 'var(--text-secondary)',
     lineHeight: '1.3',
-    background: 'rgba(255,255,255,0.01)',
+    background: 'rgba(255, 255, 255, 0.01)',
     padding: '8px 10px',
     borderRadius: '8px',
     border: '1px solid rgba(255,255,255,0.02)'
@@ -579,7 +615,7 @@ const styles = {
     fontSize: '0.8rem',
     fontWeight: '600',
     cursor: 'pointer',
-    padding: '6px 10px',
+    padding: '8px 12px',
     borderRadius: '8px',
     transition: 'all 0.2s ease'
   },
@@ -591,10 +627,10 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
-    padding: '6px 12px',
+    padding: '8px 14px',
     borderRadius: '10px',
     border: 'none',
-    backgroundColor: '#3b82f6',
+    backgroundColor: 'var(--primary)',
     color: '#ffffff',
     fontSize: '0.78rem',
     fontWeight: '600',
@@ -604,10 +640,10 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
-    padding: '6px 12px',
+    padding: '8px 14px',
     borderRadius: '10px',
     border: 'none',
-    backgroundColor: '#10b981',
+    backgroundColor: 'var(--secondary)',
     color: '#ffffff',
     fontSize: '0.78rem',
     fontWeight: '600',
@@ -617,11 +653,11 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
-    padding: '6px 12px',
+    padding: '8px 14px',
     borderRadius: '10px',
     border: '1px solid rgba(244, 63, 94, 0.2)',
     backgroundColor: 'rgba(244, 63, 94, 0.05)',
-    color: '#f87171',
+    color: 'var(--danger)',
     fontSize: '0.78rem',
     fontWeight: '600',
     cursor: 'pointer'
