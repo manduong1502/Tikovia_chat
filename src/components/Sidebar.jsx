@@ -21,7 +21,8 @@ export default function Sidebar({
   onEnablePush,
   dismissedPushBanner,
   onDismissPushBanner,
-  onShowTasks
+  onShowTasks,
+  pendingTasksCount
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -210,10 +211,15 @@ export default function Sidebar({
           <button 
             title="Công việc" 
             onClick={onShowTasks} 
-            style={styles.actionBtn} 
+            style={{ ...styles.actionBtn, position: 'relative' }} 
             className="btn-interactive"
           >
             <FiCheckSquare size={18} />
+            {pendingTasksCount > 0 && (
+              <span style={styles.sidebarBadge}>
+                {pendingTasksCount}
+              </span>
+            )}
           </button>
           <button 
             title="Tạo nhóm chat" 
@@ -535,10 +541,28 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'all var(--transition-fast)',
     ':hover': {
       background: 'rgba(255, 255, 255, 0.1)'
     }
+  },
+  sidebarBadge: {
+    position: 'absolute',
+    top: '-4px',
+    right: '-4px',
+    backgroundColor: 'var(--danger)',
+    color: 'white',
+    borderRadius: '10px',
+    padding: '2px 4px',
+    fontSize: '0.58rem',
+    fontWeight: '700',
+    lineHeight: '1',
+    border: '1.5px solid var(--bg-secondary)',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '13px',
+    height: '13px'
   },
   searchContainer: {
     padding: '12px 20px 8px 20px'

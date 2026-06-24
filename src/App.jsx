@@ -62,6 +62,7 @@ export default function App() {
   const [mobileActiveView, setMobileActiveView] = useState('list'); // 'list', 'chat', 'options'
   const [showProfile, setShowProfile] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
+  const [pendingTasksCount, setPendingTasksCount] = useState(0);
   const [lightboxImage, setLightboxImage] = useState(null);
 
   // Trạng thái thông báo đẩy (Web Push)
@@ -169,6 +170,28 @@ export default function App() {
     setMobileActiveView('list');
   };
 
+  // Lấy số lượng công việc chưa hoàn thành được giao cho tôi
+  const fetchGlobalTasksCount = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/tasks`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const count = (data.assignedToMe || []).filter(t => t.status === 'pending' || t.status === 'in_progress').length;
+        setPendingTasksCount(count);
+      }
+    } catch (e) {
+      console.error('Lỗi lấy số lượng công việc:', e);
+    }
+  }, [token, API_URL]);
+
+  const fetchGlobalTasksCountRef = useRef(fetchGlobalTasksCount);
+  useEffect(() => {
+    fetchGlobalTasksCountRef.current = fetchGlobalTasksCount;
+  }, [fetchGlobalTasksCount]);
+
   // Khởi tạo Socket.io với cấu hình tự động kết nối lại mạnh mẽ
   useEffect(() => {
     if (!token || !user) return;
@@ -247,6 +270,10 @@ export default function App() {
         });
       }
 
+      if (newMessage.type === 'task') {
+        fetchGlobalTasksCountRef.current();
+      }
+
       // Cập nhật tin nhắn cuối cùng trong danh sách sidebar
       fetchConversations();
     });
@@ -298,6 +325,7 @@ export default function App() {
         }
         return m;
       }));
+      fetchGlobalTasksCountRef.current();
     });
 
     // Lắng nghe nhắc hẹn đến giờ kích hoạt
@@ -582,6 +610,7 @@ export default function App() {
   useEffect(() => {
     if (token) {
       fetchConversations();
+      fetchGlobalTasksCount();
       checkPushNotificationStatus();
       
       // Nếu quyền đã được bật từ trước, chạy đồng bộ nền mà không cần click của người dùng
@@ -1204,6 +1233,7 @@ export default function App() {
             setShowTasks(prev => !prev);
             setShowProfile(false);
           }}
+          pendingTasksCount={pendingTasksCount}
         />
 
         {/* Mock custom views for contacts, diary */}
@@ -1373,7 +1403,14 @@ export default function App() {
                 }}
                 className={`bottom-nav-item-floating ${isActive ? 'active' : ''}`}
               >
-                <Icon size={20} />
+                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <Icon size={20} />
+                  {item.id === 'tasks' && pendingTasksCount > 0 && (
+                    <span style={styles.badge}>
+                      {pendingTasksCount}
+                    </span>
+                  )}
+                </div>
                 <span style={{ fontSize: '0.68rem', marginTop: '2px' }}>{item.label}</span>
               </button>
             );
@@ -1451,5 +1488,24 @@ const styles = {
     objectFit: 'contain',
     borderRadius: 'var(--radius-sm)',
     boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)'
+  },
+  badge: {
+    position: 'absolute',
+    top: '-6px',
+    right: '-10px',
+    backgroundColor: 'var(--danger)',
+    color: 'white',
+    borderRadius: '10px',
+    padding: '2px 5px',
+    fontSize: '0.62rem',
+    fontWeight: '700',
+    lineHeight: '1',
+    border: '2px solid var(--bg-secondary)',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '16px',
+    height: '16px'
   }
 };

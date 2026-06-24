@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { FiCheckSquare, FiMessageSquare, FiClock, FiUser, FiChevronLeft, FiAlertCircle, FiPlay, FiCheck, FiX } from 'react-icons/fi';
+import { FiCheckSquare, FiMessageSquare, FiClock, FiUser, FiChevronLeft, FiAlertCircle, FiPlay, FiCheck, FiX, FiSearch } from 'react-icons/fi';
 import Avatar from './Avatar';
 
 // 1. Tách biệt helper function tính toán thời gian ra ngoài component để tránh khởi tạo lại mỗi lần render
@@ -189,6 +189,8 @@ export default function TasksView({
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'pending', 'in_progress', 'done', 'overdue'
   const [tasks, setTasks] = useState({ assignedToMe: [], assignedByMe: [] });
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('newest'); // 'newest', 'oldest', 'deadline'
 
   // Thêm dynamic state cho time để tự động cập nhật báo quá hạn (overdue countdown) mỗi 30 giây
   const [nowTime, setNowTime] = useState(() => new Date());
@@ -285,20 +287,47 @@ export default function TasksView({
     return activeTab === 'received' ? tasks.assignedToMe : tasks.assignedByMe;
   }, [activeTab, tasks]);
 
-  // Lọc danh sách theo trạng thái (Memoized)
+  // Lọc danh sách theo trạng thái, từ khóa tìm kiếm và cách sắp xếp (Memoized)
   const filteredTasks = useMemo(() => {
-    return currentTabTasks.filter(task => {
-      if (statusFilter === 'all') return true;
-      if (statusFilter === 'pending') return task.status === 'pending';
-      if (statusFilter === 'in_progress') return task.status === 'in_progress';
-      if (statusFilter === 'done') return task.status === 'done';
-      if (statusFilter === 'overdue') {
-        if (task.status === 'done' || task.status === 'cancelled' || !task.dueDate) return false;
-        return new Date(task.dueDate) < nowTime;
+    let result = currentTabTasks.filter(task => {
+      // 1. Lọc theo trạng thái
+      let matchesStatus = true;
+      if (statusFilter === 'pending') matchesStatus = task.status === 'pending';
+      else if (statusFilter === 'in_progress') matchesStatus = task.status === 'in_progress';
+      else if (statusFilter === 'done') matchesStatus = task.status === 'done';
+      else if (statusFilter === 'overdue') {
+        if (task.status === 'done' || task.status === 'cancelled' || !task.dueDate) matchesStatus = false;
+        else matchesStatus = new Date(task.dueDate) < nowTime;
       }
+
+      if (!matchesStatus) return false;
+
+      // 2. Lọc theo từ khóa tìm kiếm (tiêu đề hoặc mô tả)
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesTitle = task.title?.toLowerCase().includes(query);
+        const matchesDesc = task.description?.toLowerCase().includes(query);
+        return matchesTitle || matchesDesc;
+      }
+
       return true;
     });
-  }, [currentTabTasks, statusFilter, nowTime]);
+
+    // 3. Sắp xếp danh sách
+    if (sortBy === 'newest') {
+      result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } else if (sortBy === 'oldest') {
+      result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } else if (sortBy === 'deadline') {
+      result.sort((a, b) => {
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate) - new Date(b.dueDate);
+      });
+    }
+
+    return result;
+  }, [currentTabTasks, statusFilter, searchQuery, sortBy, nowTime]);
 
   // Tính toán số lượng thống kê của tab đang hoạt động (Memoized)
   const stats = useMemo(() => {
@@ -406,6 +435,37 @@ export default function TasksView({
             <span style={styles.statLabel}>{stat.label}</span>
           </div>
         ))}
+      </div>
+
+      {/* Search & Sort Panel */}
+      <div style={styles.filterBar}>
+        <div style={styles.searchWrapper}>
+          <FiSearch size={16} style={styles.searchIcon} />
+          <input
+            type="text"
+            placeholder="Tìm kiếm công việc..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={styles.searchInput}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} style={styles.clearBtn} aria-label="Xóa tìm kiếm">
+              <FiX size={16} />
+            </button>
+          )}
+        </div>
+        <div style={styles.sortWrapper}>
+          <span style={styles.sortLabel}>Sắp xếp:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            style={styles.sortSelect}
+          >
+            <option value="newest">Mới nhất</option>
+            <option value="oldest">Cũ nhất</option>
+            <option value="deadline">Hạn chót</option>
+          </select>
+        </div>
       </div>
 
       {/* Tasks Feed List - Content-visibility optimization for rendering performance */}
@@ -713,5 +773,69 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     transition: 'all 0.2s ease'
+  },
+  filterBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    margin: '0 16px 12px 16px',
+    flexWrap: 'wrap'
+  },
+  searchWrapper: {
+    position: 'relative',
+    flex: 1,
+    minWidth: '200px',
+    display: 'flex',
+    alignItems: 'center'
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: '12px',
+    color: 'var(--text-secondary)',
+    pointerEvents: 'none'
+  },
+  searchInput: {
+    width: '100%',
+    padding: '8px 32px 8px 36px',
+    borderRadius: '12px',
+    background: 'var(--bg-glass-active)',
+    border: '1px solid var(--border-color)',
+    color: 'var(--text-primary)',
+    fontSize: '0.82rem',
+    outline: 'none',
+    transition: 'all 0.2s'
+  },
+  clearBtn: {
+    position: 'absolute',
+    right: '8px',
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    padding: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  sortWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
+  },
+  sortLabel: {
+    fontSize: '0.78rem',
+    color: 'var(--text-secondary)',
+    fontWeight: '500'
+  },
+  sortSelect: {
+    padding: '6px 10px',
+    borderRadius: '10px',
+    background: 'var(--bg-glass-active)',
+    border: '1px solid var(--border-color)',
+    color: 'var(--text-primary)',
+    fontSize: '0.78rem',
+    outline: 'none',
+    cursor: 'pointer'
   }
 };
