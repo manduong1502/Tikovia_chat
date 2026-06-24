@@ -197,13 +197,20 @@ export default function TasksView({
         )}
       </div>
 
-      {/* Tabs - Accessibility ARIA Role added */}
+      {/* Tabs with sliding capsule animation */}
       <div style={styles.tabsWrapper} role="tablist" aria-label="Phân loại công việc">
+        <div style={{
+          ...styles.tabCapsule,
+          left: activeTab === 'received' ? '4px' : 'calc(50% + 2px)'
+        }} />
         <button 
           role="tab"
           aria-selected={activeTab === 'received'}
           tabIndex={0}
-          style={{ ...styles.tabBtn, ...(activeTab === 'received' ? styles.activeTabBtn : {}) }}
+          style={{ 
+            ...styles.tabBtn, 
+            color: activeTab === 'received' ? '#ffffff' : 'var(--text-secondary)'
+          }}
           onClick={() => { setActiveTab('received'); setStatusFilter('all'); }}
           className="btn-interactive"
         >
@@ -213,7 +220,10 @@ export default function TasksView({
           role="tab"
           aria-selected={activeTab === 'assigned'}
           tabIndex={0}
-          style={{ ...styles.tabBtn, ...(activeTab === 'assigned' ? styles.activeTabBtn : {}) }}
+          style={{ 
+            ...styles.tabBtn, 
+            color: activeTab === 'assigned' ? '#ffffff' : 'var(--text-secondary)'
+          }}
           onClick={() => { setActiveTab('assigned'); setStatusFilter('all'); }}
           className="btn-interactive"
         >
@@ -465,7 +475,19 @@ const styles = {
     background: 'var(--bg-surface)',
     borderRadius: '16px',
     margin: '0 16px 12px 16px',
-    border: '1px solid var(--border-color)'
+    border: '1px solid var(--border-color)',
+    position: 'relative'
+  },
+  tabCapsule: {
+    position: 'absolute',
+    top: '4px',
+    bottom: '4px',
+    width: 'calc(50% - 6px)',
+    background: 'var(--primary-gradient)',
+    borderRadius: '12px',
+    transition: 'left 0.25s cubic-bezier(0.25, 1, 0.5, 1)', // smooth spring-like feel
+    zIndex: 1,
+    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)'
   },
   tabBtn: {
     flex: 1,
@@ -473,16 +495,12 @@ const styles = {
     background: 'none',
     border: 'none',
     borderRadius: '12px',
-    color: 'var(--text-secondary)',
     fontSize: '0.85rem',
     fontWeight: '600',
     cursor: 'pointer',
-    transition: 'all 0.25s ease'
-  },
-  activeTabBtn: {
-    background: 'var(--primary-gradient)',
-    color: '#ffffff',
-    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+    transition: 'color 0.2s ease', // transition text color over 0.2s synchronously
+    zIndex: 2,
+    position: 'relative'
   },
   statsContainer: {
     display: 'flex',
