@@ -468,20 +468,20 @@ export default function ChatWindow({
 
         // Định dạng trạng thái công việc
         let statusText = 'Chờ làm';
-        let statusColor = '#eab308'; // yellow
-        let statusBg = 'rgba(234, 179, 8, 0.15)';
+        let statusColor = 'var(--accent)';
+        let statusBg = 'var(--accent-light)';
         if (taskStatus === 'in_progress') {
           statusText = 'Đang làm';
-          statusColor = '#3b82f6'; // blue
-          statusBg = 'rgba(59, 130, 246, 0.15)';
+          statusColor = 'var(--primary)';
+          statusBg = 'var(--primary-light)';
         } else if (taskStatus === 'done') {
           statusText = 'Hoàn thành';
-          statusColor = '#10b981'; // green
-          statusBg = 'rgba(16, 185, 129, 0.15)';
+          statusColor = 'var(--secondary)';
+          statusBg = 'var(--secondary-light)';
         } else if (taskStatus === 'cancelled') {
           statusText = 'Đã hủy';
-          statusColor = '#ef4444'; // red
-          statusBg = 'rgba(239, 68, 68, 0.15)';
+          statusColor = 'var(--danger)';
+          statusBg = 'var(--danger-light)';
         }
 
         const handleUpdateStatus = async (newStatus) => {
@@ -505,9 +505,14 @@ export default function ChatWindow({
 
         const isUserAssignee = user.id === assigneeId;
         const isUserAssigner = user.id === msg.senderId;
+        const borderLeftColor = isOverdue ? 'var(--danger)' : statusColor;
 
         return (
-          <div style={styles.taskCardContainer}>
+          <div style={{
+            ...styles.taskCardContainer,
+            borderLeft: `4px solid ${borderLeftColor}`,
+            opacity: taskStatus === 'done' ? 0.65 : 1
+          }}>
             <div style={styles.taskCardHeader}>
               <div style={styles.taskCardTitleRow}>
                 <FiCheckSquare size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
@@ -1483,7 +1488,7 @@ const styles = {
   },
   taskCardContainer: {
     width: '260px',
-    padding: '12px 14px',
+    padding: '12px 14px 12px 10px',
     display: 'flex',
     flexDirection: 'column',
     boxSizing: 'border-box',
@@ -1526,15 +1531,16 @@ const styles = {
     lineHeight: '1.3',
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
-    background: 'rgba(255, 255, 255, 0.02)',
+    background: 'var(--bg-primary)',
     padding: '6px 8px',
-    borderRadius: '6px'
+    borderRadius: '6px',
+    border: '1px solid var(--border-color)'
   },
   taskCardMeta: {
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+    borderTop: '1px solid var(--border-color)',
     paddingTop: '6px'
   },
   taskCardMetaItem: {
@@ -1559,7 +1565,7 @@ const styles = {
     padding: '6px 8px',
     borderRadius: '6px',
     border: 'none',
-    backgroundColor: '#3b82f6',
+    backgroundColor: 'var(--primary)',
     color: '#ffffff',
     fontWeight: '600',
     fontSize: '0.75rem',
@@ -1572,7 +1578,7 @@ const styles = {
     padding: '6px 8px',
     borderRadius: '6px',
     border: 'none',
-    backgroundColor: '#10b981',
+    backgroundColor: 'var(--secondary)',
     color: '#ffffff',
     fontWeight: '600',
     fontSize: '0.75rem',
@@ -1583,9 +1589,9 @@ const styles = {
   taskCardBtnDanger: {
     padding: '6px 8px',
     borderRadius: '6px',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    color: '#f87171',
+    border: '1px solid var(--border-color)',
+    backgroundColor: 'var(--danger-light)',
+    color: 'var(--danger)',
     fontWeight: '600',
     fontSize: '0.75rem',
     cursor: 'pointer',

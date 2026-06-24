@@ -1,6 +1,179 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FiCheckSquare, FiMessageSquare, FiClock, FiUser, FiChevronLeft, FiAlertCircle, FiPlay, FiCheck, FiX } from 'react-icons/fi';
 import Avatar from './Avatar';
+
+// 1. Tách biệt helper function tính toán thời gian ra ngoài component để tránh khởi tạo lại mỗi lần render
+const getDueTimeInfo = (dueDate, status, now) => {
+  if (!dueDate) return { text: 'Không có hạn chót', color: 'var(--text-secondary)' };
+  const due = new Date(dueDate);
+  const diffMs = due - now;
+
+  if (status === 'done') {
+    return { text: `Hạn chót: ${due.toLocaleString('vi-VN')}`, color: 'var(--secondary)' };
+  }
+  if (status === 'cancelled') {
+    return { text: `Hạn chót: ${due.toLocaleString('vi-VN')}`, color: 'var(--text-secondary)' };
+  }
+
+  if (diffMs < 0) {
+    const diffHrs = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHrs / 24);
+    let text = '';
+    if (diffDays > 0) {
+      text = `Quá hạn ${diffDays} ngày`;
+    } else if (diffHrs > 0) {
+      text = `Quá hạn ${diffHrs} giờ`;
+    } else {
+      text = `Quá hạn ít phút`;
+    }
+    return { text, color: 'var(--danger)', isOverdue: true };
+  } else {
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHrs / 24);
+    let text = '';
+    if (diffDays > 0) {
+      text = `Còn ${diffDays} ngày`;
+    } else if (diffHrs > 0) {
+      text = `Còn ${diffHrs} giờ`;
+    } else {
+      text = `Còn ít phút`;
+    }
+    return { text: `Hạn: ${due.toLocaleString('vi-VN')} (${text})`, color: 'var(--accent)' };
+  }
+};
+
+// 2. Trích xuất thành Component con được Memoized (React.memo)
+// Ngăn chặn hoàn toàn việc vẽ lại các thẻ công việc không thay đổi khi thay đổi trạng thái của 1 thẻ khác.
+const TaskCard = React.memo(({
+  task,
+  isReceived,
+  nowTime,
+  onSelectConversation,
+  onUpdateStatus
+}) => {
+  const partner = isReceived ? task.assigner : task.assignee;
+  const dueInfo = getDueTimeInfo(task.dueDate, task.status, nowTime);
+
+  let statusLabel = 'Chờ làm';
+  let statusColor = 'var(--accent)';
+  let statusBg = 'var(--accent-light)';
+  if (task.status === 'in_progress') {
+    statusLabel = 'Đang làm';
+    statusColor = 'var(--primary)';
+    statusBg = 'var(--primary-light)';
+  } else if (task.status === 'done') {
+    statusLabel = 'Hoàn thành';
+    statusColor = 'var(--secondary)';
+    statusBg = 'var(--secondary-light)';
+  } else if (task.status === 'cancelled') {
+    statusLabel = 'Đã hủy';
+    statusColor = 'var(--danger)';
+    statusBg = 'var(--danger-light)';
+  }
+
+  const isOverdue = dueInfo.isOverdue;
+  const isDone = task.status === 'done';
+  const borderLeftColor = isOverdue ? 'var(--danger)' : statusColor;
+
+  return (
+    <div 
+      style={{ 
+        ...styles.taskItemCard,
+        opacity: isDone ? 0.6 : 1,
+        borderLeft: `4px solid ${borderLeftColor}`,
+        boxShadow: isOverdue ? '0 0 16px rgba(244, 63, 94, 0.1)' : 'var(--shadow-sm)',
+        contentVisibility: 'auto'
+      }} 
+      className="glass-card anim-scale-in task-item-card"
+    >
+      <div style={styles.taskItemHeader}>
+        <div style={styles.taskItemPartner}>
+          <Avatar url={partner?.avatarUrl} name={partner?.displayName} size={36} />
+          <div>
+            <div style={styles.taskItemPartnerRole}>
+              {isReceived ? 'Giao bởi:' : 'Giao cho:'}
+            </div>
+            <div style={styles.taskItemPartnerName}>
+              {partner?.displayName || 'Thành viên'}
+            </div>
+          </div>
+        </div>
+        <span style={{ ...styles.statusBadge, color: statusColor, backgroundColor: statusBg }}>
+          {statusLabel}
+        </span>
+      </div>
+
+      <div style={styles.taskItemBody}>
+        <h4 style={{ 
+          ...styles.taskItemTitle,
+          textDecoration: isDone ? 'line-through' : 'none',
+          color: isDone ? 'var(--text-secondary)' : 'var(--text-primary)'
+        }}>{task.title}</h4>
+        {task.description && <p style={styles.taskItemDesc}>{task.description}</p>}
+      </div>
+
+      <div style={styles.taskItemMeta}>
+        <div style={{ ...styles.taskItemMetaItem, color: dueInfo.color, fontWeight: isOverdue ? '600' : 'normal' }}>
+          <FiClock size={14} />
+          <span>{dueInfo.text}</span>
+        </div>
+        <div style={styles.taskItemMetaItem}>
+          <FiMessageSquare size={14} />
+          <span>Hội thoại: {task.conversation?.name || (task.conversation?.isGroup ? 'Nhóm chat' : 'Chat cá nhân')}</span>
+        </div>
+      </div>
+
+      <div style={styles.taskItemFooter}>
+        <button 
+          onClick={() => onSelectConversation(task.conversationId)}
+          style={styles.actionLinkBtn}
+          className="btn-interactive"
+          title="Đi tới cuộc trò chuyện"
+          aria-label="Mở cuộc trò chuyện chứa công việc này"
+        >
+          <FiMessageSquare size={16} />
+          <span>Đi tới chat</span>
+        </button>
+
+        <div style={styles.taskItemActions}>
+          {isReceived && task.status === 'pending' && (
+            <button 
+              onClick={() => onUpdateStatus(task.id, 'in_progress')}
+              style={styles.btnStart}
+              className="btn-interactive touch-optimized-btn"
+              aria-label="Bắt đầu thực hiện công việc"
+            >
+              <FiPlay size={14} />
+              Bắt đầu
+            </button>
+          )}
+          {isReceived && task.status === 'in_progress' && (
+            <button 
+              onClick={() => onUpdateStatus(task.id, 'done')}
+              style={styles.btnDone}
+              className="btn-interactive touch-optimized-btn"
+              aria-label="Xác nhận hoàn thành công việc"
+            >
+              <FiCheck size={14} />
+              Hoàn thành
+            </button>
+          )}
+          {(task.status !== 'done' && task.status !== 'cancelled') && (
+            <button 
+              onClick={() => onUpdateStatus(task.id, 'cancelled')}
+              style={styles.btnCancel}
+              className="btn-interactive touch-optimized-btn"
+              aria-label="Hủy bỏ công việc"
+            >
+              <FiX size={14} />
+              Hủy
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export default function TasksView({
   user,
@@ -17,9 +190,12 @@ export default function TasksView({
   const [tasks, setTasks] = useState({ assignedToMe: [], assignedByMe: [] });
   const [loading, setLoading] = useState(true);
 
+  // Thêm dynamic state cho time để tự động cập nhật báo quá hạn (overdue countdown) mỗi 30 giây
+  const [nowTime, setNowTime] = useState(() => new Date());
+
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-  const fetchTasksList = async () => {
+  const fetchTasksList = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/tasks`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -33,11 +209,19 @@ export default function TasksView({
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, API_URL]);
 
   useEffect(() => {
     fetchTasksList();
-  }, [token]);
+  }, [fetchTasksList]);
+
+  // Bộ cập nhật đồng hồ chạy ngầm mỗi 30s
+  useEffect(() => {
+    const clockTimer = setInterval(() => {
+      setNowTime(new Date());
+    }, 30000);
+    return () => clearInterval(clockTimer);
+  }, []);
 
   // Lắng nghe cập nhật socket thời gian thực
   useEffect(() => {
@@ -66,9 +250,10 @@ export default function TasksView({
       socket.off('task-status-updated', handleTaskStatusUpdated);
       socket.off('receive-message', handleReceiveMessage);
     };
-  }, [socket]);
+  }, [socket, fetchTasksList]);
 
-  const handleUpdateTaskStatus = async (taskId, newStatus) => {
+  // Dùng useCallback để tránh render lại TaskCard con do thay đổi tham chiếu handler
+  const handleUpdateTaskStatus = useCallback(async (taskId, newStatus) => {
     try {
       const res = await fetch(`${API_URL}/tasks/${taskId}/status`, {
         method: 'PUT',
@@ -93,77 +278,41 @@ export default function TasksView({
     } catch (e) {
       alert('Không thể kết nối đến máy chủ');
     }
-  };
+  }, [token, API_URL]);
 
-  // Tối ưu hóa hiệu năng: Lấy thời gian hiện tại một lần duy nhất trước khi render
-  const nowTime = new Date();
+  // Lấy danh sách nhiệm vụ của tab đang hoạt động (Được memoize để tăng tốc độ kết xuất)
+  const currentTabTasks = useMemo(() => {
+    return activeTab === 'received' ? tasks.assignedToMe : tasks.assignedByMe;
+  }, [activeTab, tasks]);
 
-  const getDueTimeInfo = (dueDate, status, now) => {
-    if (!dueDate) return { text: 'Không có hạn chót', color: 'var(--text-secondary)' };
-    const due = new Date(dueDate);
-    const diffMs = due - now;
-
-    if (status === 'done') {
-      return { text: `Hạn chót: ${due.toLocaleString('vi-VN')}`, color: 'var(--secondary)' };
-    }
-    if (status === 'cancelled') {
-      return { text: `Hạn chót: ${due.toLocaleString('vi-VN')}`, color: 'var(--text-secondary)' };
-    }
-
-    if (diffMs < 0) {
-      const diffHrs = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffHrs / 24);
-      let text = '';
-      if (diffDays > 0) {
-        text = `Quá hạn ${diffDays} ngày`;
-      } else if (diffHrs > 0) {
-        text = `Quá hạn ${diffHrs} giờ`;
-      } else {
-        text = `Quá hạn ít phút`;
+  // Lọc danh sách theo trạng thái (Memoized)
+  const filteredTasks = useMemo(() => {
+    return currentTabTasks.filter(task => {
+      if (statusFilter === 'all') return true;
+      if (statusFilter === 'pending') return task.status === 'pending';
+      if (statusFilter === 'in_progress') return task.status === 'in_progress';
+      if (statusFilter === 'done') return task.status === 'done';
+      if (statusFilter === 'overdue') {
+        if (task.status === 'done' || task.status === 'cancelled' || !task.dueDate) return false;
+        return new Date(task.dueDate) < nowTime;
       }
-      return { text, color: 'var(--danger)', isOverdue: true };
-    } else {
-      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffHrs / 24);
-      let text = '';
-      if (diffDays > 0) {
-        text = `Còn ${diffDays} ngày`;
-      } else if (diffHrs > 0) {
-        text = `Còn ${diffHrs} giờ`;
-      } else {
-        text = `Còn ít phút`;
+      return true;
+    });
+  }, [currentTabTasks, statusFilter, nowTime]);
+
+  // Tính toán số lượng thống kê của tab đang hoạt động (Memoized)
+  const stats = useMemo(() => {
+    return currentTabTasks.reduce((acc, t) => {
+      acc.total += 1;
+      if (t.status === 'pending') acc.pending += 1;
+      if (t.status === 'in_progress') acc.in_progress += 1;
+      if (t.status === 'done') acc.done += 1;
+      if (t.dueDate && new Date(t.dueDate) < nowTime && t.status !== 'done' && t.status !== 'cancelled') {
+        acc.overdue += 1;
       }
-      return { text: `Hạn: ${due.toLocaleString('vi-VN')} (${text})`, color: 'var(--accent)' };
-    }
-  };
-
-  // Lấy danh sách nhiệm vụ của tab đang hoạt động
-  const currentTabTasks = activeTab === 'received' ? tasks.assignedToMe : tasks.assignedByMe;
-
-  // Lọc danh sách theo trạng thái
-  const filteredTasks = currentTabTasks.filter(task => {
-    if (statusFilter === 'all') return true;
-    if (statusFilter === 'pending') return task.status === 'pending';
-    if (statusFilter === 'in_progress') return task.status === 'in_progress';
-    if (statusFilter === 'done') return task.status === 'done';
-    if (statusFilter === 'overdue') {
-      if (task.status === 'done' || task.status === 'cancelled' || !task.dueDate) return false;
-      return new Date(task.dueDate) < nowTime;
-    }
-    return true;
-  });
-
-  // Tính toán số lượng thống kê của tab đang hoạt động
-  const stats = currentTabTasks.reduce((acc, t) => {
-    acc.total += 1;
-    if (t.status === 'pending') acc.pending += 1;
-    if (t.status === 'in_progress') acc.in_progress += 1;
-    if (t.status === 'done') acc.done += 1;
-    if (t.dueDate && new Date(t.dueDate) < nowTime && t.status !== 'done' && t.status !== 'cancelled') {
-      acc.overdue += 1;
-    }
-    return acc;
-  }, { total: 0, pending: 0, in_progress: 0, done: 0, overdue: 0 });
+      return acc;
+    }, { total: 0, pending: 0, in_progress: 0, done: 0, overdue: 0 });
+  }, [currentTabTasks, nowTime]);
 
   return (
     <div style={styles.container} className={`anim-fade ${className || ''}`}>
@@ -234,11 +383,11 @@ export default function TasksView({
       {/* Statistics dashboard */}
       <div style={styles.statsContainer}>
         {[
-          { id: 'all', label: 'Tổng số', count: stats.total, color: 'var(--text-primary)', bg: 'rgba(255,255,255,0.03)' },
-          { id: 'pending', label: 'Cần làm', count: stats.pending, color: 'var(--accent)', bg: 'rgba(245, 158, 11, 0.08)' },
-          { id: 'in_progress', label: 'Đang làm', count: stats.in_progress, color: 'var(--primary)', bg: 'rgba(99, 102, 241, 0.08)' },
-          { id: 'done', label: 'Hoàn thành', count: stats.done, color: 'var(--secondary)', bg: 'rgba(16, 185, 129, 0.08)' },
-          { id: 'overdue', label: 'Quá hạn', count: stats.overdue, color: 'var(--danger)', bg: 'rgba(244, 63, 94, 0.08)' }
+          { id: 'all', label: 'Tổng số', count: stats.total, color: 'var(--text-primary)', bg: 'var(--bg-surface)' },
+          { id: 'pending', label: 'Cần làm', count: stats.pending, color: 'var(--accent)', bg: 'var(--accent-light)' },
+          { id: 'in_progress', label: 'Đang làm', count: stats.in_progress, color: 'var(--primary)', bg: 'var(--primary-light)' },
+          { id: 'done', label: 'Hoàn thành', count: stats.done, color: 'var(--secondary)', bg: 'var(--secondary-light)' },
+          { id: 'overdue', label: 'Quá hạn', count: stats.overdue, color: 'var(--danger)', bg: 'var(--danger-light)' }
         ].map(stat => (
           <div 
             key={stat.id}
@@ -274,132 +423,16 @@ export default function TasksView({
             <p style={{ color: 'var(--text-secondary)' }}>Không tìm thấy công việc nào phù hợp.</p>
           </div>
         ) : (
-          filteredTasks.map(task => {
-            const isReceived = activeTab === 'received';
-            const partner = isReceived ? task.assigner : task.assignee;
-            const dueInfo = getDueTimeInfo(task.dueDate, task.status, nowTime);
-
-            // Format Status text & token colors
-            let statusLabel = 'Chờ làm';
-            let statusColor = 'var(--accent)';
-            let statusBg = 'rgba(245, 158, 11, 0.12)';
-            if (task.status === 'in_progress') {
-              statusLabel = 'Đang làm';
-              statusColor = 'var(--primary)';
-              statusBg = 'rgba(99, 102, 241, 0.12)';
-            } else if (task.status === 'done') {
-              statusLabel = 'Hoàn thành';
-              statusColor = 'var(--secondary)';
-              statusBg = 'rgba(16, 185, 129, 0.12)';
-            } else if (task.status === 'cancelled') {
-              statusLabel = 'Đã hủy';
-              statusColor = 'var(--danger)';
-              statusBg = 'rgba(244, 63, 94, 0.12)';
-            }
-
-            const isOverdue = dueInfo.isOverdue;
-            const isDone = task.status === 'done';
-
-            return (
-              <div 
-                key={task.id} 
-                style={{ 
-                  ...styles.taskItemCard,
-                  opacity: isDone ? 0.7 : 1,
-                  border: isOverdue ? '1px solid var(--danger)' : '1px solid var(--border-color)',
-                  boxShadow: isOverdue ? '0 0 12px rgba(244, 63, 94, 0.12)' : 'var(--shadow-sm)',
-                  contentVisibility: 'auto' // Optimized rendering performance for below-fold items
-                }} 
-                className="glass-card anim-scale-in"
-              >
-                <div style={styles.taskItemHeader}>
-                  <div style={styles.taskItemPartner}>
-                    <Avatar url={partner?.avatarUrl} name={partner?.displayName} size={36} />
-                    <div>
-                      <div style={styles.taskItemPartnerRole}>
-                        {isReceived ? 'Giao bởi:' : 'Giao cho:'}
-                      </div>
-                      <div style={styles.taskItemPartnerName}>
-                        {partner?.displayName || 'Thành viên'}
-                      </div>
-                    </div>
-                  </div>
-                  <span style={{ ...styles.statusBadge, color: statusColor, backgroundColor: statusBg }}>
-                    {statusLabel}
-                  </span>
-                </div>
-
-                <div style={styles.taskItemBody}>
-                  <h4 style={{ 
-                    ...styles.taskItemTitle,
-                    textDecoration: isDone ? 'line-through' : 'none',
-                    color: isDone ? 'var(--text-secondary)' : 'var(--text-primary)'
-                  }}>{task.title}</h4>
-                  {task.description && <p style={styles.taskItemDesc}>{task.description}</p>}
-                </div>
-
-                <div style={styles.taskItemMeta}>
-                  <div style={{ ...styles.taskItemMetaItem, color: dueInfo.color, fontWeight: isOverdue ? '600' : 'normal' }}>
-                    <FiClock size={14} />
-                    <span>{dueInfo.text}</span>
-                  </div>
-                  <div style={styles.taskItemMetaItem}>
-                    <FiMessageSquare size={14} />
-                    <span>Hội thoại: {task.conversation?.name || (task.conversation?.isGroup ? 'Nhóm chat' : 'Chat cá nhân')}</span>
-                  </div>
-                </div>
-
-                <div style={styles.taskItemFooter}>
-                  <button 
-                    onClick={() => onSelectConversation(task.conversationId)}
-                    style={styles.actionLinkBtn}
-                    className="btn-interactive"
-                    title="Đi tới cuộc trò chuyện"
-                    aria-label="Mở cuộc trò chuyện chứa công việc này"
-                  >
-                    <FiMessageSquare size={16} />
-                    <span>Đi tới chat</span>
-                  </button>
-
-                  <div style={styles.taskItemActions}>
-                    {isReceived && task.status === 'pending' && (
-                      <button 
-                        onClick={() => handleUpdateTaskStatus(task.id, 'in_progress')}
-                        style={styles.btnStart}
-                        className="btn-interactive touch-optimized-btn"
-                        aria-label="Bắt đầu thực hiện công việc"
-                      >
-                        <FiPlay size={14} />
-                        Bắt đầu
-                      </button>
-                    )}
-                    {isReceived && task.status === 'in_progress' && (
-                      <button 
-                        onClick={() => handleUpdateTaskStatus(task.id, 'done')}
-                        style={styles.btnDone}
-                        className="btn-interactive touch-optimized-btn"
-                        aria-label="Xác nhận hoàn thành công việc"
-                      >
-                        <FiCheck size={14} />
-                        Hoàn thành
-                      </button>
-                    )}
-                    {(task.status !== 'done' && task.status !== 'cancelled') && (
-                      <button 
-                        onClick={() => handleUpdateTaskStatus(task.id, 'cancelled')}
-                        style={styles.btnCancel}
-                        className="btn-interactive touch-optimized-btn"
-                        aria-label="Hủy bỏ công việc"
-                      >
-                        <FiX size={14} />
-                        Hủy
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
+          filteredTasks.map(task => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              isReceived={activeTab === 'received'}
+              nowTime={nowTime}
+              onSelectConversation={onSelectConversation}
+              onUpdateStatus={handleUpdateTaskStatus}
+            />
+          ))
         )}
       </div>
     </div>
@@ -548,7 +581,7 @@ const styles = {
     color: 'var(--text-secondary)'
   },
   taskItemCard: {
-    padding: '16px',
+    padding: '16px 16px 16px 12px',
     background: 'var(--bg-glass-active)',
     border: '1px solid var(--border-color)',
     borderRadius: '18px',
@@ -596,16 +629,16 @@ const styles = {
     fontSize: '0.8rem',
     color: 'var(--text-secondary)',
     lineHeight: '1.3',
-    background: 'rgba(255, 255, 255, 0.01)',
+    background: 'var(--bg-primary)',
     padding: '8px 10px',
     borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.02)'
+    border: '1px solid var(--border-color)'
   },
   taskItemMeta: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: '12px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.04)',
+    borderTop: '1px solid var(--border-color)',
     paddingTop: '10px'
   },
   taskItemMetaItem: {
@@ -619,7 +652,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTop: '1px solid rgba(255, 255, 255, 0.04)',
+    borderTop: '1px solid var(--border-color)',
     paddingTop: '10px',
     marginTop: '4px'
   },
@@ -673,11 +706,12 @@ const styles = {
     gap: '4px',
     padding: '8px 14px',
     borderRadius: '10px',
-    border: '1px solid rgba(244, 63, 94, 0.2)',
-    backgroundColor: 'rgba(244, 63, 94, 0.05)',
+    border: '1px solid var(--border-color)',
+    backgroundColor: 'var(--danger-light)',
     color: 'var(--danger)',
     fontSize: '0.78rem',
     fontWeight: '600',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'all 0.2s ease'
   }
 };

@@ -16,6 +16,13 @@
   --accent: #f59e0b;
   --danger: #f43f5e;
   
+  /* Status backgrounds - Dark Theme */
+  --primary-light: rgba(99, 102, 241, 0.12);
+  --secondary-light: rgba(16, 185, 129, 0.12);
+  --accent-light: rgba(245, 158, 11, 0.12);
+  --danger-light: rgba(244, 63, 94, 0.12);
+  --bg-card-hover: rgba(255, 255, 255, 0.04);
+  
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #475569;
@@ -63,6 +70,13 @@
   --secondary: #10b981;
   --accent: #f59e0b;
   --danger: #f43f5e;
+
+  /* Status backgrounds - Light Theme */
+  --primary-light: rgba(79, 70, 229, 0.08);
+  --secondary-light: rgba(16, 185, 129, 0.08);
+  --accent-light: rgba(245, 158, 11, 0.08);
+  --danger-light: rgba(244, 63, 94, 0.08);
+  --bg-card-hover: rgba(0, 0, 0, 0.03);
   
   --text-primary: #0f172a;
   --text-secondary: #475569;
@@ -622,7 +636,17 @@ img {
   }
 }
 
+/* Premium Hover Lift & Glowing Border effect for Tasks */
+.task-item-card {
+  transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
 
+.task-item-card:hover {
+  transform: translateY(-3px) translate3d(0, 0, 0);
+  border-color: var(--border-glow) !important;
+  box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-glow) !important;
+}
 
-
-
+[data-theme='light'] .task-item-card:hover {
+  box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--border-glow) !important;
+}
