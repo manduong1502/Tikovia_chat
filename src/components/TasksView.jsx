@@ -42,6 +42,16 @@ const getDueTimeInfo = (dueDate, status, now) => {
   }
 };
 
+// Hàm chuẩn hóa chuỗi tiếng Việt không dấu để tìm kiếm không dấu
+const removeAccents = (str) => {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+};
+
 // 2. Trích xuất thành Component con được Memoized (React.memo)
 // Ngăn chặn hoàn toàn việc vẽ lại các thẻ công việc không thay đổi khi thay đổi trạng thái của 1 thẻ khác.
 const TaskCard = React.memo(({
@@ -189,6 +199,7 @@ export default function TasksView({
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'pending', 'in_progress', 'done', 'overdue'
   const [tasks, setTasks] = useState({ assignedToMe: [], assignedByMe: [] });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest'); // 'newest', 'oldest', 'deadline'
 
@@ -198,6 +209,8 @@ export default function TasksView({
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   const fetchTasksList = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`${API_URL}/tasks`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -205,9 +218,13 @@ export default function TasksView({
       if (res.ok) {
         const data = await res.json();
         setTasks(data);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Lỗi máy chủ (${res.status})`);
       }
     } catch (e) {
       console.error('Lỗi tải danh sách công việc:', e);
+      setError(e.message || 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.');
     } finally {
       setLoading(false);
     }
@@ -302,11 +319,11 @@ export default function TasksView({
 
       if (!matchesStatus) return false;
 
-      // 2. Lọc theo từ khóa tìm kiếm (tiêu đề hoặc mô tả)
+      // 2. Lọc theo từ khóa tìm kiếm (tiêu đề hoặc mô tả) - hỗ trợ tiếng Việt không dấu
       if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesTitle = task.title?.toLowerCase().includes(query);
-        const matchesDesc = task.description?.toLowerCase().includes(query);
+        const query = removeAccents(searchQuery.toLowerCase());
+        const matchesTitle = removeAccents(task.title?.toLowerCase() || '').includes(query);
+        const matchesDesc = removeAccents(task.description?.toLowerCase() || '').includes(query);
         return matchesTitle || matchesDesc;
       }
 
@@ -476,6 +493,19 @@ export default function TasksView({
             <span className="typing-dot"></span>
             <span className="typing-dot"></span>
             <p style={{ marginTop: '10px' }}>Đang tải công việc...</p>
+          </div>
+        ) : error ? (
+          <div style={styles.errorStateCard} className="glass-card">
+            <FiAlertCircle size={40} style={{ color: 'var(--danger)', marginBottom: '12px' }} />
+            <h4 style={styles.errorStateTitle}>Không thể tải danh sách công việc</h4>
+            <p style={styles.errorStateText}>{error}</p>
+            <button 
+              onClick={fetchTasksList} 
+              style={styles.btnRetry}
+              className="btn-interactive touch-optimized-btn"
+            >
+              Thử lại
+            </button>
           </div>
         ) : filteredTasks.length === 0 ? (
           <div style={styles.emptyState}>
@@ -837,5 +867,43 @@ const styles = {
     fontSize: '0.78rem',
     outline: 'none',
     cursor: 'pointer'
+  },
+  errorStateCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '30px 20px',
+    textAlign: 'center',
+    background: 'rgba(244, 63, 94, 0.03)',
+    border: '1px solid rgba(244, 63, 94, 0.15)',
+    borderRadius: '16px',
+    margin: '20px auto',
+    maxWidth: '400px',
+    width: '100%',
+    boxShadow: 'var(--shadow-sm)'
+  },
+  errorStateTitle: {
+    fontSize: '0.95rem',
+    fontWeight: '700',
+    color: 'var(--text-primary)',
+    marginBottom: '6px'
+  },
+  errorStateText: {
+    fontSize: '0.8rem',
+    color: 'var(--text-secondary)',
+    lineHeight: '1.4',
+    marginBottom: '16px'
+  },
+  btnRetry: {
+    padding: '8px 20px',
+    borderRadius: '10px',
+    border: 'none',
+    backgroundColor: 'var(--primary)',
+    color: '#ffffff',
+    fontSize: '0.8rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
   }
 };
