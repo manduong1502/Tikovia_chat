@@ -635,18 +635,3 @@ img {
     border-right: none !important;
   }
 }
-
-/* Premium Hover Lift & Glowing Border effect for Tasks */
-.task-item-card {
-  transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.2s ease, box-shadow 0.2s ease !important;
-}
-
-.task-item-card:hover {
-  transform: translateY(-3px) translate3d(0, 0, 0);
-  border-color: var(--border-glow) !important;
-  box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-glow) !important;
-}
-
-[data-theme='light'] .task-item-card:hover {
-  box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--border-glow) !important;
-}

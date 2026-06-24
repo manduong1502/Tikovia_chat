@@ -84,7 +84,7 @@ const TaskCard = React.memo(({
         boxShadow: isOverdue ? '0 0 16px rgba(244, 63, 94, 0.1)' : 'var(--shadow-sm)',
         contentVisibility: 'auto'
       }} 
-      className="glass-card anim-scale-in task-item-card"
+      className="glass-card anim-scale-in"
     >
       <div style={styles.taskItemHeader}>
         <div style={styles.taskItemPartner}>
