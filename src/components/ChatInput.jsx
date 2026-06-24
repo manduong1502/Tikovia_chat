@@ -1068,7 +1068,7 @@ const styles = {
     padding: '16px',
     zIndex: 20,
     width: '260px',
-    background: 'rgba(17, 21, 32, 0.85)',
+    background: 'var(--bg-glass-active)',
     backdropFilter: 'blur(24px)',
     WebkitBackdropFilter: 'blur(24px)',
     border: '1px solid var(--border-color)',
@@ -1195,9 +1195,10 @@ const styles = {
     zIndex: 100
   },
   modalContent: {
-    width: '380px',
+    width: 'calc(100% - 32px)',
+    maxWidth: '380px',
     padding: '24px',
-    background: 'rgba(17, 21, 32, 0.85)',
+    background: 'var(--bg-glass-active)',
     backdropFilter: 'blur(24px)',
     WebkitBackdropFilter: 'blur(24px)',
     border: '1px solid var(--border-color)',
@@ -1234,8 +1235,8 @@ const styles = {
   modalInput: {
     padding: '10px 12px',
     borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255, 255, 255, 0.03)',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
     fontSize: '0.9rem',
     outline: 'none',
@@ -1259,7 +1260,7 @@ const styles = {
   btnSecondary: {
     padding: '10px 16px',
     borderRadius: 'var(--radius-sm)',
-    background: 'rgba(255, 255, 255, 0.05)',
+    background: 'var(--bg-surface)',
     color: 'var(--text-primary)',
     border: '1px solid var(--border-color)',
     fontWeight: '600',
