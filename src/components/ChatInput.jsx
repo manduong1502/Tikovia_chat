@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiSmile, FiMoreHorizontal, FiMic, FiImage, FiSend, FiPaperclip, FiClock, FiMapPin, FiX } from 'react-icons/fi';
+import { FiSmile, FiMoreHorizontal, FiMic, FiImage, FiSend, FiPaperclip, FiClock, FiMapPin, FiX, FiCheckSquare } from 'react-icons/fi';
 import stickerPacks from '../stickers.json';
 
 export default function ChatInput({ token, conversation, onSendMessage, replyingTo, setReplyingTo }) {
@@ -25,6 +25,13 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderTitle, setReminderTitle] = useState('');
   const [reminderTime, setReminderTime] = useState('');
+
+  // Task Form state
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [taskAssigneeId, setTaskAssigneeId] = useState('');
+  const [taskDueDate, setTaskDueDate] = useState('');
 
   // Trạng thái Upload tiến trình
   const [isUploading, setIsUploading] = useState(false);
@@ -405,6 +412,47 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
     }
   };
 
+  // Xử lý Giao việc
+  const handleCreateTask = async (e) => {
+    e.preventDefault();
+    if (!taskTitle || !taskAssigneeId) {
+      alert('Vui lòng nhập tiêu đề và chọn người thực hiện');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: taskTitle,
+          description: taskDescription,
+          assigneeId: taskAssigneeId,
+          dueDate: taskDueDate || null,
+          conversationId: conversation.id
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Có lỗi xảy ra khi tạo công việc');
+      }
+
+      // Xóa sạch form và đóng modal
+      setTaskTitle('');
+      setTaskDescription('');
+      setTaskAssigneeId('');
+      setTaskDueDate('');
+      setShowTaskModal(false);
+      setShowMoreMenu(false);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   // --- GHI ÂM TIN NHẮN THOẠI (VOICE MESSAGE) ---
   const startRecording = async () => {
     try {
@@ -588,6 +636,12 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
               <span style={styles.moreLabel}>Nhắc hẹn</span>
             </div>
 
+            <div style={styles.moreItem} onClick={() => { setShowTaskModal(true); setShowMoreMenu(false); }}>
+              <div style={{...styles.moreIconWrapper, backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399'}}>
+                <FiCheckSquare size={22} />
+              </div>
+              <span style={styles.moreLabel}>Giao việc</span>
+            </div>
 
           </div>
         </div>
@@ -708,6 +762,80 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
             <div style={styles.modalFooter}>
               <button type="button" onClick={() => setShowReminderModal(false)} style={styles.btnSecondary}>Hủy</button>
               <button type="submit" style={styles.btnPrimary}>Đăng ký Nhắc hẹn</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Giao việc */}
+      {showTaskModal && (
+        <div style={styles.modalOverlay}>
+          <form onSubmit={handleCreateTask} style={styles.modalContent} className="glass-card anim-scale-in task-modal">
+            <div style={styles.modalHeader}>
+              <h3>Phân công công việc</h3>
+              <button type="button" onClick={() => setShowTaskModal(false)} style={styles.modalCloseBtn}><FiX size={20} /></button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Tiêu đề công việc</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nhập tên công việc..."
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  style={styles.modalInput}
+                />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Mô tả chi tiết</label>
+                <textarea
+                  placeholder="Nhập mô tả chi tiết công việc (không bắt buộc)..."
+                  value={taskDescription}
+                  onChange={(e) => setTaskDescription(e.target.value)}
+                  style={{
+                    ...styles.modalInput,
+                    height: '80px',
+                    resize: 'none',
+                    fontFamily: 'inherit',
+                    padding: '8px 12px'
+                  }}
+                />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Người thực hiện</label>
+                <select
+                  required
+                  value={taskAssigneeId}
+                  onChange={(e) => setTaskAssigneeId(e.target.value)}
+                  style={{
+                    ...styles.modalInput,
+                    backgroundColor: 'var(--bg-surface)',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">-- Chọn thành viên nhận việc --</option>
+                  {conversation.members?.map((member) => (
+                    <option key={member.user.id} value={member.user.id}>
+                      {member.nickname || member.user.displayName} (@{member.user.username})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Hạn chót (Deadline)</label>
+                <input
+                  type="datetime-local"
+                  value={taskDueDate}
+                  onChange={(e) => setTaskDueDate(e.target.value)}
+                  style={styles.modalInput}
+                />
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button type="button" onClick={() => setShowTaskModal(false)} style={styles.btnSecondary}>Hủy</button>
+              <button type="submit" style={styles.btnPrimary}>Giao việc</button>
             </div>
           </form>
         </div>

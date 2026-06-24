@@ -7,9 +7,10 @@ import RightSidebar from './components/RightSidebar';
 import VideoCall from './components/VideoCall';
 import ProfileView from './components/ProfileView';
 import NetworkBanner from './components/NetworkBanner';
+import TasksView from './components/TasksView';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import Avatar from './components/Avatar';
-import { FiMessageSquare, FiUsers, FiCompass, FiBookOpen, FiUser, FiSearch } from 'react-icons/fi';
+import { FiMessageSquare, FiUsers, FiCompass, FiBookOpen, FiUser, FiSearch, FiCheckSquare } from 'react-icons/fi';
 
 
 export default function App() {
@@ -60,6 +61,7 @@ export default function App() {
   const [showRightSidebar, setShowRightSidebar] = useState(false);
   const [mobileActiveView, setMobileActiveView] = useState('list'); // 'list', 'chat', 'options'
   const [showProfile, setShowProfile] = useState(false);
+  const [showTasks, setShowTasks] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
 
   // Trạng thái thông báo đẩy (Web Push)
@@ -278,6 +280,24 @@ export default function App() {
     // Lắng nghe tin nhắn bị thu hồi
     newSocket.on('message-recalled', ({ messageId }) => {
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isRecalled: true, content: null, metadata: null, isPinned: false, pinnedBy: null, pinnedAt: null } : m));
+    });
+
+    // Lắng nghe cập nhật trạng thái công việc
+    newSocket.on('task-status-updated', ({ taskId, status }) => {
+      setMessages(prev => prev.map(m => {
+        if (m.type === 'task') {
+          try {
+            const meta = typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata;
+            if (meta && meta.taskId === taskId) {
+              meta.status = status;
+              return { ...m, metadata: JSON.stringify(meta) };
+            }
+          } catch (e) {
+            console.error('Lỗi phân tích metadata khi cập nhật trạng thái task:', e);
+          }
+        }
+        return m;
+      }));
     });
 
     // Lắng nghe nhắc hẹn đến giờ kích hoạt
@@ -781,7 +801,7 @@ export default function App() {
   const bottomNavItems = [
     { id: 'list', label: 'Tin nhắn', icon: FiMessageSquare },
     { id: 'contacts', label: 'Danh bạ', icon: FiUsers },
-    { id: 'discover', label: 'Khám phá', icon: FiCompass },
+    { id: 'tasks', label: 'Công việc', icon: FiCheckSquare },
     { id: 'diary', label: 'Nhật ký', icon: FiBookOpen },
     { id: 'profile', label: 'Cá nhân', icon: FiUser },
   ];
@@ -796,7 +816,7 @@ export default function App() {
     left: `calc(${activeIndex * 20}% + 6px)`,
   } : {};
 
-  const showBottomNav = ['list', 'contacts', 'discover', 'diary', 'profile'].includes(mobileActiveView) || showProfile;
+  const showBottomNav = ['list', 'contacts', 'tasks', 'diary', 'profile'].includes(mobileActiveView) || showProfile;
 
   // Style configurations for custom views
   const sidebarPlaceholderStyle = {
@@ -1180,44 +1200,72 @@ export default function App() {
             localStorage.setItem('chat_dismissed_push_banner', 'true');
             setDismissedPushBanner(true);
           }}
+          onShowTasks={() => {
+            setShowTasks(prev => !prev);
+            setShowProfile(false);
+          }}
         />
 
-        {/* Mock custom views for contacts, discover, diary */}
+        {/* Mock custom views for contacts, diary */}
         {renderContactsView()}
-        {renderDiscoverView()}
         {renderDiaryView()}
 
-        {/* 2. Center Chat window */}
-        <ChatWindow
-          user={user}
-          token={token}
-          conversation={activeConversation}
-          messages={messages}
-          typingUsers={typingUsers}
-          onSendMessage={handleSendMessage}
-          onPinMessage={handlePinMessage}
-          onToggleReaction={handleToggleReaction}
-          onRecallMessage={handleRecallMessage}
-          onDeleteMessage={handleDeleteMessageForMe}
-          onStartCall={handleStartCall}
-          toggleRightSidebar={() => {
-            const nextState = !showRightSidebar;
-            setShowRightSidebar(nextState);
-            if (nextState) {
-              setMobileActiveView('options');
-            } else {
-              setMobileActiveView('chat');
-            }
-          }}
-          onlineUsers={onlineUsers}
-          mobileActiveView={mobileActiveView}
-          setMobileActiveView={setMobileActiveView}
-          className={mobileActiveView === 'chat' ? 'mobile-show-chat' : 'mobile-hide-chat'}
-          onImageClick={(url) => setLightboxImage(url)}
-          fetchOlderMessages={fetchOlderMessages}
-          hasMoreMessages={hasMoreMessages}
-          isLoadingOlder={isLoadingOlder}
-        />
+        {/* 2. Center Chat window or Tasks View */}
+        {showTasks || mobileActiveView === 'tasks' ? (
+          <TasksView
+            user={user}
+            token={token}
+            onClose={() => {
+              setShowTasks(false);
+              if (mobileActiveView === 'tasks') {
+                setMobileActiveView('list');
+              }
+            }}
+            onSelectConversation={(convId) => {
+              const target = conversations.find(c => c.id === convId);
+              if (target) {
+                setActiveConversation(target);
+                setShowTasks(false);
+                setMobileActiveView('chat');
+              }
+            }}
+            socket={socket}
+            mobileActiveView={mobileActiveView}
+            setMobileActiveView={setMobileActiveView}
+            className={(showTasks || mobileActiveView === 'tasks') ? 'mobile-show-chat' : 'mobile-hide-chat'}
+          />
+        ) : (
+          <ChatWindow
+            user={user}
+            token={token}
+            conversation={activeConversation}
+            messages={messages}
+            typingUsers={typingUsers}
+            onSendMessage={handleSendMessage}
+            onPinMessage={handlePinMessage}
+            onToggleReaction={handleToggleReaction}
+            onRecallMessage={handleRecallMessage}
+            onDeleteMessage={handleDeleteMessageForMe}
+            onStartCall={handleStartCall}
+            toggleRightSidebar={() => {
+              const nextState = !showRightSidebar;
+              setShowRightSidebar(nextState);
+              if (nextState) {
+                setMobileActiveView('options');
+              } else {
+                setMobileActiveView('chat');
+              }
+            }}
+            onlineUsers={onlineUsers}
+            mobileActiveView={mobileActiveView}
+            setMobileActiveView={setMobileActiveView}
+            className={mobileActiveView === 'chat' ? 'mobile-show-chat' : 'mobile-hide-chat'}
+            onImageClick={(url) => setLightboxImage(url)}
+            fetchOlderMessages={fetchOlderMessages}
+            hasMoreMessages={hasMoreMessages}
+            isLoadingOlder={isLoadingOlder}
+          />
+        )}
 
         {/* 3. Far Right Sidebar (Tùy chọn) */}
         {showRightSidebar && activeConversation && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiLogOut, FiUsers, FiSearch, FiX, FiPlus, FiMessageSquare, FiCompass, FiBookOpen, FiUser, FiMaximize, FiSun, FiMoon } from 'react-icons/fi';
+import { FiLogOut, FiUsers, FiSearch, FiX, FiPlus, FiMessageSquare, FiCompass, FiBookOpen, FiUser, FiMaximize, FiSun, FiMoon, FiCheckSquare } from 'react-icons/fi';
 import Avatar from './Avatar';
 
 export default function Sidebar({
@@ -20,7 +20,8 @@ export default function Sidebar({
   pushStatus,
   onEnablePush,
   dismissedPushBanner,
-  onDismissPushBanner
+  onDismissPushBanner,
+  onShowTasks
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -206,6 +207,14 @@ export default function Sidebar({
           </div>
         </div>
         <div style={styles.headerActions}>
+          <button 
+            title="Công việc" 
+            onClick={onShowTasks} 
+            style={styles.actionBtn} 
+            className="btn-interactive"
+          >
+            <FiCheckSquare size={18} />
+          </button>
           <button 
             title="Tạo nhóm chat" 
             onClick={() => setShowCreateGroup(true)} 

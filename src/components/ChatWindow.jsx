@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FiPhone, FiVideo, FiSidebar, FiDownload, FiMapPin, FiClock, FiChevronLeft } from 'react-icons/fi';
+import { FiPhone, FiVideo, FiSidebar, FiDownload, FiMapPin, FiClock, FiChevronLeft, FiCheckSquare } from 'react-icons/fi';
 import { BsPinAngle } from 'react-icons/bs';
 import ChatInput from './ChatInput';
 import Avatar from './Avatar';
@@ -448,6 +448,130 @@ export default function ChatWindow({
           </div>
         );
 
+      case 'task':
+        const taskTitle = metadata.title || msg.content;
+        const taskDesc = metadata.description || '';
+        const assigneeName = metadata.assigneeName || 'Thành viên';
+        const assigneeId = metadata.assigneeId;
+        const taskId = metadata.taskId;
+        const taskStatus = metadata.status || 'pending';
+        const taskDueDate = metadata.dueDate;
+
+        // Tính toán hạn chót/quá hạn
+        let isOverdue = false;
+        let dueStr = '';
+        if (taskDueDate) {
+          const dDate = new Date(taskDueDate);
+          isOverdue = dDate < new Date() && taskStatus !== 'done' && taskStatus !== 'cancelled';
+          dueStr = dDate.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+
+        // Định dạng trạng thái công việc
+        let statusText = 'Chờ làm';
+        let statusColor = '#eab308'; // yellow
+        let statusBg = 'rgba(234, 179, 8, 0.15)';
+        if (taskStatus === 'in_progress') {
+          statusText = 'Đang làm';
+          statusColor = '#3b82f6'; // blue
+          statusBg = 'rgba(59, 130, 246, 0.15)';
+        } else if (taskStatus === 'done') {
+          statusText = 'Hoàn thành';
+          statusColor = '#10b981'; // green
+          statusBg = 'rgba(16, 185, 129, 0.15)';
+        } else if (taskStatus === 'cancelled') {
+          statusText = 'Đã hủy';
+          statusColor = '#ef4444'; // red
+          statusBg = 'rgba(239, 68, 68, 0.15)';
+        }
+
+        const handleUpdateStatus = async (newStatus) => {
+          try {
+            const res = await fetch(`${API_URL}/tasks/${taskId}/status`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ status: newStatus })
+            });
+            if (!res.ok) {
+              const errData = await res.json();
+              throw new Error(errData.error || 'Lỗi cập nhật trạng thái');
+            }
+          } catch (e) {
+            alert(e.message);
+          }
+        };
+
+        const isUserAssignee = user.id === assigneeId;
+        const isUserAssigner = user.id === msg.senderId;
+
+        return (
+          <div style={styles.taskCardContainer}>
+            <div style={styles.taskCardHeader}>
+              <div style={styles.taskCardTitleRow}>
+                <FiCheckSquare size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                <span style={styles.taskCardTitle} title={taskTitle}>{taskTitle}</span>
+              </div>
+              <span style={{ ...styles.taskCardStatusBadge, color: statusColor, backgroundColor: statusBg }}>
+                {statusText}
+              </span>
+            </div>
+            {taskDesc && <p style={styles.taskCardDesc}>{taskDesc}</p>}
+            <div style={styles.taskCardMeta}>
+              <div style={styles.taskCardMetaItem}>
+                <span style={styles.taskCardMetaLabel}>Người nhận:</span>
+                <span style={styles.taskCardMetaVal}>{assigneeName} {isUserAssignee && '(Bạn)'}</span>
+              </div>
+              {taskDueDate && (
+                <div style={styles.taskCardMetaItem}>
+                  <span style={styles.taskCardMetaLabel}>Hạn chót:</span>
+                  <span style={{ 
+                    ...styles.taskCardMetaVal, 
+                    color: isOverdue ? 'var(--danger)' : 'var(--text-secondary)',
+                    fontWeight: isOverdue ? '600' : 'normal' 
+                  }}>
+                    {dueStr} {isOverdue && ' (Quá hạn)'}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            {/* Quick buttons */}
+            {(taskStatus !== 'done' && taskStatus !== 'cancelled') && (
+              <div style={styles.taskCardActions}>
+                {isUserAssignee && taskStatus === 'pending' && (
+                  <button 
+                    onClick={() => handleUpdateStatus('in_progress')} 
+                    style={styles.taskCardBtnPrimary}
+                    className="btn-interactive"
+                  >
+                    Bắt đầu làm
+                  </button>
+                )}
+                {isUserAssignee && taskStatus === 'in_progress' && (
+                  <button 
+                    onClick={() => handleUpdateStatus('done')} 
+                    style={styles.taskCardBtnSuccess}
+                    className="btn-interactive"
+                  >
+                    Hoàn thành
+                  </button>
+                )}
+                {(isUserAssigner || isUserAssignee) && (
+                  <button 
+                    onClick={() => handleUpdateStatus('cancelled')} 
+                    style={styles.taskCardBtnDanger}
+                    className="btn-interactive"
+                  >
+                    Hủy việc
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+
       case 'call':
         return renderCallCard(msg, metadata);
 
@@ -603,7 +727,7 @@ export default function ChatWindow({
                             ? '' 
                             : (msg.type === 'image' || msg.type === 'sticker') 
                             ? 'bubble-media' 
-                            : msg.type === 'call' 
+                            : (msg.type === 'call' || msg.type === 'task')
                             ? 'bubble-call' 
                             : isMe 
                             ? 'bubble-sent-premium' 
@@ -683,10 +807,10 @@ export default function ChatWindow({
                       onTouchEnd={() => {
                           if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
                         }}
-                        onTouchMove={() => {
+                      onTouchMove={() => {
                           if (touchTimeoutRef.current) clearTimeout(touchTimeoutRef.current);
                         }}
-                        onClick={(e) => {
+                      onClick={(e) => {
                           e.stopPropagation();
                           if (!isGroupEnd) {
                             setManuallyShownTimes(prev => {
@@ -702,12 +826,12 @@ export default function ChatWindow({
                         }}
                         style={{
                           ...styles.messageBubble,
-                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : msg.type === 'call' ? 'var(--bg-glass-active)' : undefined,
-                          border: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : msg.type === 'call' ? '1px solid var(--border-color)' : undefined,
-                          boxShadow: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? 'none' : undefined,
-                          padding: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'call') && !msg.isRecalled ? '0' : '10px 14px',
-                          color: msg.type === 'call' ? 'var(--text-primary)' : isMe ? '#ffffff' : 'var(--text-primary)',
-                          borderRadius: msg.type === 'call' ? '16px' : isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
+                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : ['call', 'task'].includes(msg.type) ? 'var(--bg-glass-active)' : undefined,
+                          border: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : ['call', 'task'].includes(msg.type) ? '1px solid var(--border-color)' : undefined,
+                          boxShadow: (msg.type === 'image' || msg.type === 'sticker' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? 'none' : undefined,
+                          padding: (msg.type === 'image' || msg.type === 'sticker' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? '0' : '10px 14px',
+                          color: ['call', 'task'].includes(msg.type) ? 'var(--text-primary)' : isMe ? '#ffffff' : 'var(--text-primary)',
+                          borderRadius: ['call', 'task'].includes(msg.type) ? '16px' : isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
                           cursor: !isGroupEnd ? 'pointer' : 'default',
                           opacity: msg.status === 'sending' ? 0.6 : 1,
                           transition: 'all 0.25s ease'
@@ -1356,5 +1480,116 @@ const styles = {
     gap: '4px',
     padding: '12px',
     color: 'var(--text-secondary)'
+  },
+  taskCardContainer: {
+    width: '260px',
+    padding: '12px 14px',
+    display: 'flex',
+    flexDirection: 'column',
+    boxSizing: 'border-box',
+    gap: '8px'
+  },
+  taskCardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '8px',
+    width: '100%'
+  },
+  taskCardTitleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flex: 1,
+    minWidth: 0
+  },
+  taskCardTitle: {
+    fontSize: '0.9rem',
+    fontWeight: '600',
+    color: 'var(--text-primary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+  taskCardStatusBadge: {
+    fontSize: '0.7rem',
+    fontWeight: '600',
+    padding: '2px 8px',
+    borderRadius: '10px',
+    whiteSpace: 'nowrap',
+    flexShrink: 0
+  },
+  taskCardDesc: {
+    fontSize: '0.8rem',
+    color: 'var(--text-secondary)',
+    margin: 0,
+    lineHeight: '1.3',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    background: 'rgba(255, 255, 255, 0.02)',
+    padding: '6px 8px',
+    borderRadius: '6px'
+  },
+  taskCardMeta: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+    paddingTop: '6px'
+  },
+  taskCardMetaItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '0.75rem'
+  },
+  taskCardMetaLabel: {
+    color: 'var(--text-muted)'
+  },
+  taskCardMetaVal: {
+    color: 'var(--text-secondary)',
+    fontWeight: '500'
+  },
+  taskCardActions: {
+    display: 'flex',
+    gap: '8px',
+    marginTop: '6px'
+  },
+  taskCardBtnPrimary: {
+    flex: 1,
+    padding: '6px 8px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: '#3b82f6',
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 0.15s ease'
+  },
+  taskCardBtnSuccess: {
+    flex: 1,
+    padding: '6px 8px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: '#10b981',
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 0.15s ease'
+  },
+  taskCardBtnDanger: {
+    padding: '6px 8px',
+    borderRadius: '6px',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    color: '#f87171',
+    fontWeight: '600',
+    fontSize: '0.75rem',
+    cursor: 'pointer',
+    textAlign: 'center',
+    transition: 'all 0.15s ease'
   }
 };
