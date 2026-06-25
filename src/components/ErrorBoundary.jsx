@@ -75,16 +75,6 @@ class ErrorBoundary extends React.Component {
             <p style={styles.subtitle}>
               Ứng dụng vừa gặp lỗi không mong muốn. Đừng lo lắng, dữ liệu trò chuyện của bạn vẫn an toàn.
             </p>
-            {!import.meta.env.PROD && this.state.error && (
-              <details style={styles.details}>
-                <summary style={styles.summary}>Chi tiết lỗi kỹ thuật</summary>
-                <pre style={styles.pre}>
-                  {this.state.error.toString()}
-                  {"\n"}
-                  {this.state.errorInfo?.componentStack}
-                </pre>
-              </details>
-            )}
             <button style={styles.button} onClick={this.handleReset}>
               Tải lại trang
             </button>

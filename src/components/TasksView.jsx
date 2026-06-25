@@ -498,7 +498,7 @@ export default function TasksView({
           <div style={styles.errorStateCard} className="glass-card">
             <FiAlertCircle size={40} style={{ color: 'var(--danger)', marginBottom: '12px' }} />
             <h4 style={styles.errorStateTitle}>Không thể tải danh sách công việc</h4>
-            <p style={styles.errorStateText}>{error}</p>
+            <p style={styles.errorStateText}>Đã xảy ra sự cố kết nối máy chủ. Vui lòng kiểm tra lại kết nối mạng và thử lại.</p>
             <button 
               onClick={fetchTasksList} 
               style={styles.btnRetry}

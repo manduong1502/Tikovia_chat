@@ -396,14 +396,21 @@ export default function ChatWindow({
         );
 
       case 'file':
+        const rawFileName = metadata.fileName || msg.content.substring(msg.content.lastIndexOf('/') + 1);
+        const cleanFileName = rawFileName.replace(/^\d+-/, '');
+        const formattedSize = metadata.fileSize 
+          ? (metadata.fileSize < 1024 * 1024 
+              ? `${(metadata.fileSize / 1024).toFixed(0)} KB` 
+              : `${(metadata.fileSize / (1024 * 1024)).toFixed(1)} MB`)
+          : '';
         return (
           <div style={styles.fileBox}>
             <div style={styles.fileIcon}>📁</div>
             <div style={styles.fileDetails}>
-              <span style={styles.fileName}>{metadata.fileName || msg.content.substring(msg.content.lastIndexOf('/') + 1)}</span>
-              <span style={styles.fileSize}>{(metadata.fileSize / 1024 / 1024).toFixed(2)} MB</span>
+              <span style={styles.fileName} title={cleanFileName}>{cleanFileName}</span>
+              {formattedSize && <span style={styles.fileSize}>{formattedSize}</span>}
             </div>
-            <a href={getFileUrl(msg.content)} download style={styles.fileDownload}>
+            <a href={getFileUrl(msg.content)} download style={styles.fileDownload} title="Tải xuống tập tin">
               <FiDownload size={18} />
             </a>
           </div>
