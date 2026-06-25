@@ -141,7 +141,7 @@ export default function ProfileView({
       setError('');
       setSuccess('Đang tải ảnh lên...');
       
-      const res = await fetch(`${BASE_URL}/api/chat/upload`, {
+      const res = await fetch(`${BASE_URL}/api/chat/upload?local=true`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

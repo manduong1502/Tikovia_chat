@@ -125,6 +125,28 @@ export default function App() {
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
+
+      // Tự động đồng bộ thông tin cá nhân mới nhất từ server (Stale-While-Revalidate)
+      fetch(`${API_URL}/auth/me`, {
+        headers: { 'Authorization': `Bearer ${savedToken}` }
+      })
+        .then(res => {
+          if (res.status === 401) {
+            throw new Error('UNAUTHORIZED');
+          }
+          if (res.ok) return res.json();
+          throw new Error('FETCH_ERROR');
+        })
+        .then(latestUser => {
+          setUser(latestUser);
+          localStorage.setItem('chat_user', JSON.stringify(latestUser));
+        })
+        .catch(err => {
+          console.warn('Lỗi đồng bộ profile:', err);
+          if (err.message === 'UNAUTHORIZED') {
+            handleLogout();
+          }
+        });
     }
 
     // Lắng nghe sự kiện Online/Offline của trình duyệt
