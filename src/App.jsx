@@ -1067,7 +1067,7 @@ export default function App() {
 
   const renderContactsView = () => {
     return (
-      <div className={`glass mobile-only-view mobile-list-padding ${mobileActiveView === 'contacts' ? 'mobile-show-list' : 'mobile-hide-list'}`} style={sidebarPlaceholderStyle}>
+      <div className={`glass mobile-only-view ${mobileActiveView === 'contacts' ? 'mobile-show-list' : 'mobile-hide-list'}`} style={sidebarPlaceholderStyle}>
         <div style={placeholderHeaderStyle}>
           <h3 style={placeholderTitleStyle}>Danh bạ</h3>
           <span style={placeholderSubStyle}>Danh sách bạn bè & nhóm</span>
@@ -1084,7 +1084,7 @@ export default function App() {
             />
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px' }} className="mobile-list-padding scroll-optimized">
           <div style={contactCategoryStyle}>
             <div style={contactCategoryHeaderStyle}>🏷️ Danh mục</div>
             <div style={contactItemStyle} className="btn-interactive">
@@ -1127,12 +1127,12 @@ export default function App() {
 
   const renderDiscoverView = () => {
     return (
-      <div className={`glass mobile-only-view mobile-list-padding ${mobileActiveView === 'discover' ? 'mobile-show-list' : 'mobile-hide-list'}`} style={sidebarPlaceholderStyle}>
+      <div className={`glass mobile-only-view ${mobileActiveView === 'discover' ? 'mobile-show-list' : 'mobile-hide-list'}`} style={sidebarPlaceholderStyle}>
         <div style={placeholderHeaderStyle}>
           <h3 style={placeholderTitleStyle}>Khám phá</h3>
           <span style={placeholderSubStyle}>Tiện ích & Dịch vụ</span>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px' }} className="mobile-list-padding scroll-optimized">
           <div style={discoverBannerStyle}>
             <div style={{ fontWeight: '700', fontSize: '1rem', color: '#fff', marginBottom: '4px' }}>Khám Phá Tikovia Space</div>
             <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)' }}>Trải nghiệm hệ sinh thái mini app đỉnh cao</div>
@@ -1164,12 +1164,12 @@ export default function App() {
 
   const renderDiaryView = () => {
     return (
-      <div className={`glass mobile-only-view mobile-list-padding ${mobileActiveView === 'diary' ? 'mobile-show-list' : 'mobile-hide-list'}`} style={sidebarPlaceholderStyle}>
+      <div className={`glass mobile-only-view ${mobileActiveView === 'diary' ? 'mobile-show-list' : 'mobile-hide-list'}`} style={sidebarPlaceholderStyle}>
         <div style={placeholderHeaderStyle}>
           <h3 style={placeholderTitleStyle}>Nhật ký</h3>
           <span style={placeholderSubStyle}>Khoảnh khắc đáng nhớ</span>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 20px' }} className="mobile-list-padding scroll-optimized">
           {/* Post Box */}
           <div style={diaryPostBoxStyle} className="glass-card">
             <Avatar url={user.avatarUrl} name={user.displayName} size={36} />
