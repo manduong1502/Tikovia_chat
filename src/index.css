@@ -308,7 +308,7 @@ input, textarea, select, [contenteditable="true"] {
     z-index: 999;
     align-items: center;
     justify-content: space-around;
-    padding: 0 8px;
+    padding: 0;
     box-sizing: border-box;
     transition: all 0.3s var(--transition-normal);
   }
@@ -344,6 +344,7 @@ input, textarea, select, [contenteditable="true"] {
   /* Sliding Capsule Background Indicator */
   .bottom-nav-capsule {
     position: absolute;
+    top: 9px;
     height: 46px;
     background: rgba(99, 102, 241, 0.09);
     border: 1px solid rgba(99, 102, 241, 0.12);
