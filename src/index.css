@@ -635,3 +635,55 @@ img {
     border-right: none !important;
   }
 }
+
+/* Profile View Responsive Layout */
+.profile-dashboard-wrapper {
+  display: flex;
+  gap: 30px;
+  padding: 40px 24px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.profile-left-card {
+  width: 320px;
+  padding: 30px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: fit-content;
+  flex-shrink: 0;
+}
+
+.profile-right-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.profile-desktop-tabs {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .profile-dashboard-wrapper {
+    flex-direction: column !important;
+    padding: 20px 16px 110px 16px !important; /* Thêm padding-bottom trên di động để chừa không gian cho bottom nav bar */
+    gap: 20px !important;
+  }
+
+  .profile-left-card {
+    width: 100% !important;
+    padding: 20px 16px !important;
+  }
+
+  .profile-desktop-tabs {
+    display: none !important; /* Hủy hiển thị tabs trên mobile vì tất cả section đều render */
+  }
+}

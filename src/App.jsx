@@ -127,8 +127,12 @@ export default function App() {
       setUser(JSON.parse(savedUser));
 
       // Tự động đồng bộ thông tin cá nhân mới nhất từ server (Stale-While-Revalidate)
-      fetch(`${API_URL}/auth/me`, {
-        headers: { 'Authorization': `Bearer ${savedToken}` }
+      fetch(`${API_URL}/auth/me?_=${Date.now()}`, {
+        headers: { 
+          'Authorization': `Bearer ${savedToken}`,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
       })
         .then(res => {
           if (res.status === 401) {

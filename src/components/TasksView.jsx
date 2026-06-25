@@ -530,7 +530,7 @@ export default function TasksView({
       </div>
 
       {/* Tasks Feed List - Content-visibility optimization for rendering performance */}
-      <div style={styles.taskListContainer} className="scroll-optimized">
+      <div style={styles.taskListContainer} className="scroll-optimized mobile-list-padding">
         {loading ? (
           <div style={styles.emptyState}>
             <span className="typing-dot"></span>
@@ -707,7 +707,7 @@ const styles = {
   taskListContainer: {
     flex: 1,
     overflowY: 'auto',
-    padding: '0 16px 96px 16px',
+    padding: '0 16px 20px 16px',
     display: 'flex',
     flexDirection: 'column',
     gap: '12px'

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const COLORS = [
   '#4f46e5', // Violet Indigo
@@ -37,6 +37,11 @@ const getInitials = (name) => {
 
 export default function Avatar({ url, name, size = 40, isOnline = false, style = {} }) {
   const [imageError, setImageError] = useState(false);
+
+  // Reset image error status when the URL changes
+  useEffect(() => {
+    setImageError(false);
+  }, [url]);
 
   const containerStyle = {
     position: 'relative',

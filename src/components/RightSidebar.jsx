@@ -255,7 +255,7 @@ export default function RightSidebar({
         </button>
       </div>
 
-      <div style={styles.content}>
+      <div style={styles.content} className="mobile-list-padding">
         {/* Info Card */}
         <div style={styles.infoCard}>
           <Avatar url={getChatAvatar()} name={getChatTitle()} size={70} style={{ margin: '0 auto 12px auto' }} />

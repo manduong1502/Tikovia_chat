@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FiX, FiCamera, FiEye, FiEyeOff, FiUser, FiLock, FiBell, FiChevronLeft, FiLogOut } from 'react-icons/fi';
 import Avatar from './Avatar';
 
@@ -15,6 +15,15 @@ export default function ProfileView({
   const [phone, setPhone] = useState(user.phone || '');
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
   const avatarFileInputRef = useRef(null);
+
+  // Đồng bộ lại state khi prop user thay đổi (đặc biệt khi SWR load xong bản mới nhất từ server)
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.displayName || '');
+      setPhone(user.phone || '');
+      setAvatarUrl(user.avatarUrl || '');
+    }
+  }, [user]);
   
   // Password states
   const [password, setPassword] = useState('');
@@ -200,9 +209,9 @@ export default function ProfileView({
         <div style={{ width: '100px' }} /> {/* Spacer */}
       </div>
 
-      <div style={styles.dashboardWrapper}>
+      <div className="profile-dashboard-wrapper">
         {/* Left Card: Summary Profile Card */}
-        <div style={styles.leftCard} className="glass-card">
+        <div className="glass-card profile-left-card">
           <div style={styles.avatarEditContainer}>
             <div style={styles.avatarBorderGlow}>
               <Avatar url={avatarUrl} name={displayName || user.displayName || user.username} size={110} />
@@ -233,7 +242,7 @@ export default function ProfileView({
           </div>
 
           {/* Desktop tabs/navigation inside the card */}
-          <div style={styles.desktopTabs}>
+          <div className="profile-desktop-tabs">
             <button 
               onClick={() => setActiveSection('info')} 
               style={{...styles.desktopTabBtn, ...(activeSection === 'info' ? styles.desktopTabBtnActive : {})}}
@@ -262,7 +271,7 @@ export default function ProfileView({
         </div>
 
         {/* Right Area: Detailed Forms */}
-        <div style={styles.rightContent}>
+        <div className="profile-right-content">
           {error && <div style={styles.errorAlert}>{error}</div>}
           {success && <div style={styles.successAlert}>{success}</div>}
 
@@ -467,29 +476,7 @@ const styles = {
     fontWeight: '700',
     color: 'var(--text-primary)'
   },
-  dashboardWrapper: {
-    flex: 1,
-    display: 'flex',
-    gap: '30px',
-    padding: '40px 24px',
-    maxWidth: '1200px',
-    width: '100%',
-    margin: '0 auto',
-    boxSizing: 'border-box',
-    '@media (max-width: 768px)': {
-      flexDirection: 'column',
-      padding: '20px 16px 110px 16px' // Thêm padding-bottom trên di động để chừa không gian cho bottom nav bar
-    }
-  },
-  leftCard: {
-    width: '320px',
-    padding: '30px 20px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    height: 'fit-content',
-    flexShrink: 0
-  },
+  // Layout styles are now handled by CSS classes (.profile-dashboard-wrapper and .profile-left-card)
   avatarEditContainer: {
     display: 'flex',
     flexDirection: 'column',
@@ -542,12 +529,7 @@ const styles = {
     fontSize: '0.8rem',
     color: 'var(--text-secondary)'
   },
-  desktopTabs: {
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px'
-  },
+  // Tab styles are now handled by CSS class (.profile-desktop-tabs)
   desktopTabBtn: {
     width: '100%',
     display: 'flex',
@@ -569,12 +551,7 @@ const styles = {
     borderColor: 'rgba(99, 102, 241, 0.15)',
     color: 'var(--primary)'
   },
-  rightContent: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px'
-  },
+  // Right content styles are now handled by CSS class (.profile-right-content)
   errorAlert: {
     padding: '12px 16px',
     backgroundColor: 'rgba(244, 63, 94, 0.12)',
