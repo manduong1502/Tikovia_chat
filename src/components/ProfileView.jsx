@@ -197,7 +197,7 @@ export default function ProfileView({
   };
 
   return (
-    <div style={styles.container} className="anim-fade scroll-optimized">
+    <div style={styles.container} className="anim-fade">
       {/* Background Floating Blobs */}
       <div className="bg-blob blob-1"></div>
       <div className="bg-blob blob-2"></div>
@@ -210,7 +210,8 @@ export default function ProfileView({
         </button>
       </div>
 
-      <div className="profile-dashboard-wrapper">
+      <div style={styles.scrollContainer} className="scroll-optimized">
+        <div className="profile-dashboard-wrapper">
         {/* Left Card: Summary Profile Card */}
         <div className="glass-card profile-left-card">
           <div style={styles.avatarEditContainer}>
@@ -427,6 +428,7 @@ export default function ProfileView({
           </form>
         </div>
       </div>
+      </div>
     </div>
   );
 }
@@ -444,6 +446,11 @@ const styles = {
     backgroundColor: 'var(--bg-primary)',
     display: 'flex',
     flexDirection: 'column',
+    overflow: 'hidden'
+  },
+  scrollContainer: {
+    flex: 1,
+    width: '100%',
     overflowY: 'auto',
     overflowAnchor: 'none'
   },
