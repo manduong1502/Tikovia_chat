@@ -246,9 +246,23 @@ export default function TasksView({
   useEffect(() => {
     if (!socket) return;
 
-    const handleTaskStatusUpdated = ({ taskId, status }) => {
+    const handleTaskStatusUpdated = ({ taskId, status, assigneeId, assigneeName }) => {
       setTasks(prev => {
-        const updateItem = (item) => item.id === taskId ? { ...item, status } : item;
+        const updateItem = (item) => {
+          if (item.id === taskId) {
+            const newItem = { ...item, status };
+            if (assigneeId) {
+              newItem.assigneeId = assigneeId;
+              newItem.assignee = {
+                ...newItem.assignee,
+                id: assigneeId,
+                displayName: assigneeName || 'Thành viên'
+              };
+            }
+            return newItem;
+          }
+          return item;
+        };
         return {
           assignedToMe: prev.assignedToMe.map(updateItem),
           assignedByMe: prev.assignedByMe.map(updateItem)

@@ -552,14 +552,24 @@ export default function ChatWindow({
             {/* Quick buttons */}
             {(taskStatus !== 'done' && taskStatus !== 'cancelled') && (
               <div style={styles.taskCardActions}>
-                {isUserAssignee && taskStatus === 'pending' && (
+                {assigneeId === '00000000-0000-0000-0000-000000000001' && taskStatus === 'pending' ? (
                   <button 
                     onClick={() => handleUpdateStatus('in_progress')} 
                     style={styles.taskCardBtnPrimary}
                     className="btn-interactive"
                   >
-                    Bắt đầu làm
+                    Nhận đơn
                   </button>
+                ) : (
+                  isUserAssignee && taskStatus === 'pending' && (
+                    <button 
+                      onClick={() => handleUpdateStatus('in_progress')} 
+                      style={styles.taskCardBtnPrimary}
+                      className="btn-interactive"
+                    >
+                      Bắt đầu làm
+                    </button>
+                  )
                 )}
                 {isUserAssignee && taskStatus === 'in_progress' && (
                   <button 

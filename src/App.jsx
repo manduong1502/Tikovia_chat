@@ -311,13 +311,17 @@ export default function App() {
     });
 
     // Lắng nghe cập nhật trạng thái công việc
-    newSocket.on('task-status-updated', ({ taskId, status }) => {
+    newSocket.on('task-status-updated', ({ taskId, status, assigneeId, assigneeName }) => {
       setMessages(prev => prev.map(m => {
         if (m.type === 'task') {
           try {
             const meta = typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata;
             if (meta && meta.taskId === taskId) {
               meta.status = status;
+              if (assigneeId) {
+                meta.assigneeId = assigneeId;
+                meta.assigneeName = assigneeName;
+              }
               return { ...m, metadata: JSON.stringify(meta) };
             }
           } catch (e) {
