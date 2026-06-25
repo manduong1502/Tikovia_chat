@@ -240,6 +240,7 @@ export default function ProfileView({
           <div style={styles.userMeta}>
             <h2 style={styles.metaName}>{displayName || user.displayName}</h2>
             <span style={styles.metaUsername}>@{user.username}</span>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Bản cập nhật: v1.2.0</span>
             {phone && <span style={styles.metaPhone}>📞 {phone}</span>}
           </div>
 
