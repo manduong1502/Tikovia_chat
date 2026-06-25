@@ -11,9 +11,9 @@ export default function ProfileView({
   onEnablePush,
   mobileActiveView
 }) {
-  const [displayName, setDisplayName] = useState(user.displayName || '');
-  const [phone, setPhone] = useState(user.phone || '');
-  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const avatarFileInputRef = useRef(null);
 
   // Đồng bộ lại state khi prop user thay đổi (đặc biệt khi SWR load xong bản mới nhất từ server)
@@ -204,6 +204,9 @@ export default function ProfileView({
       setSuccess(''); // Clear success on error
     } finally {
       setLoading(false);
+      if (e.target) {
+        e.target.value = '';
+      }
     }
   };
 
@@ -235,7 +238,7 @@ export default function ProfileView({
         <div className="glass-card profile-left-card">
           <div style={styles.avatarEditContainer}>
             <div style={styles.avatarBorderGlow}>
-              <Avatar url={avatarUrl} name={displayName || user.displayName || user.username} size={110} />
+              <Avatar url={avatarUrl} name={displayName || user?.displayName || user?.username || ''} size={110} />
             </div>
             <div style={styles.avatarButtons}>
               <button type="button" onClick={handleRandomAvatar} style={styles.avatarActionBtn} className="btn-interactive" title="Tạo avatar ngẫu nhiên">
@@ -257,8 +260,8 @@ export default function ProfileView({
           </div>
 
           <div style={styles.userMeta}>
-            <h2 style={styles.metaName}>{displayName || user.displayName}</h2>
-            <span style={styles.metaUsername}>@{user.username}</span>
+            <h2 style={styles.metaName}>{displayName || user?.displayName || ''}</h2>
+            <span style={styles.metaUsername}>@{user?.username || ''}</span>
             <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Bản cập nhật: v1.2.0</span>
             {phone && <span style={styles.metaPhone}>📞 {phone}</span>}
           </div>
@@ -307,7 +310,7 @@ export default function ProfileView({
                 <div style={styles.formGrid}>
                   <div style={styles.inputGroup}>
                     <label style={styles.label}>Tên tài khoản (Không thể sửa)</label>
-                    <input type="text" value={user.username} disabled className="input-premium" style={styles.disabledInput} />
+                    <input type="text" value={user?.username || ''} disabled className="input-premium" style={styles.disabledInput} />
                   </div>
 
                   <div style={styles.inputGroup}>
