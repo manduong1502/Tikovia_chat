@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import io from 'socket.io-client';
 import Auth from './components/Auth';
 import Sidebar from './components/Sidebar';
 import ChatWindow from './components/ChatWindow';
 import RightSidebar from './components/RightSidebar';
 import VideoCall from './components/VideoCall';
-import ProfileView from './components/ProfileView';
 import NetworkBanner from './components/NetworkBanner';
-import TasksView from './components/TasksView';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import Avatar from './components/Avatar';
 import { FiMessageSquare, FiUsers, FiCompass, FiBookOpen, FiUser, FiSearch, FiCheckSquare } from 'react-icons/fi';
+
+const ProfileView = React.lazy(() => import('./components/ProfileView'));
+const TasksView = React.lazy(() => import('./components/TasksView'));
 
 
 export default function App() {
@@ -1242,28 +1243,37 @@ export default function App() {
 
         {/* 2. Center Chat window or Tasks View */}
         {showTasks || mobileActiveView === 'tasks' ? (
-          <TasksView
-            user={user}
-            token={token}
-            onClose={() => {
-              setShowTasks(false);
-              if (mobileActiveView === 'tasks') {
-                setMobileActiveView('list');
-              }
-            }}
-            onSelectConversation={(convId) => {
-              const target = conversations.find(c => c.id === convId);
-              if (target) {
-                setActiveConversation(target);
+          <Suspense fallback={
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', background: 'var(--bg-chat-gradient)', color: 'var(--text-secondary)' }}>
+              <span className="typing-dot"></span>
+              <span className="typing-dot"></span>
+              <span className="typing-dot"></span>
+              <p style={{ marginTop: '10px', fontSize: '0.85rem' }}>Đang tải bảng công việc...</p>
+            </div>
+          }>
+            <TasksView
+              user={user}
+              token={token}
+              onClose={() => {
                 setShowTasks(false);
-                setMobileActiveView('chat');
-              }
-            }}
-            socket={socket}
-            mobileActiveView={mobileActiveView}
-            setMobileActiveView={setMobileActiveView}
-            className={(showTasks || mobileActiveView === 'tasks') ? 'mobile-show-chat' : 'mobile-hide-chat'}
-          />
+                if (mobileActiveView === 'tasks') {
+                  setMobileActiveView('list');
+                }
+              }}
+              onSelectConversation={(convId) => {
+                const target = conversations.find(c => c.id === convId);
+                if (target) {
+                  setActiveConversation(target);
+                  setShowTasks(false);
+                  setMobileActiveView('chat');
+                }
+              }}
+              socket={socket}
+              mobileActiveView={mobileActiveView}
+              setMobileActiveView={setMobileActiveView}
+              className={(showTasks || mobileActiveView === 'tasks') ? 'mobile-show-chat' : 'mobile-hide-chat'}
+            />
+          </Suspense>
         ) : (
           <ChatWindow
             user={user}
@@ -1336,23 +1346,31 @@ export default function App() {
 
       {/* 5. Overlay Trang cá nhân (Profile) */}
       {showProfile && (
-        <ProfileView
-          user={user}
-          token={token}
-          onClose={() => {
-            setShowProfile(false);
-            if (mobileActiveView === 'profile') {
-              setMobileActiveView('list');
-            }
-          }}
-          onProfileUpdate={(updatedUser) => {
-            setUser(updatedUser);
-            fetchConversations();
-          }}
-          pushStatus={pushStatus}
-          onEnablePush={handleEnablePushNotifications}
-          mobileActiveView={mobileActiveView}
-        />
+        <Suspense fallback={
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)' }}>
+            <span className="typing-dot"></span>
+            <span className="typing-dot"></span>
+            <span className="typing-dot"></span>
+          </div>
+        }>
+          <ProfileView
+            user={user}
+            token={token}
+            onClose={() => {
+              setShowProfile(false);
+              if (mobileActiveView === 'profile') {
+                setMobileActiveView('list');
+              }
+            }}
+            onProfileUpdate={(updatedUser) => {
+              setUser(updatedUser);
+              fetchConversations();
+            }}
+            pushStatus={pushStatus}
+            onEnablePush={handleEnablePushNotifications}
+            mobileActiveView={mobileActiveView}
+          />
+        </Suspense>
       )}
 
       {/* 6. Lightbox Xem Ảnh Toàn Màn Hình */}

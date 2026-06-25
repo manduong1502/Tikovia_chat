@@ -1179,7 +1179,9 @@ const styles = {
     alignItems: 'flex-end',
     gap: '10px',
     maxWidth: '75%',
-    width: 'fit-content'
+    width: 'fit-content',
+    contentVisibility: 'auto',
+    containIntrinsicSize: '0 80px'
   },
   messageAvatar: {
     width: '32px',

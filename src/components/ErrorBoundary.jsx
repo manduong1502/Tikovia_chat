@@ -15,8 +15,38 @@ class ErrorBoundary extends React.Component {
       error: error,
       errorInfo: errorInfo
     });
-    // Có thể tích hợp log lỗi lên server tại đây trong tương lai
     console.error("ErrorBoundary caught an error:", error, errorInfo);
+
+    // Gửi log lỗi về server tự động
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      let loggedUser = null;
+      try {
+        const cachedUser = localStorage.getItem('chat_user');
+        if (cachedUser) loggedUser = JSON.parse(cachedUser);
+      } catch (e) {}
+
+      fetch(`${API_URL}/logs/client-error`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          error: error?.toString() || 'Unknown Error',
+          errorInfo: {
+            componentStack: errorInfo?.componentStack || ''
+          },
+          url: window.location.href,
+          userAgent: navigator.userAgent,
+          user: loggedUser
+        })
+      }).catch(err => {
+        console.error('Không thể gửi log lỗi đến máy chủ:', err);
+      });
+    } catch (err) {
+      console.error('Lỗi khi chuẩn bị gửi log lỗi:', err);
+    }
   }
 
   handleReset = () => {
