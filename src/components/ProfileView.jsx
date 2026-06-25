@@ -163,6 +163,7 @@ export default function ProfileView({
       const data = await res.json();
       const fullUrl = `${BASE_URL}${data.url}`;
       setAvatarUrl(fullUrl);
+      setError(''); // Clear error
       setSuccess('Tải ảnh đại diện lên thành công! Đang tự động lưu...');
 
       const saveRes = await fetch(API_URL, {
@@ -185,28 +186,28 @@ export default function ProfileView({
 
       localStorage.setItem('chat_user', JSON.stringify(saveData.user));
       onProfileUpdate(saveData.user);
+      setError(''); // Clear error
       setSuccess('Cập nhật ảnh đại diện thành công!');
     } catch (err) {
       setError(err.message || 'Lỗi khi upload và lưu ảnh đại diện');
+      setSuccess(''); // Clear success on error
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.container} className="anim-fade">
+    <div style={styles.container} className="anim-fade scroll-optimized">
       {/* Background Floating Blobs */}
       <div className="bg-blob blob-1"></div>
       <div className="bg-blob blob-2"></div>
 
       {/* Header bar */}
-      <div style={styles.headerBar} className="glass">
-        <button onClick={onClose} style={styles.backBtn} className="btn-interactive" title="Quay lại đoạn chat">
-          <FiChevronLeft size={22} style={{ marginRight: '6px' }} />
-          <span>Quay lại</span>
+      <div className="profile-header-bar glass">
+        <h3 className="profile-header-title">Trang cá nhân của bạn</h3>
+        <button onClick={onClose} className="profile-close-btn btn-interactive" title="Đóng">
+          <FiX size={20} />
         </button>
-        <h3 style={styles.headerTitle}>Trang cá nhân của bạn</h3>
-        <div style={{ width: '100px' }} /> {/* Spacer */}
       </div>
 
       <div className="profile-dashboard-wrapper">
@@ -445,37 +446,7 @@ const styles = {
     flexDirection: 'column',
     overflowY: 'auto'
   },
-  headerBar: {
-    height: '70px',
-    borderBottom: '1px solid var(--border-color)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '0 24px',
-    position: 'sticky',
-    top: 0,
-    zIndex: 10,
-    width: '100%',
-    boxSizing: 'border-box'
-  },
-  backBtn: {
-    background: 'none',
-    color: 'var(--text-primary)',
-    fontSize: '0.95rem',
-    fontWeight: '600',
-    display: 'flex',
-    alignItems: 'center',
-    cursor: 'pointer',
-    padding: '8px 14px',
-    borderRadius: 'var(--radius-sm)',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    border: '1px solid var(--border-color)'
-  },
-  headerTitle: {
-    fontSize: '1.2rem',
-    fontWeight: '700',
-    color: 'var(--text-primary)'
-  },
+  // Header styles are now handled by CSS classes (.profile-header-bar and .profile-close-btn)
   // Layout styles are now handled by CSS classes (.profile-dashboard-wrapper and .profile-left-card)
   avatarEditContainer: {
     display: 'flex',
