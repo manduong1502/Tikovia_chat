@@ -196,8 +196,10 @@ input, textarea, select, [contenteditable="true"] {
   box-shadow: var(--shadow-md);
 }
 
-.glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
+@media (hover: hover) {
+  .glass-card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
 }
 
 /* Animations */
@@ -522,10 +524,12 @@ input, textarea, select, [contenteditable="true"] {
 .btn-interactive {
   transition: transform 0.2s var(--transition-spring), box-shadow 0.2s var(--transition-spring), opacity 0.2s var(--transition-spring), filter 0.2s var(--transition-spring) !important;
 }
-.btn-interactive:hover {
-  transform: translateY(-2px) scale(1.06);
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.22) !important;
-  filter: brightness(1.12);
+@media (hover: hover) {
+  .btn-interactive:hover {
+    transform: translateY(-2px) scale(1.06);
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.22) !important;
+    filter: brightness(1.12);
+  }
 }
 .btn-interactive:active {
   transform: translateY(1px) scale(0.96);
@@ -613,9 +617,11 @@ input, textarea, select, [contenteditable="true"] {
   border: 1px solid transparent;
   position: relative;
 }
-.sidebar-item-premium:hover {
-  background: rgba(255, 255, 255, 0.03);
-  transform: translateX(4px);
+@media (hover: hover) {
+  .sidebar-item-premium:hover {
+    background: rgba(255, 255, 255, 0.03);
+    transform: translateX(4px);
+  }
 }
 .sidebar-item-premium.active {
   background: rgba(99, 102, 241, 0.07);
@@ -778,5 +784,27 @@ img {
 
   .bottom-nav-floating {
     background: #111520 !important; /* Dùng màu phẳng để kéo mượt */
+  }
+}
+
+/* LOẠI BỎ HIỆU ỨNG ĐỒ HỌA NẶNG TRÊN THIẾT BỊ DI ĐỘNG/MÁY TÍNH BẢNG (KỂ CẢ KHI BẬT CHẾ ĐỘ DESKTOP SITE) */
+@media (pointer: coarse) {
+  .bg-blob {
+    display: none !important; /* Tắt hình tròn mờ ảo chuyển động ở nền */
+    animation: none !important;
+  }
+
+  /* Vô hiệu hóa backdrop-filter (blur nền) để tăng hiệu năng cuộn */
+  .glass, .glass-card, .bubble-received-premium, .bottom-nav-floating {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .glass, .glass-card {
+    background: var(--bg-secondary) !important;
+  }
+
+  .bottom-nav-floating {
+    background: #111520 !important;
   }
 }
