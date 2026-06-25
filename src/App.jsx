@@ -1317,6 +1317,7 @@ export default function App() {
             user={user}
             token={token}
             conversation={activeConversation}
+            socket={socket}
             onClose={() => {
               setShowRightSidebar(false);
               setMobileActiveView('chat');

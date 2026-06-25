@@ -38,6 +38,7 @@ export default function RightSidebar({
   user,
   token,
   conversation,
+  socket,
   onClose,
   onUpdateNickname,
   mobileActiveView,
@@ -95,6 +96,7 @@ export default function RightSidebar({
     if (!conversation || activeTab !== 'tasks') return;
 
     setLoadingTasks(true);
+    setTasks([]); // Xóa dữ liệu cũ trước khi tải dữ liệu mới để tránh nháy giao diện
     fetch(`${API_URL}/tasks/conversation/${conversation.id}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -105,6 +107,51 @@ export default function RightSidebar({
       .catch(err => console.error('Lỗi load công việc:', err))
       .finally(() => setLoadingTasks(false));
   }, [conversation, activeTab, token, API_URL]);
+
+  // Lắng nghe cập nhật socket thời gian thực cho các công việc trong phòng chat này
+  useEffect(() => {
+    if (!socket || !conversation) return;
+
+    const handleTaskStatusUpdated = ({ taskId, status, assigneeId, assigneeName }) => {
+      setTasks(prev => prev.map(task => {
+        if (task.id === taskId) {
+          const updatedTask = { ...task, status };
+          if (assigneeId) {
+            updatedTask.assigneeId = assigneeId;
+            updatedTask.assignee = {
+              ...updatedTask.assignee,
+              id: assigneeId,
+              displayName: assigneeName || 'Thành viên'
+            };
+          }
+          return updatedTask;
+        }
+        return task;
+      }));
+    };
+
+    const handleReceiveMessage = (msg) => {
+      if (msg.type === 'task' && msg.conversationId === conversation.id) {
+        // Tải lại danh sách khi có công việc mới tạo thông qua tin nhắn
+        fetch(`${API_URL}/tasks/conversation/${conversation.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => {
+            setTasks(Array.isArray(data) ? data : []);
+          })
+          .catch(err => console.error('Lỗi tải lại công việc qua socket:', err));
+      }
+    };
+
+    socket.on('task-status-updated', handleTaskStatusUpdated);
+    socket.on('receive-message', handleReceiveMessage);
+
+    return () => {
+      socket.off('task-status-updated', handleTaskStatusUpdated);
+      socket.off('receive-message', handleReceiveMessage);
+    };
+  }, [socket, conversation, token, API_URL]);
 
   const handleUpdateSidebarTaskStatus = async (taskId, newStatus) => {
     try {
