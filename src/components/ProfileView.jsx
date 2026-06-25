@@ -464,7 +464,9 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     overflowY: 'auto',
-    overflowAnchor: 'none'
+    overflowAnchor: 'none',
+    WebkitOverflowScrolling: 'touch',
+    willChange: 'transform'
   },
   toastContainer: {
     position: 'fixed',

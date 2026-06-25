@@ -520,7 +520,7 @@ input, textarea, select, [contenteditable="true"] {
 
 /* --- PREMIUM INTERACTION & UTILITIES --- */
 .btn-interactive {
-  transition: all 0.25s var(--transition-spring) !important;
+  transition: transform 0.2s var(--transition-spring), box-shadow 0.2s var(--transition-spring), opacity 0.2s var(--transition-spring), filter 0.2s var(--transition-spring) !important;
 }
 .btn-interactive:hover {
   transform: translateY(-2px) scale(1.06);
@@ -637,9 +637,12 @@ input, textarea, select, [contenteditable="true"] {
 /* Tối ưu hiệu năng cuộn & giảm giật lag đồ họa (GPU Acceleration) */
 .scroll-optimized {
   overflow-anchor: none;
+  -webkit-overflow-scrolling: touch;
+  will-change: transform;
 }
 
-.glass, .glass-card, .chat-message-bubble, .sidebar-item-premium, .message-row-hover {
+/* GPU acceleration only on high-level layout containers, not on every individual message bubble */
+.mobile-view-container, .profile-right-content, .profile-left-card, .profile-dashboard-wrapper {
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
@@ -755,5 +758,25 @@ img {
 
   .profile-right-content .glass-card {
     padding: 16px !important; /* Giảm padding các section card trên di động */
+  }
+
+  /* TẮT HOÀN TOÀN CÁC HIỆU ỨNG NẶNG TRÊN MOBILE ĐỂ TRÁNH GIẬT LAG */
+  .bg-blob {
+    display: none !important; /* Tắt hình tròn mờ ảo chuyển động ở nền */
+    animation: none !important;
+  }
+
+  /* Vô hiệu hóa backdrop-filter (blur nền) và dùng màu nền phẳng để tối ưu cuộn */
+  .glass, .glass-card, .bubble-received-premium, .bottom-nav-floating {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .glass, .glass-card {
+    background: var(--bg-secondary) !important;
+  }
+
+  .bottom-nav-floating {
+    background: #111520 !important; /* Dùng màu phẳng để kéo mượt */
   }
 }
