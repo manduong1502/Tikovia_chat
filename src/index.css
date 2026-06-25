@@ -106,6 +106,18 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent !important;
+  outline: none !important;
+}
+
+/* Xóa viền focus mặc định và highlight trên mọi phần tử khi được chọn hoặc nhấn giữ */
+button, input, select, textarea, a, div, span {
+  -webkit-tap-highlight-color: transparent !important;
+  outline: none !important;
+}
+
+button:focus, a:focus, input:focus, textarea:focus, select:focus, div:focus {
+  outline: none !important;
 }
 
 body {
@@ -624,9 +636,6 @@ input, textarea, select, [contenteditable="true"] {
 
 /* Tối ưu hiệu năng cuộn & giảm giật lag đồ họa (GPU Acceleration) */
 .scroll-optimized {
-  will-change: scroll-position;
-  transform: translate3d(0, 0, 0);
-  -webkit-overflow-scrolling: touch;
   overflow-anchor: none;
 }
 
