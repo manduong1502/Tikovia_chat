@@ -609,6 +609,7 @@ body {
   will-change: scroll-position;
   transform: translate3d(0, 0, 0);
   -webkit-overflow-scrolling: touch;
+  overflow-anchor: none;
 }
 
 .glass, .glass-card, .chat-message-bubble, .sidebar-item-premium, .message-row-hover {

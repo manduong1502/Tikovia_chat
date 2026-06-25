@@ -444,7 +444,8 @@ const styles = {
     backgroundColor: 'var(--bg-primary)',
     display: 'flex',
     flexDirection: 'column',
-    overflowY: 'auto'
+    overflowY: 'auto',
+    overflowAnchor: 'none'
   },
   // Header styles are now handled by CSS classes (.profile-header-bar and .profile-close-btn)
   // Layout styles are now handled by CSS classes (.profile-dashboard-wrapper and .profile-left-card)
