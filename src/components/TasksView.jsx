@@ -52,6 +52,36 @@ const removeAccents = (str) => {
     .replace(/Đ/g, 'D');
 };
 
+const groupTasksByDate = (tasksList) => {
+  const groups = {};
+  tasksList.forEach(task => {
+    const date = new Date(task.createdAt);
+    const dateStr = date.toDateString();
+    if (!groups[dateStr]) {
+      groups[dateStr] = {
+        date,
+        tasks: []
+      };
+    }
+    groups[dateStr].tasks.push(task);
+  });
+  return Object.values(groups).sort((a, b) => b.date - a.date);
+};
+
+const getDateLabel = (date) => {
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return 'Hôm nay';
+  } else if (date.toDateString() === yesterday.toDateString()) {
+    return 'Hôm qua';
+  } else {
+    return date.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+};
+
 // 2. Trích xuất thành Component con được Memoized (React.memo)
 // Ngăn chặn hoàn toàn việc vẽ lại các thẻ công việc không thay đổi khi thay đổi trạng thái của 1 thẻ khác.
 const TaskCard = React.memo(({
@@ -527,15 +557,22 @@ export default function TasksView({
             <p style={{ color: 'var(--text-secondary)' }}>Không tìm thấy công việc nào phù hợp.</p>
           </div>
         ) : (
-          filteredTasks.map(task => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              isReceived={activeTab === 'received'}
-              nowTime={nowTime}
-              onSelectConversation={onSelectConversation}
-              onUpdateStatus={handleUpdateTaskStatus}
-            />
+          groupTasksByDate(filteredTasks).map(group => (
+            <React.Fragment key={group.date.toDateString()}>
+              <div style={styles.dateHeader} className="glass-card">
+                <span>{getDateLabel(group.date)}</span>
+              </div>
+              {group.tasks.map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  isReceived={activeTab === 'received'}
+                  nowTime={nowTime}
+                  onSelectConversation={onSelectConversation}
+                  onUpdateStatus={handleUpdateTaskStatus}
+                />
+              ))}
+            </React.Fragment>
           ))
         )}
       </div>
@@ -919,5 +956,20 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+  },
+  dateHeader: {
+    padding: '8px 14px',
+    margin: '16px 0 6px 0',
+    backgroundColor: 'var(--bg-glass-active)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '12px',
+    fontSize: '0.75rem',
+    fontWeight: '700',
+    color: 'var(--primary)',
+    width: 'fit-content',
+    boxShadow: 'var(--shadow-sm)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px'
   }
 };

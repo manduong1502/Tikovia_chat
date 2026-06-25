@@ -1,6 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { FiX, FiEdit3, FiSearch, FiImage, FiFileText, FiLink, FiDownload, FiChevronLeft, FiUser, FiBell } from 'react-icons/fi';
+import { FiX, FiEdit3, FiSearch, FiImage, FiFileText, FiLink, FiDownload, FiChevronLeft, FiUser, FiBell, FiCheckSquare, FiClock } from 'react-icons/fi';
 import Avatar from './Avatar';
+
+// Hàm nhóm công việc theo ngày tạo
+const groupTasksByDate = (tasksList) => {
+  const groups = {};
+  tasksList.forEach(task => {
+    const date = new Date(task.createdAt);
+    const dateStr = date.toDateString();
+    if (!groups[dateStr]) {
+      groups[dateStr] = {
+        date,
+        tasks: []
+      };
+    }
+    groups[dateStr].tasks.push(task);
+  });
+  return Object.values(groups).sort((a, b) => b.date - a.date);
+};
+
+// Hàm chuyển đổi nhãn ngày tiếng Việt
+const getDateLabel = (date) => {
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return 'Hôm nay';
+  } else if (date.toDateString() === yesterday.toDateString()) {
+    return 'Hôm qua';
+  } else {
+    return date.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+};
 
 export default function RightSidebar({
   user,
@@ -13,8 +45,10 @@ export default function RightSidebar({
   className,
   onImageClick
 }) {
-  const [activeTab, setActiveTab] = useState('images'); // 'images', 'files', 'links'
+  const [activeTab, setActiveTab] = useState('images'); // 'images', 'files', 'links', 'tasks'
   const [mediaGallery, setMediaGallery] = useState({ images: [], files: [], links: [] });
+  const [tasks, setTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
   
   // Nickname editing state
   const [isEditingNickname, setIsEditingNickname] = useState(false);
@@ -55,6 +89,43 @@ export default function RightSidebar({
       .then(data => setMediaGallery(data))
       .catch(err => console.error('Lỗi load media:', err));
   }, [conversation, token]);
+
+  // Load danh sách công việc của cuộc trò chuyện hiện tại
+  useEffect(() => {
+    if (!conversation || activeTab !== 'tasks') return;
+
+    setLoadingTasks(true);
+    fetch(`${API_URL}/tasks/conversation/${conversation.id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        setTasks(Array.isArray(data) ? data : []);
+      })
+      .catch(err => console.error('Lỗi load công việc:', err))
+      .finally(() => setLoadingTasks(false));
+  }, [conversation, activeTab, token, API_URL]);
+
+  const handleUpdateSidebarTaskStatus = async (taskId, newStatus) => {
+    try {
+      const res = await fetch(`${API_URL}/tasks/${taskId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Cập nhật trạng thái thất bại');
+      }
+    } catch (e) {
+      alert('Không thể kết nối đến máy chủ');
+    }
+  };
 
   // Tìm kiếm tin nhắn
   const handleSearchMessages = async () => {
@@ -254,11 +325,11 @@ export default function RightSidebar({
           </div>
         </div>
 
-        {/* 3. Kho lưu trữ Media (Ảnh, File, Link) */}
+        {/* 3. Kho lưu trữ Media & Công việc (Ảnh, File, Link, Công việc) */}
         <div style={{...styles.section, flex: 1, display: 'flex', flexDirection: 'column'}} className="glass-card">
           <div style={styles.sectionHeader}>
             <FiImage size={16} style={{ color: 'var(--primary)' }} />
-            <span>Kho dữ liệu cuộc trò chuyện</span>
+            <span>Kho dữ liệu & Công việc nhóm</span>
           </div>
           
           {/* Tabs */}
@@ -283,6 +354,13 @@ export default function RightSidebar({
               className="btn-interactive"
             >
               Liên kết
+            </button>
+            <button
+              onClick={() => setActiveTab('tasks')}
+              style={{...styles.tabBtn, ...(activeTab === 'tasks' ? styles.activeTabBtn : {})}}
+              className="btn-interactive"
+            >
+              Công việc
             </button>
           </div>
 
@@ -342,6 +420,106 @@ export default function RightSidebar({
                         <a href={lnk.url} target="_blank" rel="noreferrer" style={styles.linkUrl}>{lnk.url}</a>
                         <span style={styles.linkSender}>{lnk.senderName}</span>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {activeTab === 'tasks' && (
+              loadingTasks ? (
+                <div style={styles.emptyGallery}>Đang tải công việc...</div>
+              ) : tasks.length === 0 ? (
+                <div style={styles.emptyGallery}>Không có công việc nào</div>
+              ) : (
+                <div style={styles.taskList}>
+                  {groupTasksByDate(tasks).map(group => (
+                    <div key={group.date.toDateString()} style={styles.sidebarTaskGroup}>
+                      <div style={styles.sidebarTaskGroupHeader}>
+                        {getDateLabel(group.date)}
+                      </div>
+                      {group.tasks.map(task => {
+                        let statusLabel = 'Chờ làm';
+                        let statusColor = 'var(--accent)';
+                        let statusBg = 'var(--accent-light)';
+                        if (task.status === 'in_progress') {
+                          statusLabel = 'Đang làm';
+                          statusColor = 'var(--primary)';
+                          statusBg = 'var(--primary-light)';
+                        } else if (task.status === 'done') {
+                          statusLabel = 'Hoàn thành';
+                          statusColor = 'var(--secondary)';
+                          statusBg = 'var(--secondary-light)';
+                        } else if (task.status === 'cancelled') {
+                          statusLabel = 'Đã hủy';
+                          statusColor = 'var(--danger)';
+                          statusBg = 'var(--danger-light)';
+                        }
+
+                        const isAssignee = task.assigneeId === user.id;
+                        const isAssigner = task.assignerId === user.id;
+
+                        return (
+                          <div key={task.id} style={{ ...styles.sidebarTaskItem, borderLeft: `3px solid ${statusColor}` }}>
+                            <div style={styles.sidebarTaskItemHeader}>
+                              <span style={styles.sidebarTaskTitle}>{task.title}</span>
+                              <span style={{ ...styles.sidebarTaskStatus, color: statusColor, backgroundColor: statusBg }}>
+                                {statusLabel}
+                              </span>
+                            </div>
+                            {task.description && (
+                              <p style={styles.sidebarTaskDesc}>{task.description}</p>
+                            )}
+                            <div style={styles.sidebarTaskMeta}>
+                              <div style={styles.sidebarTaskPeople}>
+                                <span>Giao: {task.assigner?.displayName || 'Thành viên'}</span>
+                                <span style={{ margin: '0 4px' }}>•</span>
+                                <span>Nhận: {task.assignee?.displayName || 'Thành viên'}</span>
+                              </div>
+                              {task.dueDate && (
+                                <div style={styles.sidebarTaskDueDate}>
+                                  <FiClock size={10} />
+                                  <span>{new Date(task.dueDate).toLocaleDateString('vi-VN')}</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Nút hành động trực quan tại sidebar */}
+                            {((isAssignee && (task.status === 'pending' || task.status === 'in_progress')) || 
+                              ((task.status !== 'done' && task.status !== 'cancelled') && (isAssignee || isAssigner))) && (
+                              <div style={styles.sidebarTaskActions}>
+                                {isAssignee && task.status === 'pending' && (
+                                  <button 
+                                    onClick={() => handleUpdateSidebarTaskStatus(task.id, 'in_progress')}
+                                    style={styles.sidebarBtnStart}
+                                    className="btn-interactive"
+                                  >
+                                    Bắt đầu
+                                  </button>
+                                )}
+                                {isAssignee && task.status === 'in_progress' && (
+                                  <button 
+                                    onClick={() => handleUpdateSidebarTaskStatus(task.id, 'done')}
+                                    style={styles.sidebarBtnDone}
+                                    className="btn-interactive"
+                                  >
+                                    Hoàn thành
+                                  </button>
+                                )}
+                                {task.status !== 'done' && task.status !== 'cancelled' && (isAssignee || isAssigner) && (
+                                  <button 
+                                    onClick={() => handleUpdateSidebarTaskStatus(task.id, 'cancelled')}
+                                    style={styles.sidebarBtnCancel}
+                                    className="btn-interactive"
+                                  >
+                                    Hủy
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   ))}
                 </div>
@@ -644,7 +822,7 @@ const styles = {
   tabContent: {
     flex: 1,
     overflowY: 'auto',
-    maxHeight: '260px'
+    maxHeight: '350px'
   },
   emptyGallery: {
     color: 'var(--text-muted)',
@@ -732,5 +910,119 @@ const styles = {
   linkSender: {
     fontSize: '0.65rem',
     color: 'var(--text-muted)'
+  },
+  taskList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
+  },
+  sidebarTaskGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  },
+  sidebarTaskGroupHeader: {
+    fontSize: '0.72rem',
+    fontWeight: '700',
+    color: 'var(--primary)',
+    padding: '4px 8px',
+    backgroundColor: 'var(--bg-glass-active)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '8px',
+    width: 'fit-content',
+    marginTop: '8px'
+  },
+  sidebarTaskItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    padding: '10px 12px',
+    background: 'rgba(255, 255, 255, 0.02)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '12px',
+    transition: 'all 0.2s ease'
+  },
+  sidebarTaskItemHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '8px'
+  },
+  sidebarTaskTitle: {
+    fontSize: '0.82rem',
+    fontWeight: '600',
+    color: 'var(--text-primary)',
+    lineHeight: '1.3'
+  },
+  sidebarTaskStatus: {
+    fontSize: '0.68rem',
+    fontWeight: '600',
+    padding: '2px 6px',
+    borderRadius: '6px',
+    whiteSpace: 'nowrap'
+  },
+  sidebarTaskDesc: {
+    fontSize: '0.75rem',
+    color: 'var(--text-secondary)',
+    margin: 0,
+    lineHeight: '1.3',
+    whiteSpace: 'pre-wrap'
+  },
+  sidebarTaskMeta: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '0.68rem',
+    color: 'var(--text-muted)',
+    marginTop: '4px',
+    flexWrap: 'wrap',
+    gap: '4px'
+  },
+  sidebarTaskPeople: {
+    display: 'flex',
+    alignItems: 'center'
+  },
+  sidebarTaskDueDate: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '3px',
+    color: 'var(--accent)',
+    fontWeight: '500'
+  },
+  sidebarTaskActions: {
+    display: 'flex',
+    gap: '6px',
+    marginTop: '6px',
+    justifyContent: 'flex-end'
+  },
+  sidebarBtnStart: {
+    padding: '4px 8px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: 'var(--primary)',
+    color: '#ffffff',
+    fontSize: '0.7rem',
+    fontWeight: '600',
+    cursor: 'pointer'
+  },
+  sidebarBtnDone: {
+    padding: '4px 8px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: 'var(--secondary)',
+    color: '#ffffff',
+    fontSize: '0.7rem',
+    fontWeight: '600',
+    cursor: 'pointer'
+  },
+  sidebarBtnCancel: {
+    padding: '4px 8px',
+    borderRadius: '6px',
+    border: '1px solid var(--border-color)',
+    backgroundColor: 'var(--danger-light)',
+    color: 'var(--danger)',
+    fontSize: '0.7rem',
+    fontWeight: '600',
+    cursor: 'pointer'
   }
 };
