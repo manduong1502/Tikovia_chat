@@ -25,6 +25,16 @@ export default function ProfileView({
     }
   }, [user]);
 
+  // Password states
+  const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+
   // Tự động tắt thông báo toast sau 3 giây
   useEffect(() => {
     if (success || error) {
@@ -35,16 +45,6 @@ export default function ProfileView({
       return () => clearTimeout(timer);
     }
   }, [success, error]);
-  
-  // Password states
-  const [password, setPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [showOldPassword, setShowOldPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(false);
 
   // Active section for desktop dashboard layout: 'info', 'security', 'notifications'
   const [activeSection, setActiveSection] = useState('info');
