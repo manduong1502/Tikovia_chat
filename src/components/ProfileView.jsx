@@ -24,6 +24,17 @@ export default function ProfileView({
       setAvatarUrl(user.avatarUrl || '');
     }
   }, [user]);
+
+  // Tự động tắt thông báo toast sau 3 giây
+  useEffect(() => {
+    if (success || error) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+        setError('');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [success, error]);
   
   // Password states
   const [password, setPassword] = useState('');
@@ -197,10 +208,19 @@ export default function ProfileView({
   };
 
   return (
-    <div style={styles.container} className="anim-fade">
+    <div style={styles.container} className="anim-fade scroll-optimized">
       {/* Background Floating Blobs */}
       <div className="bg-blob blob-1"></div>
       <div className="bg-blob blob-2"></div>
+
+      {/* Toast Alert */}
+      {(error || success) && (
+        <div style={styles.toastContainer} className="anim-scale-in">
+          <div style={error ? styles.errorToast : styles.successToast}>
+            <span>{error || success}</span>
+          </div>
+        </div>
+      )}
 
       {/* Header bar */}
       <div className="profile-header-bar glass">
@@ -210,8 +230,7 @@ export default function ProfileView({
         </button>
       </div>
 
-      <div style={styles.scrollContainer} className="scroll-optimized">
-        <div className="profile-dashboard-wrapper">
+      <div className="profile-dashboard-wrapper">
         {/* Left Card: Summary Profile Card */}
         <div className="glass-card profile-left-card">
           <div style={styles.avatarEditContainer}>
@@ -275,8 +294,6 @@ export default function ProfileView({
 
         {/* Right Area: Detailed Forms */}
         <div className="profile-right-content">
-          {error && <div style={styles.errorAlert}>{error}</div>}
-          {success && <div style={styles.successAlert}>{success}</div>}
 
           <form onSubmit={handleSave} style={styles.formContainer}>
             {/* Section 1: Personal Info */}
@@ -429,7 +446,6 @@ export default function ProfileView({
           </form>
         </div>
       </div>
-      </div>
     </div>
   );
 }
@@ -447,13 +463,41 @@ const styles = {
     backgroundColor: 'var(--bg-primary)',
     display: 'flex',
     flexDirection: 'column',
-    overflow: 'hidden'
-  },
-  scrollContainer: {
-    flex: 1,
-    width: '100%',
     overflowY: 'auto',
     overflowAnchor: 'none'
+  },
+  toastContainer: {
+    position: 'fixed',
+    top: '20px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 9999,
+    width: '90%',
+    maxWidth: '400px',
+    display: 'flex',
+    justifyContent: 'center'
+  },
+  errorToast: {
+    padding: '12px 20px',
+    backgroundColor: '#ef4444',
+    color: '#ffffff',
+    borderRadius: '16px',
+    fontSize: '0.88rem',
+    fontWeight: '600',
+    boxShadow: '0 10px 25px rgba(239, 68, 68, 0.3)',
+    textAlign: 'center',
+    width: '100%'
+  },
+  successToast: {
+    padding: '12px 20px',
+    backgroundColor: '#10b981',
+    color: '#ffffff',
+    borderRadius: '16px',
+    fontSize: '0.88rem',
+    fontWeight: '600',
+    boxShadow: '0 10px 25px rgba(16, 185, 129, 0.3)',
+    textAlign: 'center',
+    width: '100%'
   },
   // Header styles are now handled by CSS classes (.profile-header-bar and .profile-close-btn)
   // Layout styles are now handled by CSS classes (.profile-dashboard-wrapper and .profile-left-card)
