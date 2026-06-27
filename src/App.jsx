@@ -229,6 +229,11 @@ export default function App() {
     fetchGlobalTasksCountRef.current = fetchGlobalTasksCount;
   }, [fetchGlobalTasksCount]);
 
+  const mobileActiveViewRef = useRef(mobileActiveView);
+  useEffect(() => {
+    mobileActiveViewRef.current = mobileActiveView;
+  }, [mobileActiveView]);
+
   // Khởi tạo Socket.io với cấu hình tự động kết nối lại mạnh mẽ
   useEffect(() => {
     if (!token || !user) return;
@@ -273,9 +278,10 @@ export default function App() {
 
     // Lắng nghe tin nhắn mới
     newSocket.on('receive-message', (newMessage) => {
-      // Nếu tin nhắn thuộc cuộc hội thoại đang active
+      // Nếu tin nhắn thuộc cuộc hội thoại đang active và phòng chat đang hiển thị
       const activeConv = activeConversationRef.current;
-      if (activeConv && activeConv.id === newMessage.conversationId) {
+      const isChatVisible = (window.innerWidth > 768) || (mobileActiveViewRef.current === 'chat');
+      if (activeConv && activeConv.id === newMessage.conversationId && isChatVisible) {
         setLastReadTimestamps(prev => {
           const updated = {
             ...prev,
