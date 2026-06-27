@@ -809,3 +809,20 @@ img {
     background: #111520 !important;
   }
 }
+
+/* ẨN HEADER VÀ THỐNG KÊ CHI TIẾT TRÊN DI ĐỘNG, BẬT SELECT FILTER */
+.mobile-only-filter-select {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .tasks-header-bar,
+  .tasks-stats-container,
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only-filter-select {
+    display: flex !important;
+  }
+}

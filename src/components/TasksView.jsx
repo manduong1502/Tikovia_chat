@@ -407,7 +407,7 @@ export default function TasksView({
   return (
     <div style={styles.container} className={`anim-fade ${className || ''}`}>
       {/* Header */}
-      <div style={styles.header} className="glass">
+      <div style={styles.header} className="glass tasks-header-bar">
         <div style={styles.headerInfo}>
           {setMobileActiveView && (
             <button 
@@ -471,7 +471,7 @@ export default function TasksView({
       </div>
 
       {/* Statistics dashboard */}
-      <div style={styles.statsContainer}>
+      <div style={styles.statsContainer} className="tasks-stats-container">
         {[
           { id: 'all', label: 'Tổng số', count: stats.total, color: 'var(--text-primary)', bg: 'var(--bg-surface)' },
           { id: 'pending', label: 'Cần làm', count: stats.pending, color: 'var(--accent)', bg: 'var(--accent-light)' },
@@ -525,6 +525,22 @@ export default function TasksView({
             <option value="newest">Mới nhất</option>
             <option value="oldest">Cũ nhất</option>
             <option value="deadline">Hạn chót</option>
+          </select>
+        </div>
+
+        {/* Mobile-only status filter select dropdown */}
+        <div style={styles.sortWrapper} className="mobile-only-filter-select">
+          <span style={styles.sortLabel}>Lọc:</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={styles.sortSelect}
+          >
+            <option value="all">Tổng số ({stats.total})</option>
+            <option value="pending">Cần làm ({stats.pending})</option>
+            <option value="in_progress">Đang làm ({stats.in_progress})</option>
+            <option value="done">Hoàn thành ({stats.done})</option>
+            <option value="overdue">Quá hạn ({stats.overdue})</option>
           </select>
         </div>
       </div>
