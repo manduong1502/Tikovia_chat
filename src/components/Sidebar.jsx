@@ -164,10 +164,10 @@ export default function Sidebar({
 
   // Lọc cuộc hội thoại
   const filteredConversations = conversations.filter(conv => {
-    // Lọc theo từ khóa
+    const other = conv.members ? conv.members.find(m => m.user.id !== user.id) : null;
     const nameToSearch = conv.isGroup 
       ? conv.name 
-      : conv.members.find(m => m.user.id !== user.id)?.nickname || conv.members.find(m => m.user.id !== user.id)?.user.displayName;
+      : other?.nickname || other?.user.displayName;
     
     const matchesSearch = nameToSearch?.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -187,7 +187,7 @@ export default function Sidebar({
         isOnline: false
       };
     } else {
-      const otherMember = conv.members.find(m => m.user.id !== user.id);
+      const otherMember = conv.members ? conv.members.find(m => m.user.id !== user.id) : null;
       const isOnline = onlineUsers.includes(otherMember?.user.id);
       return {
         name: otherMember?.nickname || otherMember?.user.displayName || 'Người dùng Zalo',
@@ -345,7 +345,7 @@ export default function Sidebar({
             {/* 1. Hiện cuộc hội thoại đang có */}
             {filteredConversations.map(conv => {
               const { name, avatar, isOnline } = getConversationDetails(conv);
-              const lastMsg = conv.messages[0];
+              const lastMsg = conv.messages && conv.messages.length > 0 ? conv.messages[0] : null;
               const isSelected = activeConversation?.id === conv.id;
               const lastRead = lastReadTimestamps ? lastReadTimestamps[conv.id] : null;
               const isUnread = lastMsg && 
