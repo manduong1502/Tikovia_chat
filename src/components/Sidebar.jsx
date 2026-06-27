@@ -22,7 +22,8 @@ export default function Sidebar({
   dismissedPushBanner,
   onDismissPushBanner,
   onShowTasks,
-  pendingTasksCount
+  pendingTasksCount,
+  lastReadTimestamps
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -346,6 +347,11 @@ export default function Sidebar({
               const { name, avatar, isOnline } = getConversationDetails(conv);
               const lastMsg = conv.messages[0];
               const isSelected = activeConversation?.id === conv.id;
+              const isUnread = lastMsg && 
+                               lastMsg.senderId !== user?.id && 
+                               lastMsg.sender?.id !== user?.id && 
+                               (!lastReadTimestamps?.[conv.id] || new Date(lastMsg.createdAt) > new Date(lastReadTimestamps[conv.id])) &&
+                               !isSelected;
 
               return (
                 <div
@@ -354,17 +360,28 @@ export default function Sidebar({
                     setActiveConversation(conv);
                     setMobileActiveView('chat');
                   }}
-                  className={`sidebar-item-premium ${isSelected ? 'active' : ''}`}
+                  className={`sidebar-item-premium ${isSelected ? 'active' : ''} ${isUnread ? 'unread' : ''}`}
                 >
                   <Avatar url={avatar} name={name} size={42} isOnline={isOnline} />
                   <div style={styles.itemContent}>
                     <div style={styles.itemHeader}>
-                      <span style={styles.itemTitle}>{name}</span>
-                      <span style={styles.itemTime}>
+                      <span style={{ 
+                        ...styles.itemTitle,
+                        fontWeight: isUnread ? '700' : '600'
+                      }}>{name}</span>
+                      <span style={{
+                        ...styles.itemTime,
+                        color: isUnread ? 'var(--primary)' : 'var(--text-muted)',
+                        fontWeight: isUnread ? '600' : 'normal'
+                      }}>
                         {lastMsg ? new Date(lastMsg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
                       </span>
                     </div>
-                    <div style={styles.itemMessage}>
+                    <div style={{
+                      ...styles.itemMessage,
+                      color: isUnread ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      fontWeight: isUnread ? '600' : 'normal'
+                    }}>
                       {lastMsg ? (
                         <>
                           {lastMsg.sender?.id === user.id ? 'Bạn: ' : `${lastMsg.sender?.displayName}: `}
@@ -381,6 +398,11 @@ export default function Sidebar({
                       )}
                     </div>
                   </div>
+                  {isUnread && (
+                    <div style={styles.unreadBadge}>
+                      1
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -642,6 +664,21 @@ const styles = {
     background: 'var(--primary-gradient)',
     color: '#ffffff',
     boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)'
+  },
+  unreadBadge: {
+    backgroundColor: 'var(--danger)',
+    color: '#ffffff',
+    borderRadius: '50%',
+    width: '18px',
+    height: '18px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '0.7rem',
+    fontWeight: '700',
+    flexShrink: 0,
+    marginLeft: '8px',
+    boxShadow: '0 2px 5px rgba(244, 63, 94, 0.3)'
   },
   listContainer: {
     flex: 1,

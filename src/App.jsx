@@ -66,6 +66,16 @@ export default function App() {
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
   const [lightboxImage, setLightboxImage] = useState(null);
 
+  // Mốc thời gian đọc tin nhắn cuối cùng để tính số tin chưa đọc
+  const [lastReadTimestamps, setLastReadTimestamps] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chat_last_read_timestamps');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
   // Trạng thái thông báo đẩy (Web Push)
   const [pushStatus, setPushStatus] = useState('checking'); // 'checking', 'granted', 'prompt', 'denied', 'unsupported', 'insecure'
   const [dismissedPushBanner, setDismissedPushBanner] = useState(
@@ -266,6 +276,15 @@ export default function App() {
       // Nếu tin nhắn thuộc cuộc hội thoại đang active
       const activeConv = activeConversationRef.current;
       if (activeConv && activeConv.id === newMessage.conversationId) {
+        setLastReadTimestamps(prev => {
+          const updated = {
+            ...prev,
+            [newMessage.conversationId]: new Date().toISOString()
+          };
+          localStorage.setItem('chat_last_read_timestamps', JSON.stringify(updated));
+          return updated;
+        });
+
         setMessages(prev => {
           // Tránh trùng lặp nếu đã tồn tại tin nhắn với ID thật
           if (prev.some(m => m.id === newMessage.id)) return prev;
@@ -657,6 +676,16 @@ export default function App() {
   // Reset hasMoreMessages khi đổi phòng chat
   useEffect(() => {
     setHasMoreMessages(true);
+    if (activeConversation) {
+      setLastReadTimestamps(prev => {
+        const updated = {
+          ...prev,
+          [activeConversation.id]: new Date().toISOString()
+        };
+        localStorage.setItem('chat_last_read_timestamps', JSON.stringify(updated));
+        return updated;
+      });
+    }
   }, [activeConversation]);
 
   // Tải lịch sử tin nhắn khi đổi cuộc hội thoại active
@@ -857,6 +886,22 @@ export default function App() {
     });
     fetchConversations();
   };
+
+  // Tính tổng số cuộc trò chuyện có tin nhắn chưa đọc
+  const totalUnreadChats = useMemo(() => {
+    let total = 0;
+    conversations.forEach(conv => {
+      if (activeConversation && activeConversation.id === conv.id) return;
+      const lastMsg = conv.messages[0];
+      if (lastMsg && lastMsg.senderId !== user?.id && lastMsg.sender?.id !== user?.id) {
+        const lastRead = lastReadTimestamps[conv.id];
+        if (!lastRead || new Date(lastMsg.createdAt) > new Date(lastRead)) {
+          total += 1;
+        }
+      }
+    });
+    return total;
+  }, [conversations, activeConversation, lastReadTimestamps, user]);
 
   const bottomNavItems = [
     { id: 'list', label: 'Tin nhắn', icon: FiMessageSquare },
@@ -1265,6 +1310,7 @@ export default function App() {
             setShowProfile(false);
           }}
           pendingTasksCount={pendingTasksCount}
+          lastReadTimestamps={lastReadTimestamps}
         />
 
         {/* Mock custom views for contacts, diary */}
@@ -1437,6 +1483,17 @@ export default function App() {
           {bottomNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTabId === item.id;
+
+            // Tính số lượng thông báo / tin nhắn chưa đọc cho từng tab
+            let badgeCount = 0;
+            if (item.id === 'list') {
+              badgeCount = totalUnreadChats;
+            } else if (item.id === 'contacts') {
+              badgeCount = 3; // Lời mời kết bạn
+            } else if (item.id === 'tasks') {
+              badgeCount = pendingTasksCount;
+            }
+
             return (
               <button
                 key={item.id}
@@ -1454,9 +1511,9 @@ export default function App() {
               >
                 <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <Icon size={20} />
-                  {item.id === 'tasks' && pendingTasksCount > 0 && (
+                  {badgeCount > 0 && (
                     <span style={styles.badge}>
-                      {pendingTasksCount}
+                      {badgeCount}
                     </span>
                   )}
                 </div>
