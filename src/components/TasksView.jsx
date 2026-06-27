@@ -437,7 +437,7 @@ export default function TasksView({
       </div>
 
       {/* Tabs with sliding capsule animation */}
-      <div style={styles.tabsWrapper} role="tablist" aria-label="Phân loại công việc">
+      <div style={styles.tabsWrapper} className="tasks-tabs-wrapper" role="tablist" aria-label="Phân loại công việc">
         <div style={{
           ...styles.tabCapsule,
           left: activeTab === 'received' ? '4px' : 'calc(50% + 2px)'

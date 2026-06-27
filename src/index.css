@@ -825,4 +825,8 @@ img {
   .mobile-only-filter-select {
     display: flex !important;
   }
+
+  .tasks-tabs-wrapper {
+    margin-top: 16px !important;
+  }
 }
