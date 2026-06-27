@@ -896,11 +896,12 @@ export default function App() {
   // Tính tổng số cuộc trò chuyện có tin nhắn chưa đọc
   const totalUnreadChats = useMemo(() => {
     let total = 0;
+    if (!conversations || !Array.isArray(conversations)) return 0;
     conversations.forEach(conv => {
       if (activeConversation && activeConversation.id === conv.id) return;
-      const lastMsg = conv.messages[0];
+      const lastMsg = conv.messages && conv.messages[0];
       if (lastMsg && lastMsg.senderId !== user?.id && lastMsg.sender?.id !== user?.id) {
-        const lastRead = lastReadTimestamps[conv.id];
+        const lastRead = lastReadTimestamps ? lastReadTimestamps[conv.id] : null;
         if (!lastRead || new Date(lastMsg.createdAt) > new Date(lastRead)) {
           total += 1;
         }

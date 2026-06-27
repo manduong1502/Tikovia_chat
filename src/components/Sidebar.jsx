@@ -347,10 +347,11 @@ export default function Sidebar({
               const { name, avatar, isOnline } = getConversationDetails(conv);
               const lastMsg = conv.messages[0];
               const isSelected = activeConversation?.id === conv.id;
+              const lastRead = lastReadTimestamps ? lastReadTimestamps[conv.id] : null;
               const isUnread = lastMsg && 
                                lastMsg.senderId !== user?.id && 
                                lastMsg.sender?.id !== user?.id && 
-                               (!lastReadTimestamps?.[conv.id] || new Date(lastMsg.createdAt) > new Date(lastReadTimestamps[conv.id])) &&
+                               (!lastRead || new Date(lastMsg.createdAt) > new Date(lastRead)) &&
                                !isSelected;
 
               return (
