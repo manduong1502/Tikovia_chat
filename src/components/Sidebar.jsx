@@ -293,21 +293,43 @@ export default function Sidebar({
 
       {/* Tabs */}
       <div style={styles.tabsContainer}>
+        <div style={{
+          ...styles.tabCapsule,
+          left: activeTab === 'all' ? '4px' : activeTab === 'direct' ? 'calc(33.333% + 2px)' : 'calc(66.666% + 2px)'
+        }} />
         <button 
           onClick={() => setActiveTab('all')} 
-          style={{...styles.tab, ...(activeTab === 'all' ? styles.activeTab : {})}}
+          style={{
+            ...styles.tab, 
+            color: activeTab === 'all' ? '#ffffff' : 'var(--text-secondary)',
+            zIndex: 2,
+            position: 'relative'
+          }}
+          className="btn-interactive"
         >
           Ưu tiên
         </button>
         <button 
           onClick={() => setActiveTab('direct')} 
-          style={{...styles.tab, ...(activeTab === 'direct' ? styles.activeTab : {})}}
+          style={{
+            ...styles.tab, 
+            color: activeTab === 'direct' ? '#ffffff' : 'var(--text-secondary)',
+            zIndex: 2,
+            position: 'relative'
+          }}
+          className="btn-interactive"
         >
           Cá nhân
         </button>
         <button 
           onClick={() => setActiveTab('group')} 
-          style={{...styles.tab, ...(activeTab === 'group' ? styles.activeTab : {})}}
+          style={{
+            ...styles.tab, 
+            color: activeTab === 'group' ? '#ffffff' : 'var(--text-secondary)',
+            zIndex: 2,
+            position: 'relative'
+          }}
+          className="btn-interactive"
         >
           Nhóm
         </button>
@@ -589,7 +611,19 @@ const styles = {
     gap: '4px',
     background: 'rgba(255, 255, 255, 0.03)',
     borderRadius: '24px',
-    border: '1px solid var(--border-color)'
+    border: '1px solid var(--border-color)',
+    position: 'relative'
+  },
+  tabCapsule: {
+    position: 'absolute',
+    top: '4px',
+    bottom: '4px',
+    width: 'calc(33.333% - 6px)',
+    background: 'var(--primary-gradient)',
+    borderRadius: '20px',
+    transition: 'left 0.25s cubic-bezier(0.25, 1, 0.5, 1)',
+    zIndex: 1,
+    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)'
   },
   tab: {
     flex: 1,
