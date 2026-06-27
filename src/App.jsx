@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react';
 import io from 'socket.io-client';
 import Auth from './components/Auth';
 import Sidebar from './components/Sidebar';
