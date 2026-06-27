@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { FiCheckSquare, FiMessageSquare, FiClock, FiUser, FiChevronLeft, FiAlertCircle, FiPlay, FiCheck, FiX, FiSearch } from 'react-icons/fi';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { FiCheckSquare, FiMessageSquare, FiClock, FiUser, FiChevronLeft, FiAlertCircle, FiPlay, FiCheck, FiX, FiSearch, FiChevronDown } from 'react-icons/fi';
 import Avatar from './Avatar';
 
 // 1. Tách biệt helper function tính toán thời gian ra ngoài component để tránh khởi tạo lại mỗi lần render
@@ -215,6 +215,67 @@ const TaskCard = React.memo(({
   );
 });
 
+// Component Custom Dropdown thay thế cho thẻ select mặc định của trình duyệt
+const CustomDropdown = React.memo(({ value, onChange, options, label }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const activeOption = options.find(opt => opt.value === value) || options[0];
+
+  return (
+    <div ref={dropdownRef} style={styles.dropdownContainer}>
+      <span style={styles.sortLabel}>{label}:</span>
+      <button 
+        type="button"
+        onClick={() => setIsOpen(!isOpen)} 
+        style={styles.dropdownBtn}
+        className="btn-interactive"
+      >
+        <span>{activeOption.label}</span>
+        <FiChevronDown size={14} style={{ 
+          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: 'transform 0.2s ease',
+          color: 'var(--text-secondary)'
+        }} />
+      </button>
+      
+      {isOpen && (
+        <div style={styles.dropdownMenu} className="glass-card anim-scale-in">
+          {options.map(option => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              style={{
+                ...styles.dropdownItem,
+                color: option.value === value ? 'var(--primary)' : 'var(--text-primary)',
+                fontWeight: option.value === value ? '700' : '500',
+                background: option.value === value ? 'rgba(99, 102, 241, 0.08)' : 'none'
+              }}
+              className="btn-interactive"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
 export default function TasksView({
   user,
   token,
@@ -404,6 +465,20 @@ export default function TasksView({
     }, { total: 0, pending: 0, in_progress: 0, done: 0, overdue: 0 });
   }, [currentTabTasks, nowTime]);
 
+  const sortOptions = useMemo(() => [
+    { value: 'newest', label: 'Mới nhất' },
+    { value: 'oldest', label: 'Cũ nhất' },
+    { value: 'deadline', label: 'Hạn chót' }
+  ], []);
+
+  const filterOptions = useMemo(() => [
+    { value: 'all', label: `Tổng số (${stats.total})` },
+    { value: 'pending', label: `Cần làm (${stats.pending})` },
+    { value: 'in_progress', label: `Đang làm (${stats.in_progress})` },
+    { value: 'done', label: `Hoàn thành (${stats.done})` },
+    { value: 'overdue', label: `Quá hạn (${stats.overdue})` }
+  ], [stats]);
+
   return (
     <div style={styles.container} className={`anim-fade ${className || ''}`}>
       {/* Header */}
@@ -515,33 +590,21 @@ export default function TasksView({
             </button>
           )}
         </div>
-        <div style={styles.sortWrapper}>
-          <span style={styles.sortLabel}>Sắp xếp:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            style={styles.sortSelect}
-          >
-            <option value="newest">Mới nhất</option>
-            <option value="oldest">Cũ nhất</option>
-            <option value="deadline">Hạn chót</option>
-          </select>
-        </div>
+        <CustomDropdown 
+          label="Sắp xếp" 
+          value={sortBy} 
+          onChange={setSortBy} 
+          options={sortOptions} 
+        />
 
         {/* Mobile-only status filter select dropdown */}
-        <div style={styles.sortWrapper} className="mobile-only-filter-select">
-          <span style={styles.sortLabel}>Lọc:</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={styles.sortSelect}
-          >
-            <option value="all">Tổng số ({stats.total})</option>
-            <option value="pending">Cần làm ({stats.pending})</option>
-            <option value="in_progress">Đang làm ({stats.in_progress})</option>
-            <option value="done">Hoàn thành ({stats.done})</option>
-            <option value="overdue">Quá hạn ({stats.overdue})</option>
-          </select>
+        <div className="mobile-only-filter-select">
+          <CustomDropdown 
+            label="Lọc" 
+            value={statusFilter} 
+            onChange={setStatusFilter} 
+            options={filterOptions} 
+          />
         </div>
       </div>
 
@@ -925,15 +988,53 @@ const styles = {
     color: 'var(--text-secondary)',
     fontWeight: '500'
   },
-  sortSelect: {
-    padding: '6px 10px',
-    borderRadius: '10px',
+  dropdownContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    position: 'relative',
+    zIndex: 10
+  },
+  dropdownBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+    padding: '6px 12px',
+    borderRadius: '12px',
     background: 'var(--bg-glass-active)',
     border: '1px solid var(--border-color)',
     color: 'var(--text-primary)',
     fontSize: '0.78rem',
-    outline: 'none',
-    cursor: 'pointer'
+    fontWeight: '600',
+    cursor: 'pointer',
+    minWidth: '110px',
+    transition: 'all 0.2s ease'
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 'calc(100% + 6px)',
+    right: 0,
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '14px',
+    padding: '6px',
+    boxShadow: 'var(--shadow-lg)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    minWidth: '140px',
+    zIndex: 100
+  },
+  dropdownItem: {
+    padding: '8px 12px',
+    borderRadius: '10px',
+    border: 'none',
+    textAlign: 'left',
+    fontSize: '0.78rem',
+    cursor: 'pointer',
+    width: '100%',
+    transition: 'all 0.15s ease'
   },
   errorStateCard: {
     display: 'flex',
