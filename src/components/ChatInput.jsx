@@ -905,7 +905,7 @@ export default function ChatInput({
 const styles = {
   uploadProgressOverlay: {
     padding: '12px 16px',
-    background: 'rgba(17, 21, 32, 0.85)',
+    background: 'var(--bg-glass-active)',
     backdropFilter: 'blur(24px)',
     WebkitBackdropFilter: 'blur(24px)',
     border: '1px solid var(--border-color)',
@@ -945,7 +945,7 @@ const styles = {
   progressBarWrapper: {
     width: '100%',
     height: '6px',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'var(--border-color)',
     borderRadius: '3px',
     overflow: 'hidden',
     marginTop: '4px'
