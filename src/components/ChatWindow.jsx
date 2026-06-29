@@ -708,21 +708,19 @@ export default function ChatWindow({
               ? `${(metadata.fileSize / 1024).toFixed(1)} KB` 
               : `${(metadata.fileSize / (1024 * 1024)).toFixed(2)} MB`)
           : '';
-        const msgTime = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         
         return (
           <div style={{
-            width: '290px',
+            width: '280px',
             maxWidth: '100%',
-            padding: '12px 14px 28px 14px',
-            position: 'relative',
+            padding: '12px 14px',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            background: 'rgba(23, 29, 43, 0.95)',
+            background: 'var(--bg-glass-active)',
             borderRadius: '12px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-            border: '1px solid rgba(255,255,255,0.08)'
+            boxShadow: 'var(--shadow-sm)',
+            border: '1px solid var(--border-color)'
           }}>
             {/* 1. File Type Icon */}
             {getFileIcon(cleanFileName)}
@@ -736,9 +734,9 @@ export default function ChatWindow({
               gap: '4px'
             }}>
               <span style={{
-                fontSize: '0.82rem',
+                fontSize: '0.85rem',
                 fontWeight: '600',
-                color: '#f8fafc',
+                color: 'var(--text-primary)',
                 wordBreak: 'break-all',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -746,18 +744,12 @@ export default function ChatWindow({
               }} title={cleanFileName}>
                 {cleanFileName}
               </span>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '0.7rem',
-                color: '#94a3b8'
+              <span style={{
+                fontSize: '0.72rem',
+                color: 'var(--text-secondary)'
               }}>
-                <span>{formattedSize}</span>
-                <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                  <span style={{ fontSize: '10px' }}>✓</span> Đã có trên máy
-                </span>
-              </div>
+                {formattedSize}
+              </span>
             </div>
             
             {/* 3. Action Buttons */}
@@ -767,58 +759,49 @@ export default function ChatWindow({
               gap: '6px',
               flexShrink: 0
             }}>
-              <button 
-                onClick={() => window.open(metadata.webViewLink || getFileUrl(msg.content), '_blank')}
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  color: '#f8fafc',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-                className="btn-interactive"
-                title="Xem tài liệu"
-              >
-                <FiFolder size={12} />
-              </button>
+              {metadata.webViewLink && (
+                <button 
+                  onClick={() => window.open(metadata.webViewLink, '_blank')}
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    border: '1px solid var(--border-color)',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    color: 'var(--text-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  className="btn-interactive"
+                  title="Mở tài liệu"
+                >
+                  <FiFolder size={12} />
+                </button>
+              )}
               <a 
                 href={getFileUrl(msg.content)} 
                 download 
                 style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  border: '1px solid var(--border-color)',
                   background: 'rgba(255, 255, 255, 0.03)',
-                  color: '#f8fafc',
+                  color: 'var(--text-primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   transition: 'all 0.15s ease'
                 }}
                 className="btn-interactive"
-                title="Tải xuống tập tin"
+                title="Tải xuống"
               >
                 <FiDownload size={12} />
               </a>
             </div>
-            
-            {/* Timestamp at bottom left */}
-            <span style={{
-              position: 'absolute',
-              bottom: '8px',
-              left: '14px',
-              fontSize: '0.65rem',
-              color: '#64748b'
-            }}>
-              {msgTime}
-            </span>
           </div>
         );
       }
