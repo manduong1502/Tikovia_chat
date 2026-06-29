@@ -554,19 +554,19 @@ export default function RightSidebar({
 
           {/* Action Row Grid */}
           <div style={styles.actionRow}>
-            <div style={styles.actionItem} onClick={() => setIsSearchingMsg(true)} className="btn-interactive action-circle-hover">
+            <div style={styles.actionItem} onClick={() => setIsSearchingMsg(true)} className="action-circle-hover">
               <div style={styles.actionCircle} className="action-circle-inner"><FiSearch size={18} /></div>
               <span style={styles.actionLabel}>Tìm tin nhắn</span>
             </div>
-            <div style={styles.actionItem} className="btn-interactive action-circle-hover">
+            <div style={styles.actionItem} className="action-circle-hover">
               <div style={styles.actionCircle} className="action-circle-inner"><FiUser size={18} /></div>
               <span style={styles.actionLabel}>Trang cá nhân</span>
             </div>
-            <div style={styles.actionItem} onClick={() => setShowWallpaperSelector(prev => !prev)} className="btn-interactive action-circle-hover">
+            <div style={styles.actionItem} onClick={() => setShowWallpaperSelector(prev => !prev)} className="action-circle-hover">
               <div style={styles.actionCircle} className="action-circle-inner"><FiImage size={18} /></div>
               <span style={styles.actionLabel}>Đổi hình nền</span>
             </div>
-            <div style={styles.actionItem} className="btn-interactive action-circle-hover">
+            <div style={styles.actionItem} className="action-circle-hover">
               <div style={styles.actionCircle} className="action-circle-inner"><FiBell size={18} /></div>
               <span style={styles.actionLabel}>Tắt thông báo</span>
             </div>
@@ -1344,24 +1344,28 @@ const styles = {
   // Tabs Gallery
   tabs: {
     display: 'flex',
-    borderBottom: '1px solid var(--border-color)',
-    marginBottom: '10px'
+    background: 'var(--bg-surface)',
+    borderRadius: '10px',
+    padding: '4px',
+    gap: '2px',
+    marginBottom: '14px'
   },
   tabBtn: {
     flex: 1,
     background: 'none',
     border: 'none',
     color: 'var(--text-secondary)',
-    padding: '8px 0',
-    fontSize: '0.8rem',
+    padding: '6px 0',
+    fontSize: '0.78rem',
     fontWeight: '600',
     cursor: 'pointer',
-    borderBottom: '2px solid transparent',
-    transition: 'all 0.15s ease'
+    borderRadius: '8px',
+    transition: 'all 0.2s ease'
   },
   activeTabBtn: {
-    color: 'var(--primary)',
-    borderBottomColor: 'var(--primary)'
+    color: 'var(--text-primary)',
+    background: 'var(--bg-secondary)',
+    boxShadow: 'var(--shadow-sm)'
   },
   tabContent: {
     flex: 1,
