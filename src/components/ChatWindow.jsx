@@ -1144,11 +1144,11 @@ export default function ChatWindow({
             }, {}) || {};
             const reactionTypes = Object.keys(reactionCounts).sort((a, b) => reactionCounts[b] - reactionCounts[a]);
 
-            // Kiểm tra tin nhắn kế tiếp có cùng người gửi và gửi cách nhau dưới 2 phút không
+            // Kiểm tra tin nhắn kế tiếp có cùng người gửi và gửi cách nhau dưới 15 phút không
             const nextMsg = messages[index + 1];
             const isNearNext = nextMsg && 
               nextMsg.senderId === msg.senderId && 
-              (new Date(nextMsg.createdAt) - new Date(msg.createdAt)) < 2 * 60 * 1000;
+              (new Date(nextMsg.createdAt) - new Date(msg.createdAt)) < 15 * 60 * 1000;
 
             const prevMsg = messages[index - 1];
             const showDateSeparator = !prevMsg || 
@@ -1156,12 +1156,12 @@ export default function ChatWindow({
 
             const isGroupStart = !prevMsg || 
               prevMsg.senderId !== msg.senderId || 
-              (new Date(msg.createdAt) - new Date(prevMsg.createdAt)) >= 2 * 60 * 1000 ||
+              (new Date(msg.createdAt) - new Date(prevMsg.createdAt)) >= 15 * 60 * 1000 ||
               showDateSeparator;
 
             const isGroupEnd = !nextMsg ||
               nextMsg.senderId !== msg.senderId ||
-              (new Date(nextMsg.createdAt) - new Date(msg.createdAt)) >= 2 * 60 * 1000 ||
+              (new Date(nextMsg.createdAt) - new Date(msg.createdAt)) >= 15 * 60 * 1000 ||
               (new Date(nextMsg.createdAt).toDateString() !== new Date(msg.createdAt).toDateString());
 
             const isSingle = isGroupStart && isGroupEnd;
