@@ -498,7 +498,7 @@ input, textarea, select, [contenteditable="true"] {
 /* Hide by default on desktop, show on hover */
 .hover-menu-btn-desktop {
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.05s linear;
 }
 
 /* On mobile, keep it visible or rely on tap/long press */

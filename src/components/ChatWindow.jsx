@@ -1187,7 +1187,7 @@ export default function ChatWindow({
                             borderRadius: '20px',
                             boxShadow: 'var(--shadow-sm)',
                             pointerEvents: 'auto',
-                            transition: 'opacity 0.15s ease, transform 0.15s ease'
+                            transition: 'opacity 0.05s linear'
                           }}
                           className="hover-menu-btn-desktop"
                         >
