@@ -450,7 +450,7 @@ export default function RightSidebar({
   };
 
   return (
-    <div style={styles.sidebar} className={`glass ${className || ''}`}>
+    <div style={styles.sidebar} className={`glass anim-sidebar-enter ${className || ''}`}>
       {/* Header */}
       <div style={styles.header}>
         <button 
@@ -461,108 +461,115 @@ export default function RightSidebar({
           <FiChevronLeft size={24} />
         </button>
         <span style={styles.headerTitle}>Tùy chọn</span>
-        <button onClick={onClose} style={styles.closeBtn} className="btn-interactive">
+        <button onClick={onClose} style={styles.closeBtn} className="btn-interactive sidebar-close-btn">
           <FiX size={18} />
         </button>
       </div>
 
       <div style={styles.content} className="mobile-list-padding">
-        {/* Info Card */}
-        <div style={styles.infoCard}>
-          {conversation.isGroup && isGroupCreator ? (
-            <div 
-              style={{ position: 'relative', cursor: isUploadingGroupAvatar ? 'not-allowed' : 'pointer', margin: '0 auto 12px auto', width: '70px', height: '70px' }} 
-              onClick={() => !isUploadingGroupAvatar && groupAvatarInputRef.current?.click()}
-              title={isUploadingGroupAvatar ? 'Đang tải ảnh...' : 'Đổi ảnh đại diện nhóm'}
-              className="btn-interactive"
-            >
-              <Avatar url={getChatAvatar()} name={getChatTitle()} size={70} />
-              {isUploadingGroupAvatar ? (
-                <div style={{ ...styles.avatarCameraOverlay, background: 'var(--text-secondary)' }}>
-                  <span style={{ fontSize: '0.65rem', color: '#fff', fontWeight: 'bold' }}>...</span>
-                </div>
-              ) : (
-                <div style={styles.avatarCameraOverlay}>
-                  <FiImage size={14} style={{ color: '#fff' }} />
-                </div>
-              )}
-              <input 
-                type="file" 
-                ref={groupAvatarInputRef} 
-                onChange={handleGroupAvatarChange} 
-                style={{ display: 'none' }} 
-                accept="image/*"
-                disabled={isUploadingGroupAvatar}
-              />
-            </div>
-          ) : (
-            <Avatar url={getChatAvatar()} name={getChatTitle()} size={70} style={{ margin: '0 auto 12px auto' }} />
-          )}
+        {/* Unified Hero Options Card (Avatar + Metadata + Actions Grid) */}
+        <div className="glass-card anim-slide-up" style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', animationDelay: '0.05s', width: '100%' }}>
+          <div style={styles.infoCard}>
+            {conversation.isGroup && isGroupCreator ? (
+              <div 
+                style={{ position: 'relative', cursor: isUploadingGroupAvatar ? 'not-allowed' : 'pointer', margin: '0 auto 12px auto', width: '76px', height: '76px' }} 
+                onClick={() => !isUploadingGroupAvatar && groupAvatarInputRef.current?.click()}
+                title={isUploadingGroupAvatar ? 'Đang tải ảnh...' : 'Đổi ảnh đại diện nhóm'}
+                className="btn-interactive avatar-pulsing-glow"
+              >
+                <Avatar url={getChatAvatar()} name={getChatTitle()} size={70} />
+                {isUploadingGroupAvatar ? (
+                  <div style={{ ...styles.avatarCameraOverlay, background: 'var(--text-secondary)' }}>
+                    <span style={{ fontSize: '0.65rem', color: '#fff', fontWeight: 'bold' }}>...</span>
+                  </div>
+                ) : (
+                  <div style={styles.avatarCameraOverlay}>
+                    <FiImage size={14} style={{ color: '#fff' }} />
+                  </div>
+                )}
+                <input 
+                  type="file" 
+                  ref={groupAvatarInputRef} 
+                  onChange={handleGroupAvatarChange} 
+                  style={{ display: 'none' }} 
+                  accept="image/*"
+                  disabled={isUploadingGroupAvatar}
+                />
+              </div>
+            ) : (
+              <div className="avatar-pulsing-glow" style={{ width: '76px', height: '76px', margin: '0 auto 12px auto' }}>
+                <Avatar url={getChatAvatar()} name={getChatTitle()} size={70} />
+              </div>
+            )}
 
-          {isEditingGroupName ? (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
-              <input
-                type="text"
-                value={editingGroupNameVal}
-                onChange={(e) => setEditingGroupNameVal(e.target.value)}
-                className="input-premium"
-                style={{ padding: '6px 10px', fontSize: '0.85rem', width: '150px' }}
-                autoFocus
-                onKeyDown={(e) => e.key === 'Enter' && handleUpdateGroupName()}
-              />
-              <button 
-                onClick={handleUpdateGroupName} 
-                style={{ ...styles.saveNicknameBtn, padding: '6px 10px' }}
-                className="btn-interactive"
-              >
-                Lưu
-              </button>
-              <button 
-                onClick={() => setIsEditingGroupName(false)} 
-                style={{ ...styles.cancelNicknameBtn, padding: '4px' }}
-                className="btn-interactive"
-              >
-                Hủy
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
-              <h4 style={styles.titleName}>{getChatTitle()}</h4>
-              {conversation.isGroup && isGroupCreator && (
-                <button
-                  onClick={() => {
-                    setIsEditingGroupName(true);
-                    setEditingGroupNameVal(conversation.name || '');
-                  }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
-                  title="Sửa tên nhóm"
+            {isEditingGroupName ? (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                <input
+                  type="text"
+                  value={editingGroupNameVal}
+                  onChange={(e) => setEditingGroupNameVal(e.target.value)}
+                  className="input-premium"
+                  style={{ padding: '6px 10px', fontSize: '0.85rem', width: '150px' }}
+                  autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && handleUpdateGroupName()}
+                />
+                <button 
+                  onClick={handleUpdateGroupName} 
+                  style={{ ...styles.saveNicknameBtn, padding: '6px 10px' }}
                   className="btn-interactive"
                 >
-                  <FiEdit3 size={14} />
+                  Lưu
                 </button>
-              )}
-            </div>
-          )}
-          <span style={styles.titleSub}>{conversation.isGroup ? 'Cuộc hội thoại nhóm' : 'Chat cá nhân'}</span>
-        </div>
+                <button 
+                  onClick={() => setIsEditingGroupName(false)} 
+                  style={{ ...styles.cancelNicknameBtn, padding: '4px' }}
+                  className="btn-interactive"
+                >
+                  Hủy
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                <h4 style={styles.titleName}>{getChatTitle()}</h4>
+                {conversation.isGroup && isGroupCreator && (
+                  <button
+                    onClick={() => {
+                      setIsEditingGroupName(true);
+                      setEditingGroupNameVal(conversation.name || '');
+                    }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                    title="Sửa tên nhóm"
+                    className="btn-interactive"
+                  >
+                    <FiEdit3 size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+            <span style={styles.titleSub}>{conversation.isGroup ? 'Cuộc hội thoại nhóm' : 'Chat cá nhân'}</span>
+          </div>
 
-        {/* Hàng nút hành động kiểu Zalo (Image 3) */}
-        <div style={styles.actionRow}>
-          <div style={styles.actionItem} onClick={() => setIsSearchingMsg(true)} className="btn-interactive">
-            <div style={styles.actionCircle}><FiSearch size={18} /></div>
-            <span style={styles.actionLabel}>Tìm tin nhắn</span>
-          </div>
-          <div style={styles.actionItem} className="btn-interactive">
-            <div style={styles.actionCircle}><FiUser size={18} /></div>
-            <span style={styles.actionLabel}>Trang cá nhân</span>
-          </div>
-          <div style={styles.actionItem} onClick={() => setShowWallpaperSelector(prev => !prev)} className="btn-interactive">
-            <div style={styles.actionCircle}><FiImage size={18} /></div>
-            <span style={styles.actionLabel}>Đổi hình nền</span>
-          </div>
-          <div style={styles.actionItem} className="btn-interactive">
-            <div style={styles.actionCircle}><FiBell size={18} /></div>
-            <span style={styles.actionLabel}>Tắt thông báo</span>
+          {/* Horizontal Line separating Info and Actions */}
+          <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', opacity: 0.6 }} />
+
+          {/* Action Row Grid */}
+          <div style={styles.actionRow}>
+            <div style={styles.actionItem} onClick={() => setIsSearchingMsg(true)} className="btn-interactive action-circle-hover">
+              <div style={styles.actionCircle} className="action-circle-inner"><FiSearch size={18} /></div>
+              <span style={styles.actionLabel}>Tìm tin nhắn</span>
+            </div>
+            <div style={styles.actionItem} className="btn-interactive action-circle-hover">
+              <div style={styles.actionCircle} className="action-circle-inner"><FiUser size={18} /></div>
+              <span style={styles.actionLabel}>Trang cá nhân</span>
+            </div>
+            <div style={styles.actionItem} onClick={() => setShowWallpaperSelector(prev => !prev)} className="btn-interactive action-circle-hover">
+              <div style={styles.actionCircle} className="action-circle-inner"><FiImage size={18} /></div>
+              <span style={styles.actionLabel}>Đổi hình nền</span>
+            </div>
+            <div style={styles.actionItem} className="btn-interactive action-circle-hover">
+              <div style={styles.actionCircle} className="action-circle-inner"><FiBell size={18} /></div>
+              <span style={styles.actionLabel}>Tắt thông báo</span>
+            </div>
           </div>
         </div>
 
@@ -627,7 +634,7 @@ export default function RightSidebar({
         )}
 
         {/* 1. Tìm kiếm tin nhắn */}
-        <div style={styles.section} className="glass-card">
+        <div className="glass-card anim-slide-up" style={{ ...styles.section, animationDelay: '0.1s' }}>
           <div style={styles.sectionHeader}>
             <FiSearch size={16} style={{ color: 'var(--primary)' }} />
             <span>Tìm tin nhắn trò chuyện</span>
@@ -669,7 +676,7 @@ export default function RightSidebar({
         </div>
 
         {/* 2. Thành viên & Đổi biệt danh */}
-        <div style={styles.section} className="glass-card">
+        <div className="glass-card anim-slide-up" style={{ ...styles.section, animationDelay: '0.15s' }}>
           <div style={{ ...styles.sectionHeader, justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FiEdit3 size={16} style={{ color: 'var(--primary)' }} />
@@ -687,7 +694,7 @@ export default function RightSidebar({
           </div>
           <div style={styles.memberList}>
             {conversation.members.map(member => (
-              <div key={member.user.id} style={styles.memberItem}>
+              <div key={member.user.id} className="member-list-item btn-interactive" style={styles.memberItem}>
                 <Avatar url={member.user.avatarUrl} name={member.user.displayName} size={36} />
                 <div style={styles.memberInfo}>
                   <div style={styles.memberNameWrapper}>
@@ -741,7 +748,7 @@ export default function RightSidebar({
         </div>
 
         {/* 3. Kho lưu trữ Media & Công việc (Ảnh, File, Link, Công việc) */}
-        <div style={{...styles.section, flex: 1, display: 'flex', flexDirection: 'column'}} className="glass-card">
+        <div className="glass-card anim-slide-up" style={{ ...styles.section, flex: 1, display: 'flex', flexDirection: 'column', animationDelay: '0.2s' }}>
           <div style={styles.sectionHeader}>
             <FiImage size={16} style={{ color: 'var(--primary)' }} />
             <span>Kho dữ liệu & Công việc nhóm</span>
@@ -1156,10 +1163,9 @@ const styles = {
   },
   actionRow: {
     display: 'flex',
-    justifyContent: 'space-around',
-    padding: '12px 0',
-    borderBottom: '1px solid var(--border-color)',
-    marginBottom: '10px'
+    justifyContent: 'space-between',
+    width: '100%',
+    padding: '4px 0 0 0'
   },
   actionItem: {
     display: 'flex',
@@ -1169,12 +1175,12 @@ const styles = {
     cursor: 'pointer'
   },
   actionCircle: {
-    width: '38px',
-    height: '38px',
+    width: '42px',
+    height: '42px',
     borderRadius: '50%',
-    background: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
-    color: 'var(--text-primary)',
+    background: 'var(--primary-light)',
+    border: '1px solid var(--border-color)',
+    color: 'var(--primary)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center'
@@ -1271,7 +1277,10 @@ const styles = {
   memberItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px'
+    gap: '12px',
+    padding: '8px 12px',
+    borderRadius: '10px',
+    marginBottom: '6px'
   },
   memberAvatar: {
     width: '32px',
