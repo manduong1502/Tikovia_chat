@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FiPhone, FiVideo, FiSidebar, FiDownload, FiMapPin, FiClock, FiChevronLeft, FiCheckSquare, FiSearch, FiChevronUp, FiChevronDown, FiX } from 'react-icons/fi';
+import { FiPhone, FiVideo, FiSidebar, FiDownload, FiMapPin, FiClock, FiChevronLeft, FiCheckSquare, FiSearch, FiChevronUp, FiChevronDown, FiX, FiSmile, FiCopy, FiCornerUpLeft, FiShare2, FiEdit3, FiTrash2 } from 'react-icons/fi';
 import { BsPinAngle } from 'react-icons/bs';
 import ChatInput from './ChatInput';
 import Avatar from './Avatar';
@@ -186,6 +186,7 @@ export default function ChatWindow({
 }) {
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [activePopoverMsgId, setActivePopoverMsgId] = useState(null);
+  const [activeReactMsgId, setActiveReactMsgId] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMsg, setEditingMsg] = useState(null);
   const [popoverDirection, setPopoverDirection] = useState('up');
@@ -959,7 +960,7 @@ export default function ChatWindow({
       <div 
         style={styles.chatFeed} 
         ref={chatFeedRef} 
-        onClick={() => setActivePopoverMsgId(null)}
+        onClick={() => { setActivePopoverMsgId(null); setActiveReactMsgId(null); }}
         onScroll={handleScroll}
       >
         {isLoadingOlder && (
@@ -1171,22 +1172,177 @@ export default function ChatWindow({
                         {renderMessageContent(msg)}
                       </div>
 
-                      {/* Options Trigger Button next to bubble */}
+                      {/* Options Trigger Buttons next to bubble (Desktop hover) */}
                       {!msg.isRecalled && msg.status !== 'sending' && (
-                        <button 
-                          onClick={(e) => {
-                            if (activePopoverMsgId === msg.id) {
-                              setActivePopoverMsgId(null);
-                            } else {
-                              handleOpenPopover(e, msg.id, isMe);
-                            }
+                        <div 
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                            background: 'var(--bg-glass-active)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                            border: '1px solid var(--border-color)',
+                            padding: '2px 4px',
+                            borderRadius: '20px',
+                            boxShadow: 'var(--shadow-sm)',
+                            pointerEvents: 'auto',
+                            transition: 'opacity 0.15s ease, transform 0.15s ease'
                           }}
-                          style={styles.hoverMenuBtn}
-                          className="hover-menu-btn-desktop btn-interactive"
-                          title="Tùy chọn tin nhắn"
+                          className="hover-menu-btn-desktop"
                         >
-                          ⋮
-                        </button>
+                          {/* 1. Emoji Reaction Button */}
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveReactMsgId(activeReactMsgId === msg.id ? null : msg.id);
+                              }}
+                              style={styles.inlineActionBtn}
+                              className="btn-interactive"
+                              title="Thả cảm xúc"
+                            >
+                              <FiSmile size={14} />
+                            </button>
+                            {/* Inline emoji picker popup */}
+                            {activeReactMsgId === msg.id && (
+                              <div 
+                                style={{
+                                  position: 'absolute',
+                                  bottom: '100%',
+                                  left: '50%',
+                                  transform: 'translateX(-50%)',
+                                  marginBottom: '8px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  background: 'rgba(17, 21, 32, 0.95)',
+                                  backdropFilter: 'blur(16px)',
+                                  WebkitBackdropFilter: 'blur(16px)',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                                  padding: '4px 8px',
+                                  borderRadius: '20px',
+                                  gap: '6px',
+                                  zIndex: 1000,
+                                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {['👍', '❤️', '😂', '😮', '😭', '😡'].map(emoji => (
+                                  <button
+                                    key={emoji}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      spawnReactionBurst(emoji, e.clientX, e.clientY);
+                                      onToggleReaction(msg.id, emoji);
+                                      setActiveReactMsgId(null);
+                                    }}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      fontSize: '1.2rem',
+                                      cursor: 'pointer',
+                                      padding: '2px',
+                                      transition: 'transform 0.15s ease'
+                                    }}
+                                    className="hover-scale btn-interactive"
+                                  >
+                                    {emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 2. Copy Text Button (Only for text type) */}
+                          {msg.type === 'text' && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(msg.content);
+                              }}
+                              style={styles.inlineActionBtn}
+                              className="btn-interactive"
+                              title="Sao chép"
+                            >
+                              <FiCopy size={14} />
+                            </button>
+                          )}
+
+                          {/* 3. Reply Button */}
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplyingTo(msg);
+                            }}
+                            style={styles.inlineActionBtn}
+                            className="btn-interactive"
+                            title="Trả lời"
+                          >
+                            <FiCornerUpLeft size={14} />
+                          </button>
+
+                          {/* 4. Forward Button */}
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setForwardingMsg(msg);
+                              setShowForwardModal(true);
+                            }}
+                            style={styles.inlineActionBtn}
+                            className="btn-interactive"
+                            title="Chuyển tiếp"
+                          >
+                            <FiShare2 size={14} />
+                          </button>
+
+                          {/* 5. Pin Button */}
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePinClick(msg.id);
+                            }}
+                            style={styles.inlineActionBtn}
+                            className="btn-interactive"
+                            title={msg.isPinned ? "Bỏ ghim" : "Ghim"}
+                          >
+                            <BsPinAngle size={14} style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }} />
+                          </button>
+
+                          {/* 6. Edit Button (Only for own text messages) */}
+                          {isMe && msg.type === 'text' && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingMsg(msg);
+                              }}
+                              style={styles.inlineActionBtn}
+                              className="btn-interactive"
+                              title="Sửa tin nhắn"
+                            >
+                              <FiEdit3 size={14} />
+                            </button>
+                          )}
+
+                          {/* 7. Recall Button (Only for own messages) */}
+                          {isMe && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm('Bạn có chắc muốn thu hồi tin nhắn này đối với mọi người?')) {
+                                  onRecallMessage(msg.id);
+                                }
+                              }}
+                              style={{
+                                ...styles.inlineActionBtn,
+                                color: 'var(--danger)'
+                              }}
+                              className="btn-interactive"
+                              title="Gỡ tin nhắn"
+                            >
+                              <FiTrash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       )}
 
                       {/* Popover Action Menu */}
@@ -2271,5 +2427,17 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     fontSize: '0.85rem'
+  },
+  inlineActionBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-secondary)',
+    padding: '5px',
+    borderRadius: '50%',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.15s ease'
   }
 };
