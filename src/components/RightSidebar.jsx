@@ -34,6 +34,81 @@ const getDateLabel = (date) => {
   }
 };
 
+// Get stylized file icon for premium layout (like Zalo/Voz)
+const getFileIcon = (fileName) => {
+  const ext = fileName.split('.').pop().toLowerCase();
+  
+  let bg = '#64748b';
+  let symbol = '📄';
+  let fontSize = '14px';
+  
+  if (['doc', 'docx'].includes(ext)) {
+    bg = '#1a5fbb';
+    symbol = 'W';
+  } else if (['xls', 'xlsx'].includes(ext)) {
+    bg = '#107c41';
+    symbol = 'X';
+  } else if (ext === 'pdf') {
+    bg = '#e01b22';
+    symbol = 'PDF';
+    fontSize = '9px';
+  } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+    bg = '#7c3aed';
+    return (
+      <div style={{
+        width: '32px',
+        height: '38px',
+        borderRadius: '5px',
+        background: bg,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#ffffff',
+        fontFamily: 'system-ui',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+        flexShrink: 0,
+        position: 'relative'
+      }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '1px',
+          width: '5px',
+          margin: '2px 0 1px 0'
+        }}>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} style={{ width: '5px', height: '1.5px', background: 'rgba(255,255,255,0.4)', borderRadius: '1px' }} />
+          ))}
+        </div>
+        <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase' }}>{ext}</span>
+      </div>
+    );
+  } else if (['ppt', 'pptx'].includes(ext)) {
+    bg = '#c43e1c';
+    symbol = 'P';
+  }
+  
+  return (
+    <div style={{
+      width: '32px',
+      height: '38px',
+      borderRadius: '5px',
+      background: bg,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      fontFamily: 'system-ui',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+      flexShrink: 0
+    }}>
+      <span style={{ fontSize, fontWeight: '800' }}>{symbol}</span>
+    </div>
+  );
+};
+
 export default function RightSidebar({
   user,
   token,
@@ -732,11 +807,15 @@ export default function RightSidebar({
                 <div style={styles.fileList}>
                   {mediaGallery.files.map(file => (
                     <div key={file.id} style={styles.fileItem}>
-                      <FiFileText size={20} style={{color: 'var(--primary)', flexShrink: 0}} />
+                      {getFileIcon(file.name)}
                       <div style={styles.fileInfo}>
-                        <span style={styles.fileName}>{file.name}</span>
+                        <span style={styles.fileName} title={file.name}>{file.name}</span>
                         <span style={styles.fileSub}>
-                          {file.senderName} • {(file.size / 1024 / 1024).toFixed(2)} MB
+                          {file.senderName} • {file.size 
+                            ? (file.size < 1024 * 1024 
+                                ? `${(file.size / 1024).toFixed(1)} KB` 
+                                : `${(file.size / (1024 * 1024)).toFixed(2)} MB`)
+                            : '0 KB'}
                         </span>
                       </div>
                       <a href={getFileUrl(file.url)} download style={styles.fileDownload} className="btn-interactive">

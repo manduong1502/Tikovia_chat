@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FiPhone, FiVideo, FiSidebar, FiDownload, FiMapPin, FiClock, FiChevronLeft, FiCheckSquare, FiSearch, FiChevronUp, FiChevronDown, FiX, FiSmile, FiCopy, FiCornerUpLeft, FiShare2, FiEdit3, FiTrash2 } from 'react-icons/fi';
+import { FiPhone, FiVideo, FiSidebar, FiDownload, FiMapPin, FiClock, FiChevronLeft, FiCheckSquare, FiSearch, FiChevronUp, FiChevronDown, FiX, FiSmile, FiCopy, FiCornerUpLeft, FiShare2, FiEdit3, FiTrash2, FiFolder } from 'react-icons/fi';
 import { BsPinAngle } from 'react-icons/bs';
 import ChatInput from './ChatInput';
 import Avatar from './Avatar';
@@ -550,6 +550,81 @@ export default function ChatWindow({
     );
   };
 
+  // Get stylized file icon for premium layout (like Zalo/Voz)
+  const getFileIcon = (fileName) => {
+    const ext = fileName.split('.').pop().toLowerCase();
+    
+    let bg = '#64748b';
+    let symbol = '📄';
+    let fontSize = '16px';
+    
+    if (['doc', 'docx'].includes(ext)) {
+      bg = '#1a5fbb';
+      symbol = 'W';
+    } else if (['xls', 'xlsx'].includes(ext)) {
+      bg = '#107c41';
+      symbol = 'X';
+    } else if (ext === 'pdf') {
+      bg = '#e01b22';
+      symbol = 'PDF';
+      fontSize = '10px';
+    } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      bg = '#7c3aed';
+      return (
+        <div style={{
+          width: '38px',
+          height: '46px',
+          borderRadius: '6px',
+          background: bg,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#ffffff',
+          fontFamily: 'system-ui',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+          flexShrink: 0,
+          position: 'relative'
+        }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '1px',
+            width: '6px',
+            margin: '2px 0 1px 0'
+          }}>
+            {[...Array(4)].map((_, i) => (
+              <div key={i} style={{ width: '6px', height: '1.5px', background: 'rgba(255,255,255,0.4)', borderRadius: '1px' }} />
+            ))}
+          </div>
+          <span style={{ fontSize: '8px', fontWeight: '800', textTransform: 'uppercase' }}>{ext}</span>
+        </div>
+      );
+    } else if (['ppt', 'pptx'].includes(ext)) {
+      bg = '#c43e1c';
+      symbol = 'P';
+    }
+    
+    return (
+      <div style={{
+        width: '38px',
+        height: '46px',
+        borderRadius: '6px',
+        background: bg,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#ffffff',
+        fontFamily: 'system-ui',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+        flexShrink: 0
+      }}>
+        <span style={{ fontSize, fontWeight: '800' }}>{symbol}</span>
+      </div>
+    );
+  };
+
   // Render nội dung tin nhắn dựa trên type
   const renderMessageContent = (msg) => {
     if (msg.isRecalled) {
@@ -625,26 +700,128 @@ export default function ChatWindow({
           </div>
         );
 
-      case 'file':
+      case 'file': {
         const rawFileName = metadata.fileName || msg.content.substring(msg.content.lastIndexOf('/') + 1);
         const cleanFileName = rawFileName.replace(/^\d+-/, '');
         const formattedSize = metadata.fileSize 
           ? (metadata.fileSize < 1024 * 1024 
-              ? `${(metadata.fileSize / 1024).toFixed(0)} KB` 
-              : `${(metadata.fileSize / (1024 * 1024)).toFixed(1)} MB`)
+              ? `${(metadata.fileSize / 1024).toFixed(1)} KB` 
+              : `${(metadata.fileSize / (1024 * 1024)).toFixed(2)} MB`)
           : '';
+        const msgTime = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
         return (
-          <div style={styles.fileBox}>
-            <div style={styles.fileIcon}>📁</div>
-            <div style={styles.fileDetails}>
-              <span style={styles.fileName} title={cleanFileName}>{cleanFileName}</span>
-              {formattedSize && <span style={styles.fileSize}>{formattedSize}</span>}
+          <div style={{
+            width: '290px',
+            maxWidth: '100%',
+            padding: '12px 14px 28px 14px',
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'rgba(23, 29, 43, 0.95)',
+            borderRadius: '12px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+            border: '1px solid rgba(255,255,255,0.08)'
+          }}>
+            {/* 1. File Type Icon */}
+            {getFileIcon(cleanFileName)}
+            
+            {/* 2. File Information */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minWidth: 0,
+              gap: '4px'
+            }}>
+              <span style={{
+                fontSize: '0.82rem',
+                fontWeight: '600',
+                color: '#f8fafc',
+                wordBreak: 'break-all',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }} title={cleanFileName}>
+                {cleanFileName}
+              </span>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.7rem',
+                color: '#94a3b8'
+              }}>
+                <span>{formattedSize}</span>
+                <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                  <span style={{ fontSize: '10px' }}>✓</span> Đã có trên máy
+                </span>
+              </div>
             </div>
-            <a href={getFileUrl(msg.content)} download style={styles.fileDownload} title="Tải xuống tập tin">
-              <FiDownload size={18} />
-            </a>
+            
+            {/* 3. Action Buttons */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              flexShrink: 0
+            }}>
+              <button 
+                onClick={() => window.open(metadata.webViewLink || getFileUrl(msg.content), '_blank')}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  color: '#f8fafc',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                className="btn-interactive"
+                title="Xem tài liệu"
+              >
+                <FiFolder size={12} />
+              </button>
+              <a 
+                href={getFileUrl(msg.content)} 
+                download 
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  color: '#f8fafc',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s ease'
+                }}
+                className="btn-interactive"
+                title="Tải xuống tập tin"
+              >
+                <FiDownload size={12} />
+              </a>
+            </div>
+            
+            {/* Timestamp at bottom left */}
+            <span style={{
+              position: 'absolute',
+              bottom: '8px',
+              left: '14px',
+              fontSize: '0.65rem',
+              color: '#64748b'
+            }}>
+              {msgTime}
+            </span>
           </div>
         );
+      }
 
       case 'voice':
         return (
@@ -1150,16 +1327,16 @@ export default function ChatWindow({
                         }}
                         style={{
                           ...styles.messageBubble,
-                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : ['call', 'task'].includes(msg.type) ? 'var(--bg-glass-active)' : undefined,
+                          background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'file') ? 'transparent' : ['call', 'task'].includes(msg.type) ? 'var(--bg-glass-active)' : undefined,
                           border: searchMatches.some(m => m.id === msg.id)
                             ? '1px solid #f59e0b'
-                            : ((msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : ['call', 'task'].includes(msg.type) ? '1px solid var(--border-color)' : undefined),
+                            : ((msg.type === 'image' || msg.type === 'sticker' || msg.type === 'file') && !msg.isRecalled ? 'none' : ['call', 'task'].includes(msg.type) ? '1px solid var(--border-color)' : undefined),
                           boxShadow: searchMatches.some(m => m.id === msg.id)
                             ? (searchMatches[activeSearchIndex]?.id === msg.id
                                 ? '0 0 0 3px #f59e0b, 0 4px 14px rgba(245, 158, 11, 0.4)'
                                 : '0 0 0 2px rgba(245, 158, 11, 0.4)')
-                            : ((msg.type === 'image' || msg.type === 'sticker' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? 'none' : undefined),
-                          padding: (msg.type === 'image' || msg.type === 'sticker' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? '0' : '10px 14px',
+                            : ((msg.type === 'image' || msg.type === 'sticker' || msg.type === 'file' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? 'none' : undefined),
+                          padding: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'file' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? '0' : '10px 14px',
                           color: ['call', 'task'].includes(msg.type) ? 'var(--text-primary)' : isMe ? '#ffffff' : 'var(--text-primary)',
                           borderRadius: ['call', 'task'].includes(msg.type) ? '16px' : isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
                           cursor: !isGroupEnd ? 'pointer' : 'default',
