@@ -1,19 +1,177 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FiPhone, FiVideo, FiSidebar, FiDownload, FiMapPin, FiClock, FiChevronLeft, FiCheckSquare } from 'react-icons/fi';
+import { FiPhone, FiVideo, FiSidebar, FiDownload, FiMapPin, FiClock, FiChevronLeft, FiCheckSquare, FiSearch, FiChevronUp, FiChevronDown, FiX } from 'react-icons/fi';
 import { BsPinAngle } from 'react-icons/bs';
 import ChatInput from './ChatInput';
 import Avatar from './Avatar';
+
+// Component Trình phát Tin nhắn thoại (Voice Message Player) thiết kế tùy chỉnh cao cấp
+const VoiceMessagePlayer = React.memo(({ audioUrl }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const onLoadedMetadata = () => {
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
+    const onEnded = () => setIsPlaying(false);
+
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('ended', onEnded);
+
+    // Kiểm tra định kỳ thời lượng nếu metadata load chậm (nhất là trên Chrome di động)
+    const durationInterval = setInterval(() => {
+      if (audio.duration && isFinite(audio.duration) && duration === 0) {
+        setDuration(audio.duration);
+        clearInterval(durationInterval);
+      }
+    }, 500);
+
+    return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('ended', onEnded);
+      clearInterval(durationInterval);
+    };
+  }, [duration]);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().catch(e => console.error("Error playing audio:", e));
+      setIsPlaying(true);
+    }
+  };
+
+  const handleProgressBarClick = (e) => {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percent = clickX / rect.width;
+    audio.currentTime = percent * duration;
+    setCurrentTime(audio.currentTime);
+  };
+
+  const formatDuration = (secs) => {
+    if (isNaN(secs) || !isFinite(secs)) return '00:00';
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = Math.floor(secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  return (
+    <div style={styles.voicePlayerContainer}>
+      <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <button 
+        onClick={togglePlay} 
+        style={styles.voicePlayBtn} 
+        className="btn-interactive"
+        type="button"
+      >
+        {isPlaying ? (
+          // Pause Icon
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="4" y="4" width="4" height="16" rx="1" />
+            <rect x="16" y="4" width="4" height="16" rx="1" />
+          </svg>
+        ) : (
+          // Play Icon
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '2px' }}>
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        )}
+      </button>
+      
+      <div style={styles.voiceTimeline} onClick={handleProgressBarClick}>
+        <div style={styles.voiceWaveContainer}>
+          {[10, 16, 12, 22, 14, 8, 18, 12, 20, 10, 16, 12, 14, 10, 18, 12].map((h, i, arr) => {
+            const isPlayed = duration ? (currentTime / duration) > (i / arr.length) : false;
+            return (
+              <div 
+                key={i} 
+                style={{
+                  ...styles.voiceWaveBar, 
+                  height: `${h}px`,
+                  backgroundColor: isPlayed ? 'var(--primary)' : 'var(--text-secondary)',
+                  opacity: isPlayed ? 1 : 0.35
+                }} 
+              />
+            );
+          })}
+        </div>
+      </div>
+      
+      <span style={styles.voiceDuration}>
+        {isPlaying ? formatDuration(currentTime) : formatDuration(duration || 0)}
+      </span>
+    </div>
+  );
+});
+
+// Hàm tạo hiệu ứng bùng nổ tim/like (Particle reaction burst)
+const spawnReactionBurst = (emoji, x, y) => {
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = `${x}px`;
+  container.style.top = `${y}px`;
+  container.style.pointerEvents = 'none';
+  container.style.zIndex = '99999';
+  document.body.appendChild(container);
+
+  const particleCount = 10;
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement('span');
+    particle.innerText = emoji;
+    particle.style.position = 'absolute';
+    particle.style.fontSize = `${16 + Math.random() * 12}px`;
+    particle.style.transition = 'all 0.8s cubic-bezier(0.25, 1, 0.5, 1)';
+    particle.style.transform = 'translate(-50%, -50%)';
+    particle.style.opacity = '1';
+    
+    container.appendChild(particle);
+
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 40 + Math.random() * 60;
+    const destX = Math.cos(angle) * distance;
+    const destY = Math.sin(angle) * distance;
+
+    requestAnimationFrame(() => {
+      particle.style.transform = `translate(calc(-50% + ${destX}px), calc(-50% + ${destY}px)) scale(0.3)`;
+      particle.style.opacity = '0';
+    });
+  }
+
+  setTimeout(() => {
+    document.body.removeChild(container);
+  }, 900);
+};
 
 export default function ChatWindow({
   user,
   token,
   conversation,
+  conversations = [],
+  wallpaper = '',
   messages,
   typingUsers,
   onSendMessage,
   onPinMessage,
   onToggleReaction,
   onRecallMessage,
+  onEditMessage,
   onDeleteMessage,
   onStartCall, // Trực tiếp gọi
   toggleRightSidebar,
@@ -29,9 +187,80 @@ export default function ChatWindow({
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [activePopoverMsgId, setActivePopoverMsgId] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [editingMsg, setEditingMsg] = useState(null);
   const [popoverDirection, setPopoverDirection] = useState('up');
   const [manuallyShownTimes, setManuallyShownTimes] = useState(new Set());
   const [popoverStyle, setPopoverStyle] = useState({});
+
+  // Trạng thái tìm kiếm tin nhắn trong phòng chat
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
+
+  // Lọc danh sách tin nhắn khớp từ khóa
+  const searchMatches = React.useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return messages.filter(msg => 
+      msg.type === 'text' && 
+      msg.content.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !msg.isRecalled
+    );
+  }, [searchQuery, messages]);
+
+  // Tự động chuyển chỉ mục tìm kiếm khi độ dài kết quả thay đổi
+  useEffect(() => {
+    if (searchMatches.length > 0) {
+      setActiveSearchIndex(searchMatches.length - 1);
+    } else {
+      setActiveSearchIndex(-1);
+    }
+  }, [searchMatches.length]);
+
+  // Tự động cuộn đến tin nhắn đang chọn trong kết quả tìm kiếm
+  useEffect(() => {
+    if (searchMatches.length > 0 && activeSearchIndex !== -1) {
+      const activeId = searchMatches[activeSearchIndex]?.id;
+      const element = document.getElementById(`msg-${activeId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [activeSearchIndex, searchMatches]);
+
+  const handlePrevSearch = () => {
+    if (searchMatches.length === 0) return;
+    setActiveSearchIndex(prev => (prev - 1 + searchMatches.length) % searchMatches.length);
+  };
+
+  const handleNextSearch = () => {
+    if (searchMatches.length === 0) return;
+    setActiveSearchIndex(prev => (prev + 1) % searchMatches.length);
+  };
+
+  // Trạng thái chuyển tiếp tin nhắn
+  const [forwardingMsg, setForwardingMsg] = useState(null);
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardSearchTerm, setForwardSearchTerm] = useState('');
+  const [selectedForwardConvs, setSelectedForwardConvs] = useState([]);
+
+  const handleSendForward = () => {
+    if (selectedForwardConvs.length === 0 || !forwardingMsg) return;
+    
+    selectedForwardConvs.forEach(convId => {
+      onSendMessage({
+        conversationId: convId,
+        type: forwardingMsg.type,
+        content: forwardingMsg.content,
+        metadata: forwardingMsg.metadata ? (typeof forwardingMsg.metadata === 'string' ? JSON.parse(forwardingMsg.metadata) : forwardingMsg.metadata) : null
+      });
+    });
+
+    setShowForwardModal(false);
+    setForwardingMsg(null);
+    setSelectedForwardConvs([]);
+    setForwardSearchTerm('');
+  };
+
   const messagesEndRef = useRef(null);
   const chatFeedRef = useRef(null);
   const touchTimeoutRef = useRef(null);
@@ -419,7 +648,7 @@ export default function ChatWindow({
       case 'voice':
         return (
           <div style={styles.voiceBox}>
-            <audio src={getFileUrl(msg.content)} controls style={styles.voiceAudio} />
+            <VoiceMessagePlayer audioUrl={getFileUrl(msg.content)} />
           </div>
         );
 
@@ -603,7 +832,13 @@ export default function ChatWindow({
   };
 
   return (
-    <div style={styles.container} className={`anim-fade ${className || ''}`}>
+    <div 
+      style={{
+        ...styles.container,
+        ...(wallpaper ? { background: wallpaper, backgroundImage: wallpaper } : {})
+      }} 
+      className={`anim-fade ${className || ''}`}
+    >
       {/* Top Header */}
       <div style={styles.header} className="glass">
         <div style={styles.headerInfo}>
@@ -626,6 +861,20 @@ export default function ChatWindow({
           </div>
         </div>
         <div style={styles.headerActions}>
+          <button 
+            title="Tìm kiếm tin nhắn" 
+            onClick={() => {
+              setShowSearch(prev => !prev);
+              if (showSearch) setSearchQuery('');
+            }} 
+            style={{
+              ...styles.headerBtn,
+              color: showSearch ? 'var(--primary)' : 'var(--text-primary)'
+            }} 
+            className="btn-interactive"
+          >
+            <FiSearch size={18} />
+          </button>
           {!isGroup && (
             <>
               <button title="Gọi thoại" onClick={() => onStartCall(false)} style={styles.headerBtn} className="btn-interactive">
@@ -641,6 +890,56 @@ export default function ChatWindow({
           </button>
         </div>
       </div>
+
+      {/* In-chat Search Bar */}
+      {showSearch && (
+        <div style={styles.searchBarContainer} className="glass-card anim-slide-down">
+          <FiSearch size={16} style={styles.searchBarIcon} />
+          <input 
+            type="text"
+            placeholder="Tìm từ khóa trong tin nhắn..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={styles.searchBarInput}
+            autoFocus
+          />
+          {searchQuery.trim() && (
+            <div style={styles.searchBarNav}>
+              <span style={styles.searchBarCount}>
+                {searchMatches.length > 0 ? `${activeSearchIndex + 1}/${searchMatches.length}` : '0 kết quả'}
+              </span>
+              <button 
+                onClick={handlePrevSearch} 
+                disabled={searchMatches.length <= 1}
+                style={styles.searchBarNavBtn}
+                className="btn-interactive"
+                title="Tin nhắn cũ hơn"
+              >
+                <FiChevronUp size={16} />
+              </button>
+              <button 
+                onClick={handleNextSearch} 
+                disabled={searchMatches.length <= 1}
+                style={styles.searchBarNavBtn}
+                className="btn-interactive"
+                title="Tin nhắn mới hơn"
+              >
+                <FiChevronDown size={16} />
+              </button>
+            </div>
+          )}
+          <button 
+            onClick={() => {
+              setShowSearch(false);
+              setSearchQuery('');
+            }} 
+            style={styles.searchBarCloseBtn}
+            className="btn-interactive"
+          >
+            <FiX size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Pinned Messages Banner */}
       {pinnedMessages.length > 0 && (
@@ -716,6 +1015,7 @@ export default function ChatWindow({
                   </div>
                 )}
                 <div 
+                  id={`msg-${msg.id}`}
                   className="message-row-hover"
                   style={{
                     ...styles.messageRow,
@@ -741,7 +1041,8 @@ export default function ChatWindow({
                     
                     <div style={{
                       ...styles.bubbleWrapper,
-                      flexDirection: isMe ? 'row-reverse' : 'row'
+                      flexDirection: isMe ? 'row-reverse' : 'row',
+                      alignSelf: isMe ? 'flex-end' : 'flex-start'
                     }}>
                       <div 
                         className={`chat-message-bubble ${
@@ -849,13 +1150,20 @@ export default function ChatWindow({
                         style={{
                           ...styles.messageBubble,
                           background: msg.isRecalled ? 'rgba(255,255,255,0.02)' : (msg.type === 'image' || msg.type === 'sticker') ? 'transparent' : ['call', 'task'].includes(msg.type) ? 'var(--bg-glass-active)' : undefined,
-                          border: (msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : ['call', 'task'].includes(msg.type) ? '1px solid var(--border-color)' : undefined,
-                          boxShadow: (msg.type === 'image' || msg.type === 'sticker' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? 'none' : undefined,
+                          border: searchMatches.some(m => m.id === msg.id)
+                            ? '1px solid #f59e0b'
+                            : ((msg.type === 'image' || msg.type === 'sticker') && !msg.isRecalled ? 'none' : ['call', 'task'].includes(msg.type) ? '1px solid var(--border-color)' : undefined),
+                          boxShadow: searchMatches.some(m => m.id === msg.id)
+                            ? (searchMatches[activeSearchIndex]?.id === msg.id
+                                ? '0 0 0 3px #f59e0b, 0 4px 14px rgba(245, 158, 11, 0.4)'
+                                : '0 0 0 2px rgba(245, 158, 11, 0.4)')
+                            : ((msg.type === 'image' || msg.type === 'sticker' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? 'none' : undefined),
                           padding: (msg.type === 'image' || msg.type === 'sticker' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? '0' : '10px 14px',
                           color: ['call', 'task'].includes(msg.type) ? 'var(--text-primary)' : isMe ? '#ffffff' : 'var(--text-primary)',
                           borderRadius: ['call', 'task'].includes(msg.type) ? '16px' : isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
                           cursor: !isGroupEnd ? 'pointer' : 'default',
                           opacity: msg.status === 'sending' ? 0.6 : 1,
+                          transform: searchMatches[activeSearchIndex]?.id === msg.id ? 'scale(1.03)' : 'none',
                           transition: 'all 0.25s ease'
                         }}
                       >
@@ -898,7 +1206,8 @@ export default function ChatWindow({
                               return (
                                 <button 
                                   key={emoji} 
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    spawnReactionBurst(emoji, e.clientX, e.clientY);
                                     onToggleReaction(msg.id, emoji);
                                     setActivePopoverMsgId(null);
                                   }}
@@ -948,6 +1257,17 @@ export default function ChatWindow({
                             >
                               {msg.isPinned ? 'Bỏ ghim' : 'Ghim'}
                             </button>
+                            <button 
+                              onClick={() => {
+                                setForwardingMsg(msg);
+                                setShowForwardModal(true);
+                                setActivePopoverMsgId(null);
+                              }}
+                              style={styles.popoverActionItem}
+                              className="btn-interactive"
+                            >
+                              Chuyển tiếp
+                            </button>
                             {isMe && (
                               <button 
                                 onClick={() => {
@@ -960,6 +1280,18 @@ export default function ChatWindow({
                                 className="btn-interactive"
                               >
                                 Gỡ/Thu hồi
+                              </button>
+                            )}
+                            {isMe && !msg.isRecalled && msg.type === 'text' && (
+                              <button 
+                                onClick={() => {
+                                  setEditingMsg(msg);
+                                  setActivePopoverMsgId(null);
+                                }}
+                                style={styles.popoverActionItem}
+                                className="btn-interactive"
+                              >
+                                Sửa tin nhắn
                               </button>
                             )}
                             <button 
@@ -1041,7 +1373,139 @@ export default function ChatWindow({
         socket={onSendMessage ? true : false} // Socket signal status
         replyingTo={replyingTo}
         setReplyingTo={setReplyingTo}
+        editingMsg={editingMsg}
+        setEditingMsg={setEditingMsg}
+        onEditMessage={onEditMessage}
       />
+
+      {/* Forward Modal */}
+      {showForwardModal && forwardingMsg && (
+        <div style={styles.modalOverlay} onClick={() => { setShowForwardModal(false); setSelectedForwardConvs([]); }}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()} className="glass-card anim-scale-in">
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-primary)' }}>Chuyển tiếp tin nhắn</h3>
+              <button 
+                onClick={() => { setShowForwardModal(false); setSelectedForwardConvs([]); }} 
+                style={styles.modalCloseBtn} 
+                className="btn-interactive"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{
+                padding: '8px 12px',
+                background: 'rgba(255,255,255,0.03)',
+                borderRadius: '10px',
+                border: '1px dashed var(--border-color)',
+                fontSize: '0.8rem',
+                color: 'var(--text-secondary)',
+                marginBottom: '8px',
+                maxHeight: '60px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                <strong>Nội dung: </strong>
+                {forwardingMsg.type === 'text' ? forwardingMsg.content : `[${forwardingMsg.type.toUpperCase()}]`}
+              </div>
+              
+              <input 
+                type="text"
+                placeholder="Tìm phòng chat..."
+                value={forwardSearchTerm}
+                onChange={(e) => setForwardSearchTerm(e.target.value)}
+                style={styles.modalInput}
+              />
+              
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                marginTop: '8px',
+                paddingRight: '4px'
+              }} className="scroll-optimized">
+                {conversations
+                  .filter(conv => {
+                    if (conv.isGroup) {
+                      return conv.name?.toLowerCase().includes(forwardSearchTerm.toLowerCase());
+                    } else {
+                      const other = conv.members ? conv.members.find(m => m.user.id !== user.id) : null;
+                      const name = other?.nickname || other?.user.displayName || 'Người dùng';
+                      return name?.toLowerCase().includes(forwardSearchTerm.toLowerCase());
+                    }
+                  })
+                  .map(conv => {
+                    let name = 'Người dùng';
+                    if (conv.isGroup) {
+                      name = conv.name;
+                    } else {
+                      const other = conv.members ? conv.members.find(m => m.user.id !== user.id) : null;
+                      name = other?.nickname || other?.user.displayName || 'Người dùng';
+                    }
+                    const isChecked = selectedForwardConvs.includes(conv.id);
+                    return (
+                      <div 
+                        key={conv.id}
+                        onClick={() => {
+                          setSelectedForwardConvs(prev => 
+                            prev.includes(conv.id) 
+                              ? prev.filter(id => id !== conv.id) 
+                              : [...prev, conv.id]
+                          );
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 12px',
+                          borderRadius: '10px',
+                          background: isChecked ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.02)',
+                          border: isChecked ? '1px solid var(--primary)' : '1px solid transparent',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        className="btn-interactive"
+                      >
+                        <span style={{ fontSize: '0.85rem', color: isChecked ? 'var(--primary)' : 'var(--text-primary)', fontWeight: isChecked ? '600' : 'normal' }}>
+                          {name}
+                        </span>
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          readOnly
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button 
+                onClick={() => { setShowForwardModal(false); setSelectedForwardConvs([]); }} 
+                style={styles.btnSecondary}
+                className="btn-interactive"
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={handleSendForward} 
+                disabled={selectedForwardConvs.length === 0}
+                style={{
+                  ...styles.btnPrimary,
+                  opacity: selectedForwardConvs.length === 0 ? 0.5 : 1,
+                  cursor: selectedForwardConvs.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+                className="btn-interactive"
+              >
+                Gửi ({selectedForwardConvs.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1294,7 +1758,9 @@ const styles = {
     alignItems: 'center'
   },
   voiceBox: {
-    width: '240px'
+    width: '240px',
+    padding: '4px',
+    boxSizing: 'border-box'
   },
   voiceAudio: {
     width: '100%',
@@ -1616,5 +2082,194 @@ const styles = {
     cursor: 'pointer',
     textAlign: 'center',
     transition: 'all 0.15s ease'
+  },
+  voicePlayerContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    minWidth: '220px',
+    maxWidth: '280px',
+    padding: '6px 8px',
+    boxSizing: 'border-box'
+  },
+  voicePlayBtn: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    backgroundColor: 'var(--primary)',
+    color: '#ffffff',
+    border: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    flexShrink: 0
+  },
+  voiceTimeline: {
+    flex: 1,
+    height: '24px',
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    cursor: 'pointer'
+  },
+  voiceWaveContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '3px',
+    width: '100%',
+    height: '100%'
+  },
+  voiceWaveBar: {
+    flex: 1,
+    borderRadius: '2px',
+    transition: 'all 0.1s ease'
+  },
+  voiceDuration: {
+    fontSize: '0.75rem',
+    color: 'var(--text-secondary)',
+    fontWeight: '500',
+    minWidth: '35px',
+    textAlign: 'right',
+    flexShrink: 0
+  },
+  searchBarContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '8px 16px',
+    background: 'var(--bg-glass-active)',
+    borderBottom: '1px solid var(--border-color)',
+    gap: '12px',
+    position: 'relative',
+    zIndex: 9
+  },
+  searchBarIcon: {
+    color: 'var(--text-secondary)',
+    flexShrink: 0
+  },
+  searchBarInput: {
+    flex: 1,
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-primary)',
+    fontSize: '0.88rem',
+    outline: 'none'
+  },
+  searchBarNav: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexShrink: 0
+  },
+  searchBarCount: {
+    fontSize: '0.78rem',
+    color: 'var(--text-secondary)',
+    minWidth: '50px',
+    textAlign: 'center'
+  },
+  searchBarNavBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    padding: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    borderRadius: '4px',
+    opacity: 0.8
+  },
+  searchBarCloseBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+    padding: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    borderRadius: '50%'
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    background: 'rgba(0,0,0,0.4)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000
+  },
+  modalContent: {
+    width: 'calc(100% - 32px)',
+    maxWidth: '380px',
+    padding: '24px',
+    background: 'var(--bg-glass-active)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '20px',
+    boxShadow: 'var(--shadow-lg)'
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '20px'
+  },
+  modalCloseBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-primary)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px'
+  },
+  modalBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
+  },
+  modalInput: {
+    padding: '10px 12px',
+    borderRadius: '12px',
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border-color)',
+    color: 'var(--text-primary)',
+    fontSize: '0.88rem',
+    outline: 'none',
+    transition: 'all 0.2s ease',
+    width: '100%',
+    boxSizing: 'border-box'
+  },
+  modalFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '20px'
+  },
+  btnPrimary: {
+    padding: '10px 16px',
+    borderRadius: '12px',
+    background: 'var(--primary-gradient)',
+    color: 'white',
+    border: 'none',
+    fontWeight: '600',
+    cursor: 'pointer',
+    fontSize: '0.85rem'
+  },
+  btnSecondary: {
+    padding: '10px 16px',
+    borderRadius: '12px',
+    background: 'var(--bg-surface)',
+    color: 'var(--text-primary)',
+    border: '1px solid var(--border-color)',
+    fontWeight: '600',
+    cursor: 'pointer',
+    fontSize: '0.85rem'
   }
 };

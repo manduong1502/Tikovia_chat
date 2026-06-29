@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FiX, FiEdit3, FiSearch, FiImage, FiFileText, FiLink, FiDownload, FiChevronLeft, FiUser, FiBell, FiCheckSquare, FiClock } from 'react-icons/fi';
 import Avatar from './Avatar';
 
@@ -41,6 +41,7 @@ export default function RightSidebar({
   socket,
   onClose,
   onUpdateNickname,
+  onUpdateWallpaper,
   mobileActiveView,
   setMobileActiveView,
   className,
@@ -60,6 +61,141 @@ export default function RightSidebar({
   const [searchMsgQuery, setSearchMsgQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearchingMsg, setIsSearchingMsg] = useState(false);
+  const [showWallpaperSelector, setShowWallpaperSelector] = useState(false);
+
+  // Quản lý Nhóm
+  const isGroupCreator = conversation.isGroup && conversation.createdById === user.id;
+
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [editingGroupNameVal, setEditingGroupNameVal] = useState('');
+  const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [memberSearchResults, setMemberSearchResults] = useState([]);
+  const [selectedNewMemberIds, setSelectedNewMemberIds] = useState([]);
+  const [isUploadingGroupAvatar, setIsUploadingGroupAvatar] = useState(false);
+
+  const groupAvatarInputRef = useRef(null);
+
+  // Cập nhật tên nhóm
+  const handleUpdateGroupName = async () => {
+    if (!editingGroupNameVal.trim() || editingGroupNameVal.trim() === conversation.name) {
+      setIsEditingGroupName(false);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/chat/conversations/${conversation.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: editingGroupNameVal.trim() })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Cập nhật tên nhóm thất bại');
+      }
+      setIsEditingGroupName(false);
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  // Cập nhật ảnh nhóm
+  const handleGroupAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsUploadingGroupAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await fetch(`${API_URL}/chat/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      if (!uploadRes.ok) throw new Error('Không thể tải ảnh đại diện lên');
+      const uploadData = await uploadRes.json();
+      
+      const updateRes = await fetch(`${API_URL}/chat/conversations/${conversation.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ avatarUrl: uploadData.url })
+      });
+      if (!updateRes.ok) throw new Error('Không thể cập nhật ảnh nhóm');
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setIsUploadingGroupAvatar(false);
+    }
+  };
+
+  // Tìm kiếm người dùng mới để thêm vào nhóm
+  const handleSearchNewMembers = async () => {
+    if (!memberSearchQuery.trim()) {
+      setMemberSearchResults([]);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/auth/search?query=${encodeURIComponent(memberSearchQuery)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const users = await res.json();
+        // Lọc những người đã là thành viên nhóm
+        const currentMemberIds = conversation.members.map(m => m.user.id);
+        const filtered = users.filter(u => !currentMemberIds.includes(u.id));
+        setMemberSearchResults(filtered);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Xác nhận thêm thành viên
+  const handleAddMembersSubmit = async () => {
+    if (selectedNewMemberIds.length === 0) return;
+    try {
+      const res = await fetch(`${API_URL}/chat/conversations/${conversation.id}/members`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ userIds: selectedNewMemberIds })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Thêm thành viên thất bại');
+      }
+      setShowAddMembersModal(false);
+      setMemberSearchQuery('');
+      setMemberSearchResults([]);
+      setSelectedNewMemberIds([]);
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  // Mời thành viên ra khỏi nhóm (Kick)
+  const handleKickMember = async (targetUserId, targetDisplayName) => {
+    if (!confirm(`Bạn có chắc chắn muốn mời thành viên "${targetDisplayName}" ra khỏi nhóm?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/chat/conversations/${conversation.id}/members/${targetUserId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Không thể mời thành viên ra khỏi nhóm');
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  };
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
@@ -258,8 +394,80 @@ export default function RightSidebar({
       <div style={styles.content} className="mobile-list-padding">
         {/* Info Card */}
         <div style={styles.infoCard}>
-          <Avatar url={getChatAvatar()} name={getChatTitle()} size={70} style={{ margin: '0 auto 12px auto' }} />
-          <h4 style={styles.titleName}>{getChatTitle()}</h4>
+          {conversation.isGroup && isGroupCreator ? (
+            <div 
+              style={{ position: 'relative', cursor: isUploadingGroupAvatar ? 'not-allowed' : 'pointer', margin: '0 auto 12px auto', width: '70px', height: '70px' }} 
+              onClick={() => !isUploadingGroupAvatar && groupAvatarInputRef.current?.click()}
+              title={isUploadingGroupAvatar ? 'Đang tải ảnh...' : 'Đổi ảnh đại diện nhóm'}
+              className="btn-interactive"
+            >
+              <Avatar url={getChatAvatar()} name={getChatTitle()} size={70} />
+              {isUploadingGroupAvatar ? (
+                <div style={{ ...styles.avatarCameraOverlay, background: 'var(--text-secondary)' }}>
+                  <span style={{ fontSize: '0.65rem', color: '#fff', fontWeight: 'bold' }}>...</span>
+                </div>
+              ) : (
+                <div style={styles.avatarCameraOverlay}>
+                  <FiImage size={14} style={{ color: '#fff' }} />
+                </div>
+              )}
+              <input 
+                type="file" 
+                ref={groupAvatarInputRef} 
+                onChange={handleGroupAvatarChange} 
+                style={{ display: 'none' }} 
+                accept="image/*"
+                disabled={isUploadingGroupAvatar}
+              />
+            </div>
+          ) : (
+            <Avatar url={getChatAvatar()} name={getChatTitle()} size={70} style={{ margin: '0 auto 12px auto' }} />
+          )}
+
+          {isEditingGroupName ? (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+              <input
+                type="text"
+                value={editingGroupNameVal}
+                onChange={(e) => setEditingGroupNameVal(e.target.value)}
+                className="input-premium"
+                style={{ padding: '6px 10px', fontSize: '0.85rem', width: '150px' }}
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleUpdateGroupName()}
+              />
+              <button 
+                onClick={handleUpdateGroupName} 
+                style={{ ...styles.saveNicknameBtn, padding: '6px 10px' }}
+                className="btn-interactive"
+              >
+                Lưu
+              </button>
+              <button 
+                onClick={() => setIsEditingGroupName(false)} 
+                style={{ ...styles.cancelNicknameBtn, padding: '4px' }}
+                className="btn-interactive"
+              >
+                Hủy
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+              <h4 style={styles.titleName}>{getChatTitle()}</h4>
+              {conversation.isGroup && isGroupCreator && (
+                <button
+                  onClick={() => {
+                    setIsEditingGroupName(true);
+                    setEditingGroupNameVal(conversation.name || '');
+                  }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                  title="Sửa tên nhóm"
+                  className="btn-interactive"
+                >
+                  <FiEdit3 size={14} />
+                </button>
+              )}
+            </div>
+          )}
           <span style={styles.titleSub}>{conversation.isGroup ? 'Cuộc hội thoại nhóm' : 'Chat cá nhân'}</span>
         </div>
 
@@ -273,7 +481,7 @@ export default function RightSidebar({
             <div style={styles.actionCircle}><FiUser size={18} /></div>
             <span style={styles.actionLabel}>Trang cá nhân</span>
           </div>
-          <div style={styles.actionItem} className="btn-interactive">
+          <div style={styles.actionItem} onClick={() => setShowWallpaperSelector(prev => !prev)} className="btn-interactive">
             <div style={styles.actionCircle}><FiImage size={18} /></div>
             <span style={styles.actionLabel}>Đổi hình nền</span>
           </div>
@@ -282,6 +490,66 @@ export default function RightSidebar({
             <span style={styles.actionLabel}>Tắt thông báo</span>
           </div>
         </div>
+
+        {/* 1.0 Bộ chọn hình nền (Chat Wallpaper) */}
+        {showWallpaperSelector && (
+          <div style={styles.section} className="glass-card anim-scale-in">
+            <div style={{ ...styles.sectionHeader, justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FiImage size={16} style={{ color: 'var(--primary)' }} />
+                <span>Hình nền phòng chat</span>
+              </div>
+              <button 
+                onClick={() => setShowWallpaperSelector(false)} 
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                className="btn-interactive"
+              >
+                Đóng
+              </button>
+            </div>
+            
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '8px',
+              marginTop: '6px'
+            }}>
+              {[
+                { name: 'Mặc định', value: '' },
+                { name: 'Sunset', value: 'linear-gradient(135deg, #1e1b4b 0%, #311042 100%)' },
+                { name: 'Emerald', value: 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)' },
+                { name: 'Ocean', value: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)' },
+                { name: 'Midnight', value: 'linear-gradient(135deg, #09090b 0%, #450a0a 100%)' },
+                { name: 'Aurora', value: 'linear-gradient(135deg, #111827 0%, #1f2937 50%, #111827 100%)' }
+              ].map(wp => (
+                <div
+                  key={wp.name}
+                  onClick={() => onUpdateWallpaper && onUpdateWallpaper(wp.value)}
+                  style={{
+                    height: '50px',
+                    borderRadius: '8px',
+                    background: wp.value || 'var(--bg-chat-gradient)',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '0.72rem',
+                    fontWeight: '600',
+                    color: '#ffffff',
+                    textAlign: 'center',
+                    boxShadow: 'var(--shadow-sm)',
+                    textShadow: '0 1px 4px rgba(0,0,0,0.6)'
+                  }}
+                  className="btn-interactive"
+                  title={wp.name}
+                >
+                  {wp.name}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 1. Tìm kiếm tin nhắn */}
         <div style={styles.section} className="glass-card">
@@ -327,9 +595,20 @@ export default function RightSidebar({
 
         {/* 2. Thành viên & Đổi biệt danh */}
         <div style={styles.section} className="glass-card">
-          <div style={styles.sectionHeader}>
-            <FiEdit3 size={16} style={{ color: 'var(--primary)' }} />
-            <span>Thành viên & Biệt danh</span>
+          <div style={{ ...styles.sectionHeader, justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FiEdit3 size={16} style={{ color: 'var(--primary)' }} />
+              <span>Thành viên ({conversation.members.length})</span>
+            </div>
+            {conversation.isGroup && (
+              <button 
+                onClick={() => setShowAddMembersModal(true)} 
+                style={styles.addMemberHeaderBtn}
+                className="btn-interactive"
+              >
+                + Thêm
+              </button>
+            )}
           </div>
           <div style={styles.memberList}>
             {conversation.members.map(member => (
@@ -339,6 +618,9 @@ export default function RightSidebar({
                   <div style={styles.memberNameWrapper}>
                     <span style={styles.memberName}>{member.user.displayName}</span>
                     {member.nickname && <span style={styles.nicknameTag}>({member.nickname})</span>}
+                    {member.user.id === conversation.createdById && (
+                      <span style={styles.creatorBadge}>Trưởng nhóm</span>
+                    )}
                   </div>
                   {isEditingNickname && editingUserId === member.user.id ? (
                     <div style={styles.editNicknameBox}>
@@ -354,17 +636,28 @@ export default function RightSidebar({
                       <button onClick={() => setIsEditingNickname(false)} style={styles.cancelNicknameBtn} className="btn-interactive">Hủy</button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => {
-                        setIsEditingNickname(true);
-                        setEditingUserId(member.user.id);
-                        setNewNickname(member.nickname || '');
-                      }}
-                      style={styles.editNicknameBtn}
-                      className="btn-interactive"
-                    >
-                      Sửa biệt danh
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        onClick={() => {
+                          setIsEditingNickname(true);
+                          setEditingUserId(member.user.id);
+                          setNewNickname(member.nickname || '');
+                        }}
+                        style={styles.editNicknameBtn}
+                        className="btn-interactive"
+                      >
+                        Sửa biệt danh
+                      </button>
+                      {isGroupCreator && member.user.id !== user.id && (
+                        <button
+                          onClick={() => handleKickMember(member.user.id, member.user.displayName)}
+                          style={{ ...styles.editNicknameBtn, color: 'var(--danger)', textDecoration: 'none' }}
+                          className="btn-interactive"
+                        >
+                          • Mời ra khỏi nhóm
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -574,6 +867,122 @@ export default function RightSidebar({
             )}
           </div>
         </div>
+      {/* Modal Thêm thành viên */}
+      {showAddMembersModal && (
+        <div style={styles.modalOverlay} onClick={() => { setShowAddMembersModal(false); setMemberSearchResults([]); setSelectedNewMemberIds([]); }}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()} className="glass-card anim-scale-in">
+            <div style={styles.modalHeader}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-primary)' }}>Thêm thành viên</h3>
+              <button 
+                onClick={() => { setShowAddMembersModal(false); setMemberSearchResults([]); setSelectedNewMemberIds([]); }} 
+                style={styles.modalCloseBtn}
+                className="btn-interactive"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            
+            <div style={styles.modalBody}>
+              <div style={styles.searchBox}>
+                <input 
+                  type="text"
+                  placeholder="Tìm theo tên, tài khoản hoặc SĐT..."
+                  value={memberSearchQuery}
+                  onChange={(e) => setMemberSearchQuery(e.target.value)}
+                  className="input-premium"
+                  style={{ flex: 1, padding: '8px 10px', fontSize: '0.8rem' }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchNewMembers()}
+                />
+                <button onClick={handleSearchNewMembers} style={styles.searchBtn} className="btn-interactive">Tìm</button>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                maxHeight: '220px',
+                overflowY: 'auto',
+                marginTop: '10px',
+                paddingRight: '4px'
+              }} className="scroll-optimized">
+                {memberSearchResults.length === 0 ? (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center', padding: '12px 0' }}>
+                    {memberSearchQuery ? 'Không tìm thấy kết quả phù hợp' : 'Hãy nhập từ khóa để tìm kiếm'}
+                  </div>
+                ) : (
+                  memberSearchResults.map(u => {
+                    const isChecked = selectedNewMemberIds.includes(u.id);
+                    return (
+                      <div 
+                        key={u.id}
+                        onClick={() => {
+                          setSelectedNewMemberIds(prev => 
+                            prev.includes(u.id) 
+                              ? prev.filter(id => id !== u.id) 
+                              : [...prev, u.id]
+                          );
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          background: isChecked ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.02)',
+                          border: isChecked ? '1px solid var(--primary)' : '1px solid transparent',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        className="btn-interactive"
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <Avatar url={u.avatarUrl} name={u.displayName} size={30} />
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: '600' }}>
+                              {u.displayName}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                              @{u.username}
+                            </span>
+                          </div>
+                        </div>
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          readOnly
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div style={styles.modalFooter}>
+              <button 
+                onClick={() => { setShowAddMembersModal(false); setMemberSearchResults([]); setSelectedNewMemberIds([]); }} 
+                style={styles.btnSecondary}
+                className="btn-interactive"
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={handleAddMembersSubmit} 
+                disabled={selectedNewMemberIds.length === 0}
+                style={{
+                  ...styles.btnPrimary,
+                  opacity: selectedNewMemberIds.length === 0 ? 0.5 : 1,
+                  cursor: selectedNewMemberIds.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+                className="btn-interactive"
+              >
+                Xác nhận ({selectedNewMemberIds.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );
@@ -1071,5 +1480,110 @@ const styles = {
     fontSize: '0.7rem',
     fontWeight: '600',
     cursor: 'pointer'
+  },
+  addMemberHeaderBtn: {
+    background: 'var(--primary-gradient)',
+    color: '#ffffff',
+    border: 'none',
+    padding: '4px 10px',
+    borderRadius: '8px',
+    fontSize: '0.72rem',
+    fontWeight: '600',
+    cursor: 'pointer'
+  },
+  avatarCameraOverlay: {
+    position: 'absolute',
+    bottom: '0px',
+    right: '0px',
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    backgroundColor: 'var(--primary)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+    border: '2px solid var(--bg-secondary)'
+  },
+  creatorBadge: {
+    fontSize: '0.65rem',
+    color: 'var(--secondary)',
+    background: 'var(--secondary-light)',
+    padding: '2px 6px',
+    borderRadius: '6px',
+    fontWeight: '700',
+    marginLeft: '6px'
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    background: 'rgba(0,0,0,0.4)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000
+  },
+  modalContent: {
+    width: 'calc(100% - 32px)',
+    maxWidth: '350px',
+    padding: '20px',
+    background: 'var(--bg-glass-active)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '20px',
+    boxShadow: 'var(--shadow-lg)'
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px'
+  },
+  modalCloseBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--text-primary)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px'
+  },
+  modalBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px'
+  },
+  modalFooter: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '16px'
+  },
+  btnPrimary: {
+    padding: '8px 14px',
+    borderRadius: '10px',
+    background: 'var(--primary-gradient)',
+    color: 'white',
+    border: 'none',
+    fontWeight: '600',
+    cursor: 'pointer',
+    fontSize: '0.8rem'
+  },
+  btnSecondary: {
+    padding: '8px 14px',
+    borderRadius: '10px',
+    background: 'var(--bg-surface)',
+    color: 'var(--text-primary)',
+    border: '1px solid var(--border-color)',
+    fontWeight: '600',
+    cursor: 'pointer',
+    fontSize: '0.8rem'
   }
 };

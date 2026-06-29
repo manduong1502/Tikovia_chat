@@ -2,7 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import { FiSmile, FiMoreHorizontal, FiMic, FiImage, FiSend, FiPaperclip, FiClock, FiMapPin, FiX, FiCheckSquare } from 'react-icons/fi';
 import stickerPacks from '../stickers.json';
 
-export default function ChatInput({ token, conversation, onSendMessage, replyingTo, setReplyingTo }) {
+export default function ChatInput({ 
+  token, 
+  conversation, 
+  onSendMessage, 
+  replyingTo, 
+  setReplyingTo,
+  editingMsg = null,
+  setEditingMsg = null,
+  onEditMessage = null
+}) {
   const [text, setText] = useState('');
   const [showStickers, setShowStickers] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -53,6 +62,14 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
       textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
     }
   }, [text]);
+
+  // Đồng bộ nội dung tin nhắn khi chuẩn bị sửa đổi
+  useEffect(() => {
+    if (editingMsg) {
+      setText(editingMsg.content || '');
+      inputRef.current?.focus();
+    }
+  }, [editingMsg]);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -315,15 +332,24 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
     }
   };
 
-  // Gửi tin nhắn văn bản
+  // Gửi tin nhắn văn bản / Sửa tin nhắn
   const handleSendText = () => {
     if (!text.trim()) return;
-    onSendMessage({
-      conversationId: conversation.id,
-      type: 'text',
-      content: text,
-      replyToId: replyingTo?.id || null
-    });
+    
+    if (editingMsg) {
+      if (onEditMessage) {
+        onEditMessage(editingMsg.id, text);
+      }
+      if (setEditingMsg) setEditingMsg(null);
+    } else {
+      onSendMessage({
+        conversationId: conversation.id,
+        type: 'text',
+        content: text,
+        replyToId: replyingTo?.id || null
+      });
+    }
+    
     setText('');
     setShowMentions(false);
     if (setReplyingTo) setReplyingTo(null);
@@ -513,6 +539,28 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
 
   return (
     <div style={styles.container} className="glass">
+      {/* 0. Edit Preview Bar */}
+      {editingMsg && (
+        <div style={styles.replyPreviewBar}>
+          <div style={styles.replyPreviewInfo}>
+            <span style={styles.replyPreviewTitle}>Đang sửa tin nhắn</span>
+            <span style={styles.replyPreviewContent}>
+              {editingMsg.content}
+            </span>
+          </div>
+          <button 
+            onClick={() => {
+              setEditingMsg(null);
+              setText('');
+            }} 
+            style={styles.replyPreviewCloseBtn} 
+            className="btn-interactive"
+          >
+            <FiX size={16} />
+          </button>
+        </div>
+      )}
+
       {/* 0. Reply Preview Bar */}
       {replyingTo && (
         <div style={styles.replyPreviewBar}>
@@ -649,12 +697,22 @@ export default function ChatInput({ token, conversation, onSendMessage, replying
 
       {/* 4. Khung Ghi âm đang hoạt động */}
       {isRecording ? (
-        <div style={styles.recordingOverlay}>
-          <span style={styles.recordDot}></span>
-          <span style={styles.recordTime}>Đang ghi âm: {formatTime(recordingDuration)}</span>
+        <div style={styles.recordingOverlay} className="glass-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={styles.recordDot} className="pulse-red-animation"></span>
+            <span style={styles.recordTime}>Đang ghi âm: {formatTime(recordingDuration)}</span>
+          </div>
+          {/* Waveform animation */}
+          <div style={{ display: 'flex', gap: '3px', alignItems: 'center', marginRight: 'auto', marginLeft: '16px' }}>
+            <div className="wave-bar" style={{ height: '14px', width: '3px', backgroundColor: 'var(--danger)', borderRadius: '2px' }} />
+            <div className="wave-bar" style={{ height: '8px', width: '3px', backgroundColor: 'var(--danger)', borderRadius: '2px' }} />
+            <div className="wave-bar" style={{ height: '18px', width: '3px', backgroundColor: 'var(--danger)', borderRadius: '2px' }} />
+            <div className="wave-bar" style={{ height: '12px', width: '3px', backgroundColor: 'var(--danger)', borderRadius: '2px' }} />
+            <div className="wave-bar" style={{ height: '6px', width: '3px', backgroundColor: 'var(--danger)', borderRadius: '2px' }} />
+          </div>
           <div style={styles.recordActions}>
-            <button onClick={() => stopRecording(false)} style={styles.recordCancelBtn}>Hủy</button>
-            <button onClick={() => stopRecording(true)} style={styles.recordSendBtn}>Gửi</button>
+            <button onClick={() => stopRecording(false)} style={styles.recordCancelBtn} className="btn-interactive">Hủy</button>
+            <button onClick={() => stopRecording(true)} style={styles.recordSendBtn} className="btn-interactive">Gửi</button>
           </div>
         </div>
       ) : (

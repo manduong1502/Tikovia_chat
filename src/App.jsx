@@ -361,6 +361,11 @@ export default function App() {
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isRecalled: true, content: null, metadata: null, isPinned: false, pinnedBy: null, pinnedAt: null } : m));
     });
 
+    // Lắng nghe tin nhắn bị sửa đổi
+    newSocket.on('message-edited', ({ messageId, content }) => {
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content } : m));
+    });
+
     // Lắng nghe cập nhật trạng thái công việc
     newSocket.on('task-status-updated', ({ taskId, status, assigneeId, assigneeName }) => {
       setMessages(prev => prev.map(m => {
@@ -415,6 +420,14 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setConversations(data);
+
+        // Đồng bộ thông tin cuộc hội thoại hiện tại nếu có cập nhật mới (ảnh, tên, thành viên...)
+        if (activeConversationRef.current) {
+          const latestActive = data.find(c => c.id === activeConversationRef.current.id);
+          if (latestActive) {
+            setActiveConversation(latestActive);
+          }
+        }
 
         // Cache danh sách cuộc trò chuyện để xem offline
         localStorage.setItem('chat_conversations_cache', JSON.stringify(data));
@@ -676,6 +689,18 @@ export default function App() {
     }
   }, [token]);
 
+  const [activeWallpaper, setActiveWallpaper] = useState('');
+
+  // Đồng bộ hình nền lưu trữ cho phòng chat đang chọn
+  useEffect(() => {
+    if (activeConversation) {
+      const saved = localStorage.getItem(`chat_wallpaper_${activeConversation.id}`) || '';
+      setActiveWallpaper(saved);
+    } else {
+      setActiveWallpaper('');
+    }
+  }, [activeConversation]);
+
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
 
@@ -788,8 +813,10 @@ export default function App() {
       ...messageData
     };
 
-    // Hiển thị ngay lập tức trên giao diện
-    setMessages(prev => [...prev, fullMessage]);
+    // Hiển thị ngay lập tức trên giao diện nếu tin nhắn thuộc cuộc trò chuyện đang xem
+    if (activeConversationRef.current && messageData.conversationId === activeConversationRef.current.id) {
+      setMessages(prev => [...prev, fullMessage]);
+    }
 
     if (isOnline && socket && socket.connected) {
       // Online gửi qua socket
@@ -838,6 +865,17 @@ export default function App() {
         messageId,
         conversationId: activeConversation.id,
         userId: user.id
+      });
+    }
+  };
+
+  // Sửa tin nhắn qua socket
+  const handleEditMessage = (messageId, newContent) => {
+    if (socket && activeConversation) {
+      socket.emit('edit-message', {
+        messageId,
+        content: newContent,
+        conversationId: activeConversation.id
       });
     }
   };
@@ -1362,12 +1400,15 @@ export default function App() {
             user={user}
             token={token}
             conversation={activeConversation}
+            conversations={conversations}
+            wallpaper={activeWallpaper}
             messages={messages}
             typingUsers={typingUsers}
             onSendMessage={handleSendMessage}
             onPinMessage={handlePinMessage}
             onToggleReaction={handleToggleReaction}
             onRecallMessage={handleRecallMessage}
+            onEditMessage={handleEditMessage}
             onDeleteMessage={handleDeleteMessageForMe}
             onStartCall={handleStartCall}
             toggleRightSidebar={() => {
@@ -1402,6 +1443,16 @@ export default function App() {
               setMobileActiveView('chat');
             }}
             onUpdateNickname={handleUpdateNickname}
+            onUpdateWallpaper={(val) => {
+              setActiveWallpaper(val);
+              if (activeConversation) {
+                if (val) {
+                  localStorage.setItem(`chat_wallpaper_${activeConversation.id}`, val);
+                } else {
+                  localStorage.removeItem(`chat_wallpaper_${activeConversation.id}`);
+                }
+              }
+            }}
             mobileActiveView={mobileActiveView}
             setMobileActiveView={setMobileActiveView}
             className={mobileActiveView === 'options' ? 'mobile-show-options' : 'mobile-hide-options'}
