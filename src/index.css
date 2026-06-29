@@ -569,25 +569,23 @@ input, textarea, select, [contenteditable="true"] {
 
 /* Grouped Message Border Radius Tweaks */
 .bubble-group-received-start {
-  border-bottom-left-radius: 4px !important;
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-md) 4px !important;
 }
 .bubble-group-received-middle {
-  border-top-left-radius: 4px !important;
-  border-bottom-left-radius: 4px !important;
+  border-radius: 4px var(--radius-md) var(--radius-md) 4px !important;
 }
 .bubble-group-received-end {
-  border-top-left-radius: 4px !important;
+  border-radius: 4px var(--radius-md) var(--radius-md) var(--radius-md) !important;
 }
 
 .bubble-group-sent-start {
-  border-bottom-right-radius: 4px !important;
+  border-radius: var(--radius-md) var(--radius-md) 4px var(--radius-md) !important;
 }
 .bubble-group-sent-middle {
-  border-top-right-radius: 4px !important;
-  border-bottom-right-radius: 4px !important;
+  border-radius: var(--radius-md) 4px 4px var(--radius-md) !important;
 }
 .bubble-group-sent-end {
-  border-top-right-radius: 4px !important;
+  border-radius: var(--radius-md) 4px var(--radius-md) var(--radius-md) !important;
 }
 
 .anim-scale-in {

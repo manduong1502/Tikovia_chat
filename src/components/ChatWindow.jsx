@@ -1321,7 +1321,7 @@ export default function ChatWindow({
                             : ((msg.type === 'image' || msg.type === 'sticker' || msg.type === 'file' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? 'none' : undefined),
                           padding: (msg.type === 'image' || msg.type === 'sticker' || msg.type === 'file' || ['call', 'task'].includes(msg.type)) && !msg.isRecalled ? '0' : '10px 14px',
                           color: ['call', 'task'].includes(msg.type) ? 'var(--text-primary)' : isMe ? '#ffffff' : 'var(--text-primary)',
-                          borderRadius: ['call', 'task'].includes(msg.type) ? '16px' : isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
+                          borderRadius: ['call', 'task'].includes(msg.type) ? '16px' : !isSingle ? undefined : isMe ? 'var(--radius-md) var(--radius-md) 4px var(--radius-md)' : 'var(--radius-md) var(--radius-md) var(--radius-md) 4px',
                           cursor: !isGroupEnd ? 'pointer' : 'default',
                           opacity: msg.status === 'sending' ? 0.6 : 1,
                           transform: searchMatches[activeSearchIndex]?.id === msg.id ? 'scale(1.03)' : 'none',
