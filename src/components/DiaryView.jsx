@@ -23,39 +23,9 @@ export default function DiaryView({ mobileActiveView, user }) {
   
         {/* Feeds */}
         <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {[
-            {
-              author: 'Nguyễn Hoài Nam',
-              avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=nam',
-              time: '1 giờ trước',
-              content: 'Vừa hoàn thành xong giao diện mới của Tikovia Chat! Trông mượt mà và xịn xò thực sự 😍',
-              likes: 12,
-              comments: 4
-            },
-            {
-              author: 'Lê Thuỳ Trang',
-              avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=trang',
-              time: '5 giờ trước',
-              content: 'Cuối tuần bình yên bên tách cà phê ☕ Chúc mọi người một ngày mới tràn đầy năng lượng nha!',
-              likes: 24,
-              comments: 8
-            }
-          ].map((post, i) => (
-            <div key={i} style={styles.postCard} className="glass-card">
-              <div style={styles.postHeader}>
-                <Avatar url={post.avatar} name={post.author} size={36} />
-                <div>
-                  <div style={styles.postAuthor}>{post.author}</div>
-                  <div style={styles.postTime}>{post.time}</div>
-                </div>
-              </div>
-              <div style={styles.postContent}>{post.content}</div>
-              <div style={styles.postFooter}>
-                <button style={styles.actionBtn} className="btn-interactive" type="button">❤️ {post.likes}</button>
-                <button style={styles.actionBtn} className="btn-interactive" type="button">💬 {post.comments}</button>
-              </div>
-            </div>
-          ))}
+          <div style={{ padding: '30px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            Chưa có khoảnh khắc nào trong Nhật ký.
+          </div>
         </div>
       </div>
     </div>

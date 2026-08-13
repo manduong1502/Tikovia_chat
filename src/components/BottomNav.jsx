@@ -42,7 +42,7 @@ export default function BottomNav({
         if (item.id === 'list') {
           badgeCount = totalUnreadChats;
         } else if (item.id === 'contacts') {
-          badgeCount = 3; // Lời mời kết bạn
+          badgeCount = 0;
         } else if (item.id === 'tasks') {
           badgeCount = pendingTasksCount;
         }

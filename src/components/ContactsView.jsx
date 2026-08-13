@@ -44,9 +44,8 @@ export default function ContactsView({ mobileActiveView, user, conversations }) 
             <span style={{ fontSize: '1.2rem' }}>🤝</span>
             <div>
               <div style={styles.contactName}>Lời mời kết bạn</div>
-              <div style={styles.contactStatus}>3 lời mời đang chờ</div>
+              <div style={styles.contactStatus}>Không có lời mời nào</div>
             </div>
-            <span className="badge-count" style={{ marginLeft: 'auto' }}>3</span>
           </div>
           <div style={styles.contactItem} className="btn-interactive">
             <span style={{ fontSize: '1.2rem' }}>👥</span>
@@ -58,20 +57,22 @@ export default function ContactsView({ mobileActiveView, user, conversations }) 
         </div>
         
         <div style={{ ...styles.category, marginTop: '20px' }}>
-          <div style={styles.categoryHeader}>👤 Bạn bè ({contacts.length > 0 ? contacts.length : 'mới truy cập'})</div>
-          {(contacts.length > 0 ? contacts : [
-            { displayName: 'Nguyễn Hoài Nam', username: 'namnh', avatarUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=nam', status: 'online' },
-            { displayName: 'Phạm Minh Tuấn', username: 'tuanpm', avatarUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=tuan', status: 'offline' },
-            { displayName: 'Lê Thuỳ Trang', username: 'tranglt', avatarUrl: 'https://api.dicebear.com/7.x/adventurer/svg?seed=trang', status: 'online' }
-          ]).map((c, i) => (
-            <div key={c.id || i} style={styles.contactItem} className="btn-interactive">
-              <Avatar url={c.avatarUrl} name={c.displayName} size={36} isOnline={c.status === 'online'} />
-              <div>
-                <div style={styles.contactName}>{c.displayName}</div>
-                <div style={styles.contactStatus}>@{c.username} • {c.status === 'online' ? 'Trực tuyến' : 'Ngoại tuyến'}</div>
+          <div style={styles.categoryHeader}>👤 Bạn bè ({contacts.length})</div>
+          {contacts.length > 0 ? (
+            contacts.map((c, i) => (
+              <div key={c.id || i} style={styles.contactItem} className="btn-interactive">
+                <Avatar url={c.avatarUrl} name={c.displayName} size={36} isOnline={c.status === 'online'} />
+                <div>
+                  <div style={styles.contactName}>{c.displayName}</div>
+                  <div style={styles.contactStatus}>@{c.username} • {c.status === 'online' ? 'Trực tuyến' : 'Ngoại tuyến'}</div>
+                </div>
               </div>
+            ))
+          ) : (
+            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+              Chưa có bạn bè trong danh bạ.
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
