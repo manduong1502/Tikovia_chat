@@ -394,9 +394,19 @@ export default function App() {
     fetch(`${API_URL}/chat/conversations/${activeConversation.id}/messages?limit=50`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => res.json())
-      .then(data => { setMessages(data); if (data.length < 50) setHasMoreMessages(false); })
-      .catch(err => console.error('Lỗi tải tin nhắn:', err));
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        const msgList = Array.isArray(data) ? data : [];
+        setMessages(msgList);
+        if (msgList.length < 50) setHasMoreMessages(false);
+      })
+      .catch(err => {
+        console.error('Lỗi tải tin nhắn:', err);
+        setMessages([]);
+      });
     if (socket) socket.emit('join-conversation', activeConversation.id);
   }, [activeConversation, token, socket]);
 
