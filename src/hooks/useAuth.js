@@ -25,7 +25,7 @@ export default function useAuth() {
         }
       })
         .then(res => {
-          if (res.status === 401) {
+          if (res.status === 401 || res.status === 403) {
             throw new Error('UNAUTHORIZED');
           }
           if (res.ok) return res.json();
@@ -79,6 +79,12 @@ export default function useAuth() {
     }
     localStorage.removeItem('chat_token');
     localStorage.removeItem('chat_user');
+    localStorage.removeItem('chat_conversations_cache');
+    localStorage.removeItem('chat_last_read_timestamps');
+    localStorage.removeItem('chat_offline_outbox');
+    if (typeof navigator !== 'undefined' && navigator.clearAppBadge) {
+      navigator.clearAppBadge().catch(() => {});
+    }
     setUser(null);
     setToken(null);
   }, []);

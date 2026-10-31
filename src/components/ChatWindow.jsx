@@ -182,7 +182,8 @@ export default function ChatWindow({
   onImageClick,
   fetchOlderMessages,
   hasMoreMessages,
-  isLoadingOlder
+  isLoadingOlder,
+  socket = null
 }) {
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [activePopoverMsgId, setActivePopoverMsgId] = useState(null);
@@ -238,28 +239,77 @@ export default function ChatWindow({
     setActiveSearchIndex(prev => (prev + 1) % searchMatches.length);
   };
 
-  // Trạng thái chuyển tiếp tin nhắn
+  // Trạng thái chuyển tiếp tin nhắn & Kéo-Thả tệp trực tiếp vào cửa sổ Chat
   const [forwardingMsg, setForwardingMsg] = useState(null);
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwardSearchTerm, setForwardSearchTerm] = useState('');
   const [selectedForwardConvs, setSelectedForwardConvs] = useState([]);
+  const [forwardNote, setForwardNote] = useState('');
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [droppedFiles, setDroppedFiles] = useState([]);
+  const dragCounterRef = useRef(0);
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer?.types && Array.from(e.dataTransfer.types).includes('Files')) {
+      dragCounterRef.current += 1;
+      setIsDraggingOver(true);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDraggingOver(false);
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      setDroppedFiles(Array.from(e.dataTransfer.files));
+    }
+  };
 
   const handleSendForward = () => {
     if (selectedForwardConvs.length === 0 || !forwardingMsg) return;
     
-    selectedForwardConvs.forEach(convId => {
+    const parsedMeta = forwardingMsg.metadata
+      ? (typeof forwardingMsg.metadata === 'string' ? JSON.parse(forwardingMsg.metadata) : forwardingMsg.metadata)
+      : null;
+
+    selectedForwardConvs.forEach((convId) => {
       onSendMessage({
         conversationId: convId,
         type: forwardingMsg.type,
         content: forwardingMsg.content,
-        metadata: forwardingMsg.metadata ? (typeof forwardingMsg.metadata === 'string' ? JSON.parse(forwardingMsg.metadata) : forwardingMsg.metadata) : null
+        metadata: parsedMeta
       });
+      if (forwardNote.trim()) {
+        onSendMessage({
+          conversationId: convId,
+          type: 'text',
+          content: forwardNote.trim()
+        });
+      }
     });
 
     setShowForwardModal(false);
     setForwardingMsg(null);
     setSelectedForwardConvs([]);
     setForwardSearchTerm('');
+    setForwardNote('');
   };
 
   const messagesEndRef = useRef(null);
@@ -271,15 +321,9 @@ export default function ChatWindow({
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
-  // Quyết định URL tệp hiển thị (Cục bộ hay Proxy Google Drive)
+  // Quyết định URL tệp hiển thị trực tiếp từ ổ cứng SSD máy chủ
   const getFileUrl = (content) => {
     if (!content) return '';
-    if (content.includes('drive.google.com')) {
-      const match = content.match(/[?&]id=([^&]+)/) || content.match(/\/file\/d\/([^/]+)/);
-      if (match && match[1]) {
-        return `${API_URL}/chat/drive-file/${match[1]}`;
-      }
-    }
     if (content.startsWith('http')) {
       return content;
     }
@@ -701,8 +745,7 @@ export default function ChatWindow({
         );
 
       case 'file': {
-        const rawFileName = metadata.fileName || msg.content.substring(msg.content.lastIndexOf('/') + 1);
-        const cleanFileName = rawFileName.replace(/^\d+-/, '');
+        const cleanFileName = metadata.fileName || msg.content.substring(msg.content.lastIndexOf('/') + 1).replace(/^\d+-(?:[a-z0-9]+-)?/, '');
         const formattedSize = metadata.fileSize 
           ? (metadata.fileSize < 1024 * 1024 
               ? `${(metadata.fileSize / 1024).toFixed(1)} KB` 
@@ -783,7 +826,9 @@ export default function ChatWindow({
               )}
               <a 
                 href={getFileUrl(msg.content)} 
-                download 
+                download={cleanFileName}
+                target="_blank"
+                rel="noreferrer"
                 style={{
                   width: '30px',
                   height: '30px',
@@ -970,7 +1015,7 @@ export default function ChatWindow({
                     Hoàn thành
                   </button>
                 )}
-                {(isUserAssigner || isUserAssignee) && (
+                {isUserAssigner && (
                   <button 
                     onClick={() => handleUpdateStatus('cancelled')} 
                     style={styles.taskCardBtnDanger}
@@ -999,7 +1044,40 @@ export default function ChatWindow({
         ...(wallpaper ? { background: wallpaper, backgroundImage: wallpaper } : {})
       }} 
       className={`anim-fade ${className || ''}`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
+      {/* Lớp phủ Kéo-Thả Tệp/Ảnh trực tiếp vào khung chat */}
+      {isDraggingOver && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: '12px',
+            zIndex: 999,
+            background: 'rgba(15, 23, 42, 0.82)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '2px dashed var(--primary)',
+            borderRadius: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            color: '#ffffff',
+            pointerEvents: 'none'
+          }}
+          className="anim-fade"
+        >
+          <div style={{ fontSize: '3rem' }}>📂</div>
+          <div style={{ fontSize: '1.1rem', fontWeight: '700' }}>Thả ảnh hoặc tài liệu vào đây</div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            Hỗ trợ gửi nhiều ảnh và tệp đính kèm cùng lúc (Tối đa 100MB/tệp)
+          </div>
+        </div>
+      )}
       {/* Top Header */}
       <div style={styles.header} className="glass">
         <div style={styles.headerInfo}>
@@ -1684,24 +1762,27 @@ export default function ChatWindow({
       {/* Bottom Input Component */}
       <ChatInput 
         token={token} 
+        user={user}
+        socket={socket}
         conversation={conversation}
         onSendMessage={onSendMessage} 
-        socket={onSendMessage ? true : false} // Socket signal status
         replyingTo={replyingTo}
         setReplyingTo={setReplyingTo}
         editingMsg={editingMsg}
         setEditingMsg={setEditingMsg}
         onEditMessage={onEditMessage}
+        droppedFiles={droppedFiles}
+        onConsumeDroppedFiles={() => setDroppedFiles([])}
       />
 
       {/* Forward Modal */}
       {showForwardModal && forwardingMsg && (
-        <div style={styles.modalOverlay} onClick={() => { setShowForwardModal(false); setSelectedForwardConvs([]); }}>
+        <div style={styles.modalOverlay} onClick={() => { setShowForwardModal(false); setSelectedForwardConvs([]); setForwardNote(''); }}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()} className="glass-card anim-scale-in">
             <div style={styles.modalHeader}>
               <h3 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-primary)' }}>Chuyển tiếp tin nhắn</h3>
               <button 
-                onClick={() => { setShowForwardModal(false); setSelectedForwardConvs([]); }} 
+                onClick={() => { setShowForwardModal(false); setSelectedForwardConvs([]); setForwardNote(''); }} 
                 style={styles.modalCloseBtn} 
                 className="btn-interactive"
               >
@@ -1710,34 +1791,61 @@ export default function ChatWindow({
             </div>
             <div style={styles.modalBody}>
               <div style={{
-                padding: '8px 12px',
+                padding: '10px 12px',
                 background: 'rgba(255,255,255,0.03)',
                 borderRadius: '10px',
                 border: '1px dashed var(--border-color)',
-                fontSize: '0.8rem',
+                fontSize: '0.82rem',
                 color: 'var(--text-secondary)',
                 marginBottom: '8px',
-                maxHeight: '60px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
               }}>
-                <strong>Nội dung: </strong>
-                {forwardingMsg.type === 'text' ? forwardingMsg.content : `[${forwardingMsg.type.toUpperCase()}]`}
+                {forwardingMsg.type === 'image' && (
+                  <img
+                    src={getFileUrl(forwardingMsg.content)}
+                    alt="Preview"
+                    style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }}
+                  />
+                )}
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxHeight: '54px' }}>
+                  <strong>Nội dung: </strong>
+                  {forwardingMsg.type === 'text'
+                    ? forwardingMsg.content
+                    : forwardingMsg.type === 'image'
+                    ? '📷 Hình ảnh'
+                    : forwardingMsg.type === 'file'
+                    ? `📁 Tệp đính kèm`
+                    : forwardingMsg.type === 'voice'
+                    ? '🎙️ Tin nhắn thoại'
+                    : forwardingMsg.type === 'location'
+                    ? forwardingMsg.content
+                    : `[${forwardingMsg.type.toUpperCase()}]`}
+                </div>
               </div>
               
               <input 
                 type="text"
-                placeholder="Tìm phòng chat..."
+                placeholder="Tìm đồng nghiệp hoặc nhóm chat..."
                 value={forwardSearchTerm}
                 onChange={(e) => setForwardSearchTerm(e.target.value)}
                 style={styles.modalInput}
+              />
+
+              <input
+                type="text"
+                placeholder="Nhập lời nhắn kèm theo khi chuyển tiếp (tùy chọn)..."
+                value={forwardNote}
+                onChange={(e) => setForwardNote(e.target.value)}
+                style={{ ...styles.modalInput, marginTop: '6px' }}
               />
               
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '6px',
-                maxHeight: '200px',
+                maxHeight: '220px',
                 overflowY: 'auto',
                 marginTop: '8px',
                 paddingRight: '4px'
@@ -1754,11 +1862,13 @@ export default function ChatWindow({
                   })
                   .map(conv => {
                     let name = 'Người dùng';
+                    let avatarUrl = conv.avatarUrl || null;
                     if (conv.isGroup) {
                       name = conv.name;
                     } else {
                       const other = conv.members ? conv.members.find(m => m.user.id !== user.id) : null;
                       name = other?.nickname || other?.user.displayName || 'Người dùng';
+                      avatarUrl = other?.user.avatarUrl || null;
                     }
                     const isChecked = selectedForwardConvs.includes(conv.id);
                     return (
@@ -1775,23 +1885,31 @@ export default function ChatWindow({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          padding: '10px 12px',
+                          padding: '8px 12px',
                           borderRadius: '10px',
-                          background: isChecked ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.02)',
+                          background: isChecked ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.02)',
                           border: isChecked ? '1px solid var(--primary)' : '1px solid transparent',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease'
                         }}
                         className="btn-interactive"
                       >
-                        <span style={{ fontSize: '0.85rem', color: isChecked ? 'var(--primary)' : 'var(--text-primary)', fontWeight: isChecked ? '600' : 'normal' }}>
-                          {name}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                          <Avatar url={avatarUrl} name={name} size={32} />
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                            <span style={{ fontSize: '0.85rem', color: isChecked ? 'var(--primary)' : 'var(--text-primary)', fontWeight: isChecked ? '600' : '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {name}
+                            </span>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                              {conv.isGroup ? 'Nhóm chat' : 'Cá nhân'}
+                            </span>
+                          </div>
+                        </div>
                         <input 
                           type="checkbox"
                           checked={isChecked}
                           readOnly
-                          style={{ cursor: 'pointer' }}
+                          style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--primary)' }}
                         />
                       </div>
                     );
@@ -1800,7 +1918,7 @@ export default function ChatWindow({
             </div>
             <div style={styles.modalFooter}>
               <button 
-                onClick={() => { setShowForwardModal(false); setSelectedForwardConvs([]); }} 
+                onClick={() => { setShowForwardModal(false); setSelectedForwardConvs([]); setForwardNote(''); }} 
                 style={styles.btnSecondary}
                 className="btn-interactive"
               >
@@ -1816,7 +1934,7 @@ export default function ChatWindow({
                 }}
                 className="btn-interactive"
               >
-                Gửi ({selectedForwardConvs.length})
+                Chuyển tiếp ({selectedForwardConvs.length})
               </button>
             </div>
           </div>

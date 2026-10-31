@@ -117,6 +117,7 @@ export default function RightSidebar({
   onClose,
   onUpdateNickname,
   onUpdateWallpaper,
+  onToggleMute,
   mobileActiveView,
   setMobileActiveView,
   className,
@@ -126,6 +127,11 @@ export default function RightSidebar({
   const [mediaGallery, setMediaGallery] = useState({ images: [], files: [], links: [] });
   const [tasks, setTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
+  const [isMuted, setIsMuted] = useState(Boolean(conversation?.isMuted));
+
+  useEffect(() => {
+    setIsMuted(Boolean(conversation?.isMuted));
+  }, [conversation?.id, conversation?.isMuted]);
   
   // Nickname editing state
   const [isEditingNickname, setIsEditingNickname] = useState(false);
@@ -240,7 +246,7 @@ export default function RightSidebar({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ userIds: selectedNewMemberIds })
+        body: JSON.stringify({ memberIds: selectedNewMemberIds, userIds: selectedNewMemberIds })
       });
       if (!res.ok) {
         const err = await res.json();
@@ -250,6 +256,49 @@ export default function RightSidebar({
       setMemberSearchQuery('');
       setMemberSearchResults([]);
       setSelectedNewMemberIds([]);
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  // Bật / Tắt thông báo cuộc hội thoại
+  const handleToggleMuteConversation = async () => {
+    try {
+      const nextState = !isMuted;
+      setIsMuted(nextState);
+      const res = await fetch(`${API_URL}/chat/conversations/${conversation.id}/mute`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isMuted: nextState })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsMuted(Boolean(data.isMuted));
+        if (onToggleMute) onToggleMute(conversation.id, Boolean(data.isMuted));
+      } else {
+        setIsMuted(!nextState);
+      }
+    } catch (e) {
+      setIsMuted((prev) => !prev);
+    }
+  };
+
+  // Tự rời khỏi nhóm chat
+  const handleLeaveGroup = async () => {
+    if (!confirm('Bạn có chắc chắn muốn rời khỏi nhóm chat này?')) return;
+    try {
+      const res = await fetch(`${API_URL}/chat/conversations/${conversation.id}/members/${user.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Không thể rời khỏi nhóm');
+      }
+      if (onClose) onClose();
     } catch (e) {
       alert(e.message);
     }
@@ -275,15 +324,9 @@ export default function RightSidebar({
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
-  // Quyết định URL tệp hiển thị (Cục bộ hay Proxy Google Drive)
+  // Quyết định URL tệp hiển thị trực tiếp từ ổ cứng SSD máy chủ
   const getFileUrl = (urlPath) => {
     if (!urlPath) return '';
-    if (urlPath.includes('drive.google.com')) {
-      const match = urlPath.match(/[?&]id=([^&]+)/) || urlPath.match(/\/file\/d\/([^/]+)/);
-      if (match && match[1]) {
-        return `${API_URL}/chat/drive-file/${match[1]}`;
-      }
-    }
     if (urlPath.startsWith('http')) {
       return urlPath;
     }
@@ -566,9 +609,18 @@ export default function RightSidebar({
               <div style={styles.actionCircle} className="action-circle-inner"><FiImage size={18} /></div>
               <span style={styles.actionLabel}>Đổi hình nền</span>
             </div>
-            <div style={styles.actionItem} className="action-circle-hover">
-              <div style={styles.actionCircle} className="action-circle-inner"><FiBell size={18} /></div>
-              <span style={styles.actionLabel}>Tắt thông báo</span>
+            <div style={styles.actionItem} onClick={handleToggleMuteConversation} className="action-circle-hover">
+              <div
+                style={{
+                  ...styles.actionCircle,
+                  background: isMuted ? 'rgba(244, 63, 94, 0.15)' : undefined,
+                  color: isMuted ? 'var(--danger)' : undefined
+                }}
+                className="action-circle-inner"
+              >
+                <FiBell size={18} />
+              </div>
+              <span style={styles.actionLabel}>{isMuted ? 'Bật thông báo' : 'Tắt thông báo'}</span>
             </div>
           </div>
         </div>
@@ -737,6 +789,15 @@ export default function RightSidebar({
                           className="btn-interactive"
                         >
                           • Mời ra khỏi nhóm
+                        </button>
+                      )}
+                      {conversation.isGroup && member.user.id === user.id && (
+                        <button
+                          onClick={handleLeaveGroup}
+                          style={{ ...styles.editNicknameBtn, color: 'var(--danger)', textDecoration: 'none' }}
+                          className="btn-interactive"
+                        >
+                          • Rời nhóm
                         </button>
                       )}
                     </div>

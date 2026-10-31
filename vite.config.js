@@ -1,10 +1,31 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'fs'
+import path from 'path'
+
+// Plugin tự động dọn sạch thư mục dist trước mỗi lần build để tránh vite-plugin-pwa (injectManifest) cộng dồn các chunk cũ
+function cleanDistBeforeBuild() {
+  let cleaned = false
+  return {
+    name: 'clean-dist-before-build',
+    enforce: 'pre',
+    config(_, { command }) {
+      if (command === 'build' && !cleaned) {
+        cleaned = true
+        const distDir = path.resolve(process.cwd(), 'dist')
+        if (fs.existsSync(distDir)) {
+          fs.rmSync(distDir, { recursive: true, force: true })
+        }
+      }
+    }
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    cleanDistBeforeBuild(),
     react(),
     VitePWA({
       strategies: 'injectManifest',
@@ -42,6 +63,19 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-socket': ['socket.io-client'],
+          'vendor-peerjs': ['peerjs'],
+          'vendor-icons': ['react-icons/fi']
+        }
+      }
+    }
+  },
   server: {
     port: 3000,
     host: true

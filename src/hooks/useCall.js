@@ -18,7 +18,8 @@ export default function useCall() {
       from: user.id,
       callerName: otherMember.user.displayName,
       callerAvatar: otherMember.user.avatarUrl,
-      isVideo: isVideoCall
+      isVideo: isVideoCall,
+      conversationId: activeConversation.id
     });
     setCallState('calling');
   }, []);

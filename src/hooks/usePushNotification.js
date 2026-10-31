@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export default function usePushNotification(token, socket) {
   const [pushStatus, setPushStatus] = useState('prompt');
@@ -7,6 +7,135 @@ export default function usePushNotification(token, socket) {
   );
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+  // Đồng bộ subscription lên Backend qua cả HTTP API (bền vững ngay cả khi Socket chưa kịp kết nối) và Socket
+  const syncSubscriptionToServer = useCallback(
+    async (subscription, userToken) => {
+      const activeToken = userToken || token;
+      if (!activeToken || !subscription) return { success: false, error: 'Thiếu thông tin xác thực' };
+
+      const subJson = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription;
+      let httpSuccess = false;
+
+      // 1. Đồng bộ qua HTTP POST (Mã hoá base64 để tương thích mọi lớp Proxy/WAF)
+      try {
+        const encodedPayload = window.btoa(unescape(encodeURIComponent(JSON.stringify(subJson))));
+        const res = await fetch(`${API_URL}/chat/device-token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${activeToken}`
+          },
+          body: JSON.stringify({ data: encodedPayload })
+        });
+        if (res.ok) {
+          httpSuccess = true;
+        }
+      } catch (err) {
+        console.warn('[Web Push] Đồng bộ HTTP gặp lỗi, sẽ thử qua Socket:', err);
+      }
+
+      // 2. Đồng bộ bổ sung qua Socket nếu đang kết nối
+      if (socket && socket.connected) {
+        return new Promise((resolve) => {
+          socket.emit('sync-push-subscription', { subscription: subJson }, (res) => {
+            if ((res && res.success) || httpSuccess) {
+              setPushStatus('granted');
+              resolve({ success: true });
+            } else {
+              resolve({ success: false, error: res?.error || 'Đồng bộ qua máy chủ thất bại.' });
+            }
+          });
+        });
+      }
+
+      if (httpSuccess) {
+        setPushStatus('granted');
+        return { success: true };
+      }
+
+      setPushStatus('granted');
+      return { success: true };
+    },
+    [API_URL, socket, token]
+  );
+
+  // Đăng ký nhận thông báo đẩy (Web Push) lên server
+  const subscribeUserToPush = useCallback(
+    async (userToken, forceRefresh = false) => {
+      let currentStep = 'Khởi tạo';
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        setPushStatus('unsupported');
+        return { success: false, error: 'Thiết bị hoặc trình duyệt không hỗ trợ API Web Push.' };
+      }
+
+      const activeToken = userToken || token;
+      if (!activeToken) {
+        return { success: false, error: 'Chưa đăng nhập.' };
+      }
+
+      try {
+        currentStep = 'Chờ Service Worker sẵn sàng';
+        const registration = await navigator.serviceWorker.ready;
+
+        currentStep = 'Tải khoá VAPID từ máy chủ';
+        const keyRes = await fetch(`${API_URL}/chat/device-key`, {
+          headers: { Authorization: `Bearer ${activeToken}` }
+        });
+        if (!keyRes.ok) {
+          throw new Error(`Máy chủ trả về mã lỗi ${keyRes.status} khi tải VAPID key.`);
+        }
+        const { publicKey } = await keyRes.json();
+        const savedKey = localStorage.getItem('chat_vapid_public_key');
+
+        const urlBase64ToUint8Array = (base64String) => {
+          const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+          const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+          const rawData = window.atob(base64);
+          const outputArray = new Uint8Array(rawData.length);
+          for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+          }
+          return outputArray;
+        };
+
+        currentStep = 'Kiểm tra đăng ký Push hiện có';
+        let subscription = await registration.pushManager.getSubscription();
+
+        // Chỉ huỷ subscription cũ nếu VAPID publicKey trên server thay đổi hoặc người dùng bấm làm mới cưỡng bức
+        if (subscription && (forceRefresh || (savedKey && savedKey !== publicKey))) {
+          await subscription.unsubscribe().catch(() => {});
+          subscription = null;
+        }
+
+        if (!subscription) {
+          currentStep = 'Tạo token đăng ký (Apple APNs / Google FCM)';
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey)
+          });
+        }
+
+        currentStep = 'Lưu và đồng bộ token lên máy chủ';
+        localStorage.setItem('chat_push_subscription', JSON.stringify(subscription));
+        localStorage.setItem('chat_vapid_public_key', publicKey);
+
+        return await syncSubscriptionToServer(subscription, activeToken);
+      } catch (e) {
+        console.error('Lỗi thiết lập thông báo đẩy:', e);
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          setPushStatus('granted');
+        } else {
+          setPushStatus('prompt');
+        }
+        return {
+          success: false,
+          error: `[Lỗi tại bước: ${currentStep}] ${e.message || 'Lỗi mạng hoặc kết nối.'}`
+        };
+      }
+    },
+    [API_URL, token, syncSubscriptionToServer]
+  );
 
   // Kiểm tra trạng thái hỗ trợ và quyền của Push Notifications
   const checkPushNotificationStatus = useCallback(async () => {
@@ -25,33 +154,7 @@ export default function usePushNotification(token, socket) {
     try {
       const permission = Notification.permission;
       if (permission === 'granted') {
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-        
-        // Tải public key từ server để so khớp
-        try {
-          const keyRes = await fetch(`${API_URL}/chat/device-key`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (keyRes.ok) {
-            const { publicKey } = await keyRes.json();
-            const savedKey = localStorage.getItem('chat_vapid_public_key');
-            
-            if (publicKey !== savedKey || !subscription) {
-              console.log('[Web Push] Phát hiện VAPID key thay đổi hoặc mất subscription. Đang đăng ký lại...');
-              localStorage.setItem('chat_vapid_public_key', publicKey);
-              await subscribeUserToPush(token);
-            } else {
-              setPushStatus('granted');
-            }
-          } else {
-            setPushStatus(subscription ? 'granted' : 'prompt');
-          }
-        } catch (fetchErr) {
-          console.warn('Lỗi kiểm tra VAPID key từ server:', fetchErr);
-          // Nếu offline mà quyền đã được cấp, giữ trạng thái là granted để không hiện banner
-          setPushStatus('granted');
-        }
+        await subscribeUserToPush(token, false);
       } else if (permission === 'denied') {
         setPushStatus('denied');
       } else {
@@ -61,92 +164,19 @@ export default function usePushNotification(token, socket) {
       console.error('Lỗi kiểm tra trạng thái push:', err);
       setPushStatus('unsupported');
     }
-  }, [token, API_URL]);
+  }, [token, subscribeUserToPush]);
 
-  // Đăng ký nhận thông báo đẩy (Web Push) lên server
-  const subscribeUserToPush = useCallback(async (userToken) => {
-    let currentStep = 'Khởi tạo';
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      console.log('Trình duyệt không hỗ trợ Web Push.');
-      setPushStatus('unsupported');
-      return { success: false, error: 'Thiết bị hoặc trình duyệt không hỗ trợ API Web Push.' };
-    }
-
-    try {
-      currentStep = 'Chờ Service Worker sẵn sàng';
-      const registration = await navigator.serviceWorker.ready;
-      
-      currentStep = 'Tải khoá VAPID từ máy chủ';
-      const keyRes = await fetch(`${API_URL}/chat/device-key`, {
-        headers: { 'Authorization': `Bearer ${userToken}` }
-      });
-      if (!keyRes.ok) {
-        throw new Error(`Máy chủ trả về mã lỗi ${keyRes.status} khi tải VAPID key.`);
+  // Lắng nghe sự kiện xoay vòng token từ Service Worker
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !token) return;
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'PUSH_SUBSCRIPTION_CHANGED' && event.data.subscription) {
+        syncSubscriptionToServer(event.data.subscription, token);
       }
-      const { publicKey } = await keyRes.json();
-
-      const urlBase64ToUint8Array = (base64String) => {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding)
-          .replace(/\-/g, '+')
-          .replace(/_/g, '/');
-        const rawData = window.atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
-        for (let i = 0; i < rawData.length; ++i) {
-          outputArray[i] = rawData.charCodeAt(i);
-        }
-        return outputArray;
-      };
-
-      currentStep = 'Huỷ đăng ký push cũ trên trình duyệt';
-      let subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-        await subscription.unsubscribe().catch(err => {
-          console.warn('Lỗi khi huỷ đăng ký cũ:', err);
-        });
-      }
-
-      currentStep = 'Tạo token đăng ký (Web Push Service của Google/Apple)';
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey)
-      });
-
-      currentStep = 'Đồng bộ token đăng ký lên máy chủ qua Socket';
-      // Lưu trữ subscription và public key tương ứng vào LocalStorage
-      localStorage.setItem('chat_push_subscription', JSON.stringify(subscription));
-      localStorage.setItem('chat_vapid_public_key', publicKey);
-
-      if (socket && socket.connected) {
-        return new Promise((resolve) => {
-          socket.emit('sync-push-subscription', { subscription }, (res) => {
-            if (res && res.success) {
-              console.log('Đăng ký nhận thông báo đẩy thành công qua Socket.');
-              setPushStatus('granted');
-              resolve({ success: true });
-            } else {
-              resolve({ success: false, error: res?.error || 'Đồng bộ qua socket thất bại.' });
-            }
-          });
-        });
-      } else {
-        // Nếu chưa có socket kết nối, lưu trữ thành công cục bộ vẫn được coi là tạm thời thành công
-        // vì khi socket kết nối nó sẽ tự động được gửi lên server.
-        console.log('Lưu token cục bộ thành công, sẽ đồng bộ khi có kết nối socket.');
-        setPushStatus('granted');
-        return { success: true };
-      }
-    } catch (e) {
-      console.error('Lỗi thiết lập thông báo đẩy:', e);
-      // Nếu offline mà quyền đã được cấp, giữ trạng thái là granted để không hiện banner
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        setPushStatus('granted');
-      } else {
-        setPushStatus('prompt');
-      }
-      return { success: false, error: `[Bản vá - Lỗi tại bước: ${currentStep}] ${e.message || 'Lỗi mạng hoặc kết nối.'}` };
-    }
-  }, [socket, API_URL]);
+    };
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, [token, syncSubscriptionToServer]);
 
   // Kích hoạt xin quyền và đăng ký thông báo đẩy thông qua Cử chỉ Người dùng (User Gesture)
   const handleEnablePushNotifications = useCallback(async () => {
@@ -159,9 +189,9 @@ export default function usePushNotification(token, socket) {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         setPushStatus('checking');
-        const res = await subscribeUserToPush(token);
+        const res = await subscribeUserToPush(token, true);
         if (res.success) {
-          alert('Bật thông báo đẩy thành công!');
+          alert('Đã bật và đồng bộ thông báo đẩy trên điện thoại thành công!');
         } else {
           alert(`Đăng ký với máy chủ thất bại. Chi tiết: ${res.error}\n\nVui lòng tải lại trang và thử lại.`);
         }
@@ -177,6 +207,29 @@ export default function usePushNotification(token, socket) {
     }
   }, [token, subscribeUserToPush]);
 
+  // Gửi thông báo kiểm tra trực tiếp về điện thoại
+  const handleTestPushNotification = useCallback(async () => {
+    if (!token) return;
+    try {
+      // Đảm bảo đồng bộ subscription mới nhất trước khi test
+      await subscribeUserToPush(token, false);
+      const res = await fetch(`${API_URL}/chat/device-test`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'Đã gửi thông báo thử nghiệm! Hãy kiểm tra thanh thông báo của điện thoại.');
+      } else {
+        alert(data.error || 'Không thể gửi thông báo thử nghiệm.');
+      }
+    } catch (err) {
+      alert('Lỗi kết nối khi gửi thông báo thử nghiệm: ' + err.message);
+    }
+  }, [API_URL, token, subscribeUserToPush]);
+
   const dismissPushBanner = useCallback(() => {
     localStorage.setItem('chat_dismissed_push_banner', 'true');
     setDismissedPushBanner(true);
@@ -188,6 +241,7 @@ export default function usePushNotification(token, socket) {
     checkPushNotificationStatus,
     subscribeUserToPush,
     handleEnablePushNotifications,
-    dismissPushBanner,
+    handleTestPushNotification,
+    dismissPushBanner
   };
 }

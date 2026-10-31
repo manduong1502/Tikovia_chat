@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiX, FiCamera, FiEye, FiEyeOff, FiUser, FiLock, FiBell, FiChevronLeft, FiLogOut } from 'react-icons/fi';
+import { FiX, FiCamera, FiEye, FiEyeOff, FiUser, FiLock, FiBell } from 'react-icons/fi';
 import Avatar from './Avatar';
 
 export default function ProfileView({ 
@@ -9,6 +9,7 @@ export default function ProfileView({
   onProfileUpdate, 
   pushStatus, 
   onEnablePush,
+  onTestPush,
   mobileActiveView
 }) {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
@@ -85,10 +86,10 @@ export default function ProfileView({
       case 'denied':
         return '❌ Quyền thông báo đang bị từ chối. Hãy mở cài đặt trình duyệt hoặc cài đặt ứng dụng trên điện thoại để cấp quyền thông báo.';
       case 'granted':
-        return '✅ Thiết bị này đã đăng ký nhận thông báo đẩy thành công. Bạn sẽ nhận được chuông/rung khi có tin nhắn/cuộc gọi mới kể cả khi đóng ứng dụng.';
+        return '✅ Thiết bị này đã đăng ký nhận thông báo đẩy thành công. Bạn sẽ nhận được chuông/rung khi có tin nhắn, công việc, nhắc hẹn và cuộc gọi mới kể cả khi đóng ứng dụng.';
       case 'prompt':
       default:
-        return '💡 Bật thông báo đẩy để nhận tin nhắn mới và cuộc gọi đến ngay tức thì khi ứng dụng đang đóng hoặc chạy nền.';
+        return '💡 Bật thông báo đẩy để nhận tin nhắn mới, công việc KiotViet và cuộc gọi đến ngay tức thì khi ứng dụng đang đóng hoặc chạy nền.';
     }
   };
 
@@ -159,9 +160,9 @@ export default function ProfileView({
     try {
       setLoading(true);
       setError('');
-      setSuccess('Đang tải ảnh lên...');
+      setSuccess('Đang tải ảnh lên ổ cứng máy chủ...');
       
-      const res = await fetch(`${BASE_URL}/api/chat/upload?local=true`, {
+      const res = await fetch(`${BASE_URL}/api/chat/upload?type=avatar`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -172,9 +173,9 @@ export default function ProfileView({
       if (!res.ok) throw new Error('Không thể tải ảnh lên server');
 
       const data = await res.json();
-      const fullUrl = `${BASE_URL}${data.url}`;
+      const fullUrl = data.url;
       setAvatarUrl(fullUrl);
-      setError(''); // Clear error
+      setError('');
       setSuccess('Tải ảnh đại diện lên thành công! Đang tự động lưu...');
 
       const saveRes = await fetch(API_URL, {
@@ -197,11 +198,11 @@ export default function ProfileView({
 
       localStorage.setItem('chat_user', JSON.stringify(saveData.user));
       onProfileUpdate(saveData.user);
-      setError(''); // Clear error
+      setError('');
       setSuccess('Cập nhật ảnh đại diện thành công!');
     } catch (err) {
       setError(err.message || 'Lỗi khi upload và lưu ảnh đại diện');
-      setSuccess(''); // Clear success on error
+      setSuccess('');
     } finally {
       setLoading(false);
       if (e.target) {
@@ -212,11 +213,9 @@ export default function ProfileView({
 
   return (
     <div style={styles.container} className="anim-fade scroll-optimized">
-      {/* Background Floating Blobs */}
       <div className="bg-blob blob-1"></div>
       <div className="bg-blob blob-2"></div>
 
-      {/* Toast Alert */}
       {(error || success) && (
         <div style={styles.toastContainer} className="anim-scale-in">
           <div style={error ? styles.errorToast : styles.successToast}>
@@ -225,7 +224,6 @@ export default function ProfileView({
         </div>
       )}
 
-      {/* Header bar */}
       <div className="profile-header-bar glass">
         <h3 className="profile-header-title">Trang cá nhân của bạn</h3>
         <button onClick={onClose} className="profile-close-btn btn-interactive" title="Đóng">
@@ -234,7 +232,6 @@ export default function ProfileView({
       </div>
 
       <div className="profile-dashboard-wrapper">
-        {/* Left Card: Summary Profile Card */}
         <div className="glass-card profile-left-card">
           <div style={styles.avatarEditContainer}>
             <div style={styles.avatarBorderGlow}>
@@ -262,11 +259,10 @@ export default function ProfileView({
           <div style={styles.userMeta}>
             <h2 style={styles.metaName}>{displayName || user?.displayName || ''}</h2>
             <span style={styles.metaUsername}>@{user?.username || ''}</span>
-            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Bản cập nhật: v1.2.0</span>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Bản cập nhật: v2.0.0 (Local SSD)</span>
             {phone && <span style={styles.metaPhone}>📞 {phone}</span>}
           </div>
 
-          {/* Desktop tabs/navigation inside the card */}
           <div className="profile-desktop-tabs">
             <button 
               onClick={() => setActiveSection('info')} 
@@ -295,11 +291,8 @@ export default function ProfileView({
           </div>
         </div>
 
-        {/* Right Area: Detailed Forms */}
         <div className="profile-right-content">
-
           <form onSubmit={handleSave} style={styles.formContainer}>
-            {/* Section 1: Personal Info */}
             {(activeSection === 'info' || mobileActiveView === 'profile') && (
               <div style={styles.sectionCard} className="glass-card">
                 <div style={styles.sectionHeader}>
@@ -344,7 +337,7 @@ export default function ProfileView({
                       type="text" 
                       value={avatarUrl} 
                       onChange={(e) => setAvatarUrl(e.target.value)} 
-                      placeholder="https://..." 
+                      placeholder="/api/uploads/avatars/..." 
                       className="input-premium"
                       style={styles.input}
                     />
@@ -353,7 +346,6 @@ export default function ProfileView({
               </div>
             )}
 
-            {/* Section 2: Security & Password */}
             {(activeSection === 'security' || mobileActiveView === 'profile') && (
               <div style={styles.sectionCard} className="glass-card">
                 <div style={styles.sectionHeader}>
@@ -409,7 +401,6 @@ export default function ProfileView({
               </div>
             )}
 
-            {/* Section 3: Notification settings */}
             {(activeSection === 'notifications' || mobileActiveView === 'profile') && (
               <div style={styles.sectionCard} className="glass-card">
                 <div style={styles.sectionHeader}>
@@ -418,20 +409,37 @@ export default function ProfileView({
                 </div>
 
                 <div style={styles.notificationWrapper}>
-                  <div style={styles.notificationStatusRow}>
+                  <div style={{ ...styles.notificationStatusRow, flexWrap: 'wrap', gap: '10px' }}>
                     <span style={styles.statusLabel}>
                       Trạng thái hiện tại: <strong style={{ color: getStatusColor(pushStatus) }}>{getPermissionText(pushStatus)}</strong>
                     </span>
-                    {shouldShowButton(pushStatus) && (
-                      <button 
-                        type="button" 
-                        onClick={onEnablePush}
-                        style={styles.enablePushBtn}
-                        className="btn-interactive"
-                      >
-                        {pushStatus === 'granted' ? 'Đăng ký lại' : 'Bật thông báo'}
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {shouldShowButton(pushStatus) && (
+                        <button 
+                          type="button" 
+                          onClick={onEnablePush}
+                          style={styles.enablePushBtn}
+                          className="btn-interactive"
+                        >
+                          {pushStatus === 'granted' ? 'Đồng bộ lại' : 'Bật thông báo'}
+                        </button>
+                      )}
+                      {pushStatus === 'granted' && onTestPush && (
+                        <button
+                          type="button"
+                          onClick={onTestPush}
+                          style={{
+                            ...styles.enablePushBtn,
+                            background: 'rgba(16, 185, 129, 0.15)',
+                            color: '#10b981',
+                            border: '1px solid rgba(16, 185, 129, 0.35)'
+                          }}
+                          className="btn-interactive"
+                        >
+                          🔔 Gửi thông báo thử
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <p style={styles.notificationHelpText}>
                     {getHelpText(pushStatus)}
@@ -440,7 +448,6 @@ export default function ProfileView({
               </div>
             )}
 
-            {/* Form Actions */}
             <div style={styles.actionButtons}>
               <button type="submit" disabled={loading} style={styles.submitBtn} className="btn-interactive">
                 {loading ? 'Đang cập nhật...' : 'Lưu tất cả thay đổi'}
@@ -504,8 +511,6 @@ const styles = {
     textAlign: 'center',
     width: '100%'
   },
-  // Header styles are now handled by CSS classes (.profile-header-bar and .profile-close-btn)
-  // Layout styles are now handled by CSS classes (.profile-dashboard-wrapper and .profile-left-card)
   avatarEditContainer: {
     display: 'flex',
     flexDirection: 'column',
@@ -558,7 +563,6 @@ const styles = {
     fontSize: '0.8rem',
     color: 'var(--text-secondary)'
   },
-  // Tab styles are now handled by CSS class (.profile-desktop-tabs)
   desktopTabBtn: {
     width: '100%',
     display: 'flex',
@@ -580,25 +584,6 @@ const styles = {
     borderColor: 'rgba(99, 102, 241, 0.15)',
     color: 'var(--primary)'
   },
-  // Right content styles are now handled by CSS class (.profile-right-content)
-  errorAlert: {
-    padding: '12px 16px',
-    backgroundColor: 'rgba(244, 63, 94, 0.12)',
-    border: '1px solid rgba(244, 63, 94, 0.25)',
-    borderRadius: '12px',
-    color: 'var(--danger)',
-    fontSize: '0.85rem',
-    fontWeight: '500'
-  },
-  successAlert: {
-    padding: '12px 16px',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    border: '1px solid rgba(16, 185, 129, 0.25)',
-    borderRadius: '12px',
-    color: 'var(--secondary)',
-    fontSize: '0.85rem',
-    fontWeight: '500'
-  },
   formContainer: {
     display: 'flex',
     flexDirection: 'column',
@@ -615,13 +600,7 @@ const styles = {
     alignItems: 'center',
     gap: '12px',
     borderBottom: '1px solid var(--border-color)',
-    paddingBottom: '12px',
-    'h3': {
-      fontSize: '1rem',
-      fontWeight: '700',
-      color: 'var(--text-primary)',
-      margin: 0
-    }
+    paddingBottom: '12px'
   },
   formGrid: {
     display: 'grid',

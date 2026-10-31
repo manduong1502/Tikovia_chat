@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE_URL = API_URL.replace(/\/api\/?$/, '');
+
+export const resolveAvatarUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('/api/')) return `${BASE_URL}${url}`;
+  return url;
+};
+
 const COLORS = [
   '#4f46e5', // Violet Indigo
   '#0284c7', // Sky Blue
@@ -86,11 +95,13 @@ export default function Avatar({ url, name, size = 40, isOnline = false, style =
     boxShadow: '0 0 6px rgba(16, 185, 129, 0.4)'
   };
 
+  const resolvedUrl = resolveAvatarUrl(url);
+
   return (
     <div style={containerStyle}>
-      {url && !imageError ? (
+      {resolvedUrl && !imageError ? (
         <img
-          src={url}
+          src={resolvedUrl}
           alt={name || 'Avatar'}
           style={imgStyle}
           onError={() => setImageError(true)}

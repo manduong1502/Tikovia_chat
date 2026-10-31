@@ -7,7 +7,6 @@ import RightSidebar from './components/RightSidebar';
 import VideoCall from './components/VideoCall';
 import NetworkBanner from './components/NetworkBanner';
 import ContactsView from './components/ContactsView';
-import DiaryView from './components/DiaryView';
 import Lightbox from './components/Lightbox';
 import BottomNav from './components/BottomNav';
 import { useRegisterSW } from 'virtual:pwa-register/react';
@@ -20,23 +19,43 @@ import usePushNotification from './hooks/usePushNotification';
 const ProfileView = React.lazy(() => import('./components/ProfileView'));
 const TasksView = React.lazy(() => import('./components/TasksView'));
 
+// Âm báo thông báo nhẹ nhàng bằng Web Audio API khi nhận tin nhắn ở phòng khác hoặc nhắc hẹn
+function playNotificationChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.25);
+    setTimeout(() => ctx.close().catch(() => {}), 350);
+  } catch (e) {}
+}
+
 export default function App() {
   // === PWA Service Worker Auto-Update ===
   const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
+    needRefresh: [needRefresh],
+    updateServiceWorker
   } = useRegisterSW({
     onRegistered(r) {
-      r && setInterval(() => { r.update(); }, 30000);
-    },
+      r && setInterval(() => { r.update(); }, 60000);
+    }
   });
 
   useEffect(() => {
     if (needRefresh) {
-      console.log('[PWA] Phát hiện phiên bản mới. Đang tự động cập nhật...');
       updateServiceWorker(true);
     }
-  }, [needRefresh]);
+  }, [needRefresh, updateServiceWorker]);
 
   // === Auth Hook ===
   const { user, setUser, token, isOnline, handleAuthSuccess, handleLogout, API_URL } = useAuth();
@@ -47,7 +66,9 @@ export default function App() {
     try {
       const cached = localStorage.getItem('chat_conversations_cache');
       return cached ? JSON.parse(cached) : [];
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   });
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -76,7 +97,9 @@ export default function App() {
     try {
       const saved = localStorage.getItem('chat_last_read_timestamps');
       return saved ? JSON.parse(saved) : {};
-    } catch (e) { return {}; }
+    } catch (e) {
+      return {};
+    }
   });
 
   // === Offline Outbox ===
@@ -84,26 +107,33 @@ export default function App() {
     try {
       const saved = localStorage.getItem('chat_offline_outbox');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   });
   const offlineOutboxRef = useRef(offlineOutbox);
   useEffect(() => {
     offlineOutboxRef.current = offlineOutbox;
-    try { localStorage.setItem('chat_offline_outbox', JSON.stringify(offlineOutbox)); } catch (e) {}
+    try {
+      localStorage.setItem('chat_offline_outbox', JSON.stringify(offlineOutbox));
+    } catch (e) {}
   }, [offlineOutbox]);
 
   // === Call Hook ===
   const {
     callState, setCallState, callInfo, setCallInfo,
     localStream, setLocalStream, remoteStream, setRemoteStream,
-    peerInstance, setPeerInstance, handleStartCall,
+    peerInstance, setPeerInstance, handleStartCall
   } = useCall();
 
   // === Push Notification Hook ===
   const {
-    pushStatus, dismissedPushBanner,
-    checkPushNotificationStatus, subscribeUserToPush,
-    handleEnablePushNotifications, dismissPushBanner,
+    pushStatus,
+    dismissedPushBanner,
+    checkPushNotificationStatus,
+    handleEnablePushNotifications,
+    handleTestPushNotification,
+    dismissPushBanner
   } = usePushNotification(token, socket);
 
   // === Refs ===
@@ -111,64 +141,79 @@ export default function App() {
   const conversationsRef = useRef(conversations);
   const mobileActiveViewRef = useRef(mobileActiveView);
 
-  useEffect(() => { activeConversationRef.current = activeConversation; }, [activeConversation]);
-  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
-  useEffect(() => { mobileActiveViewRef.current = mobileActiveView; }, [mobileActiveView]);
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+  useEffect(() => {
+    mobileActiveViewRef.current = mobileActiveView;
+  }, [mobileActiveView]);
 
   // === Fetch Functions ===
   const fetchConversations = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetch(`${API_URL}/chat/conversations`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
         setConversations(data);
 
         if (activeConversationRef.current) {
-          const latestActive = data.find(c => c.id === activeConversationRef.current.id);
+          const latestActive = data.find((c) => c.id === activeConversationRef.current.id);
           if (latestActive) setActiveConversation(latestActive);
         }
 
         localStorage.setItem('chat_conversations_cache', JSON.stringify(data));
 
         const onlineIds = [];
-        data.forEach(c => {
-          c.members.forEach(m => {
-            if (m.user.id !== user?.id && m.user.status === 'online') {
+        data.forEach((c) => {
+          c.members?.forEach((m) => {
+            if (m.user?.id !== user?.id && m.user?.status === 'online') {
               onlineIds.push(m.user.id);
             }
           });
         });
         setOnlineUsers(Array.from(new Set(onlineIds)));
       }
-    } catch (e) { console.error('Lỗi tải danh sách chat:', e); }
+    } catch (e) {
+      console.error('Lỗi tải danh sách chat:', e);
+    }
   }, [token, API_URL, user]);
 
   const fetchGlobalTasksCount = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetch(`${API_URL}/tasks`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        const count = (data.assignedToMe || []).filter(t => t.status === 'pending' || t.status === 'in_progress').length;
+        const count = (data.assignedToMe || []).filter(
+          (t) => t.status === 'pending' || t.status === 'in_progress'
+        ).length;
         setPendingTasksCount(count);
       }
-    } catch (e) { console.error('Lỗi lấy số lượng công việc:', e); }
+    } catch (e) {
+      console.error('Lỗi lấy số lượng công việc:', e);
+    }
   }, [token, API_URL]);
 
   const fetchGlobalTasksCountRef = useRef(fetchGlobalTasksCount);
-  useEffect(() => { fetchGlobalTasksCountRef.current = fetchGlobalTasksCount; }, [fetchGlobalTasksCount]);
+  useEffect(() => {
+    fetchGlobalTasksCountRef.current = fetchGlobalTasksCount;
+  }, [fetchGlobalTasksCount]);
 
   // === Offline Outbox Sync ===
   const sendOfflineOutbox = useCallback((socketConn) => {
     const currentOutbox = offlineOutboxRef.current;
     if (currentOutbox.length === 0) return;
-    console.log(`Bắt đầu đồng bộ ${currentOutbox.length} tin nhắn từ outbox...`);
-    currentOutbox.forEach(msg => { socketConn.emit('send-message', msg); });
+    currentOutbox.forEach((msg) => {
+      socketConn.emit('send-message', msg);
+    });
     setOfflineOutbox([]);
   }, []);
 
@@ -189,14 +234,13 @@ export default function App() {
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('Socket.io connected:', newSocket.id);
       newSocket.emit('register-user', user.id);
-      
+
       const activeConv = activeConversationRef.current;
       if (activeConv) {
         newSocket.emit('join-conversation', activeConv.id);
       }
-      
+
       const savedSub = localStorage.getItem('chat_push_subscription');
       if (savedSub) {
         try {
@@ -204,34 +248,48 @@ export default function App() {
           newSocket.emit('sync-push-subscription', { subscription });
         } catch (e) {}
       }
-      
+
       sendOfflineOutbox(newSocket);
     });
 
-    // Lắng nghe tin nhắn mới
+    // Lắng nghe tin nhắn mới (Cập nhật state trực tiếp không cần gọi lại fetchConversations)
     newSocket.on('receive-message', (newMessage) => {
       const activeConv = activeConversationRef.current;
-      const isChatVisible = (window.innerWidth > 768) || (mobileActiveViewRef.current === 'chat');
-      if (activeConv && activeConv.id === newMessage.conversationId && isChatVisible) {
-        setLastReadTimestamps(prev => {
-          const updated = { ...prev, [newMessage.conversationId]: new Date().toISOString() };
+      const isChatVisible = window.innerWidth > 768 || mobileActiveViewRef.current === 'chat';
+      const isViewingThisConv = Boolean(activeConv && activeConv.id === newMessage.conversationId && isChatVisible);
+
+      if (isViewingThisConv) {
+        const nowIso = new Date().toISOString();
+        setLastReadTimestamps((prev) => {
+          const updated = { ...prev, [newMessage.conversationId]: nowIso };
           localStorage.setItem('chat_last_read_timestamps', JSON.stringify(updated));
           return updated;
         });
 
-        setMessages(prev => {
-          if (prev.some(m => m.id === newMessage.id)) return prev;
+        // Đồng bộ trạng thái đã đọc lên server khi đang mở xem trực tiếp
+        if (newMessage.senderId !== user.id) {
+          fetch(`${API_URL}/chat/conversations/${newMessage.conversationId}/read`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` }
+          }).catch(() => {});
+        }
+
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === newMessage.id)) return prev;
           if (newMessage.tempId) {
-            const index = prev.findIndex(m => m.id === newMessage.tempId);
+            const index = prev.findIndex((m) => m.id === newMessage.tempId);
             if (index !== -1) {
               const updated = [...prev];
               updated[index] = { ...newMessage, tempId: undefined };
               return updated;
             }
           }
-          const fallbackIndex = prev.findIndex(m => 
-            m.status === 'sending' && m.senderId === newMessage.senderId && 
-            m.content === newMessage.content && m.type === newMessage.type
+          const fallbackIndex = prev.findIndex(
+            (m) =>
+              m.status === 'sending' &&
+              m.senderId === newMessage.senderId &&
+              m.content === newMessage.content &&
+              m.type === newMessage.type
           );
           if (fallbackIndex !== -1) {
             const updated = [...prev];
@@ -242,13 +300,48 @@ export default function App() {
         });
       }
 
-      if (newMessage.type === 'task') fetchGlobalTasksCountRef.current();
+      if (newMessage.type === 'task') {
+        fetchGlobalTasksCountRef.current();
+      }
+
+      // Cập nhật danh sách hội thoại ngay tại chỗ (tránh bão HTTP request)
+      const existsInList = conversationsRef.current.some((c) => c.id === newMessage.conversationId);
+      if (existsInList) {
+        setConversations((prev) => {
+          const updatedList = prev.map((c) => {
+            if (c.id !== newMessage.conversationId) return c;
+            const isFromOther = newMessage.senderId !== user.id && newMessage.sender?.id !== user.id;
+            if (!isViewingThisConv && isFromOther && !c.isMuted) {
+              playNotificationChime();
+            }
+            return {
+              ...c,
+              messages: [newMessage],
+              updatedAt: newMessage.createdAt || new Date().toISOString(),
+              unreadCount: isViewingThisConv
+                ? 0
+                : isFromOther
+                  ? (c.unreadCount || 0) + 1
+                  : c.unreadCount || 0,
+              lastReadAt: isViewingThisConv ? new Date().toISOString() : c.lastReadAt
+            };
+          });
+          updatedList.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+          try {
+            localStorage.setItem('chat_conversations_cache', JSON.stringify(updatedList));
+          } catch (e) {}
+          return updatedList;
+        });
+      } else {
+        fetchConversations();
+      }
+    });
+
+    newSocket.on('conversation-updated', () => {
       fetchConversations();
     });
 
-    newSocket.on('conversation-updated', () => { fetchConversations(); });
     newSocket.on('conversation-removed', ({ conversationId }) => {
-      // Nếu đang xem conversation bị xóa, quay về danh sách
       const activeConv = activeConversationRef.current;
       if (activeConv && activeConv.id === conversationId) {
         setActiveConversation(null);
@@ -257,61 +350,131 @@ export default function App() {
       }
       fetchConversations();
     });
+
     newSocket.on('user-typing', ({ conversationId, userId, displayName, isTyping }) => {
       const activeConv = activeConversationRef.current;
       if (!activeConv || activeConv.id !== conversationId) return;
-      setTypingUsers(prev => {
+      setTypingUsers((prev) => {
         if (isTyping) {
-          if (prev.some(u => u.userId === userId)) return prev;
+          if (prev.some((u) => u.userId === userId)) return prev;
           return [...prev, { userId, displayName }];
         } else {
-          return prev.filter(u => u.userId !== userId);
+          return prev.filter((u) => u.userId !== userId);
         }
       });
     });
+
     newSocket.on('user-status-changed', ({ userId, status }) => {
-      setOnlineUsers(prev => status === 'online' 
-        ? (prev.includes(userId) ? prev : [...prev, userId])
-        : prev.filter(id => id !== userId));
+      setOnlineUsers((prev) =>
+        status === 'online'
+          ? prev.includes(userId)
+            ? prev
+            : [...prev, userId]
+          : prev.filter((id) => id !== userId)
+      );
     });
+
     newSocket.on('message-pin-toggled', ({ messageId, isPinned, message }) => {
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isPinned, pinnedBy: message.pinnedBy, pinnedAt: message.pinnedAt } : m));
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, isPinned, pinnedBy: message.pinnedBy, pinnedAt: message.pinnedAt }
+            : m
+        )
+      );
     });
+
+    newSocket.on('message-pinned', (updatedMsg) => {
+      if (!updatedMsg?.id) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === updatedMsg.id
+            ? { ...m, isPinned: updatedMsg.isPinned, pinnedBy: updatedMsg.pinnedBy, pinnedAt: updatedMsg.pinnedAt }
+            : m
+        )
+      );
+    });
+
     newSocket.on('message-reaction-updated', ({ messageId, reactions }) => {
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)));
     });
-    newSocket.on('message-recalled', ({ messageId }) => {
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isRecalled: true, content: null, metadata: null, isPinned: false, pinnedBy: null, pinnedAt: null } : m));
+
+    newSocket.on('message-recalled', ({ messageId, conversationId }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, isRecalled: true, content: null, metadata: null, isPinned: false, pinnedBy: null, pinnedAt: null }
+            : m
+        )
+      );
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== conversationId) return c;
+          const lastMsg = c.messages?.[0];
+          if (lastMsg && lastMsg.id === messageId) {
+            return { ...c, messages: [{ ...lastMsg, isRecalled: true, content: null }] };
+          }
+          return c;
+        })
+      );
     });
-    newSocket.on('message-edited', ({ messageId, content }) => {
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content } : m));
+
+    newSocket.on('message-edited', ({ messageId, conversationId, content }) => {
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content } : m)));
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== conversationId) return c;
+          const lastMsg = c.messages?.[0];
+          if (lastMsg && lastMsg.id === messageId) {
+            return { ...c, messages: [{ ...lastMsg, content }] };
+          }
+          return c;
+        })
+      );
     });
+
     newSocket.on('task-status-updated', ({ taskId, status, assigneeId, assigneeName }) => {
-      setMessages(prev => prev.map(m => {
-        if (m.type === 'task') {
-          try {
-            const meta = typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata;
-            if (meta && meta.taskId === taskId) {
-              meta.status = status;
-              if (assigneeId) { meta.assigneeId = assigneeId; meta.assigneeName = assigneeName; }
-              return { ...m, metadata: JSON.stringify(meta) };
-            }
-          } catch (e) {}
-        }
-        return m;
-      }));
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.type === 'task') {
+            try {
+              const meta = typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata;
+              if (meta && meta.taskId === taskId) {
+                meta.status = status;
+                if (assigneeId) {
+                  meta.assigneeId = assigneeId;
+                  meta.assigneeName = assigneeName;
+                }
+                return { ...m, metadata: JSON.stringify(meta) };
+              }
+            } catch (e) {}
+          }
+          return m;
+        })
+      );
       fetchGlobalTasksCountRef.current();
     });
+
     newSocket.on('reminder-trigger', (reminder) => {
-      if (Notification.permission === 'granted') {
-        new Notification(`⏰ Nhắc hẹn: ${reminder.title}`, { body: `Tạo bởi: ${reminder.creatorName}`, icon: '/favicon.ico' });
+      playNotificationChime();
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification(`⏰ Nhắc hẹn: ${reminder.title}`, {
+            body: `Tạo bởi: ${reminder.creatorName}`,
+            icon: '/pwa-192x192.png'
+          });
+        } catch (e) {
+          alert(`⏰ [Nhắc hẹn] ${reminder.title} (Tạo bởi: ${reminder.creatorName})`);
+        }
       } else {
         alert(`⏰ [Nhắc hẹn] ${reminder.title} (Tạo bởi: ${reminder.creatorName})`);
       }
     });
 
-    return () => { newSocket.disconnect(); };
-  }, [token, user]);
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [token, user, API_URL, fetchConversations, sendOfflineOutbox]);
 
   // === Service Worker Message Handler ===
   useEffect(() => {
@@ -319,15 +482,18 @@ export default function App() {
     const handleSWMessage = (event) => {
       if (event.data?.type === 'SWITCH_CONVERSATION') {
         const { conversationId } = event.data;
-        const targetConv = conversationsRef.current.find(c => c.id === conversationId);
+        const targetConv = conversationsRef.current.find((c) => c.id === conversationId);
         if (targetConv) {
           setActiveConversation(targetConv);
           setMobileActiveView('chat');
         } else {
           fetchConversations().then(() => {
-            setConversations(latestConvs => {
-              const conv = latestConvs.find(c => c.id === conversationId);
-              if (conv) { setActiveConversation(conv); setMobileActiveView('chat'); }
+            setConversations((latestConvs) => {
+              const conv = latestConvs.find((c) => c.id === conversationId);
+              if (conv) {
+                setActiveConversation(conv);
+                setMobileActiveView('chat');
+              }
               return latestConvs;
             });
           });
@@ -335,8 +501,10 @@ export default function App() {
       }
     };
     navigator.serviceWorker.addEventListener('message', handleSWMessage);
-    return () => { navigator.serviceWorker.removeEventListener('message', handleSWMessage); };
-  }, [token]);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+    };
+  }, [token, fetchConversations]);
 
   // === URL Query Parameter Handler ===
   useEffect(() => {
@@ -344,7 +512,7 @@ export default function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const convId = urlParams.get('convId');
       if (convId) {
-        const target = conversations.find(c => c.id === convId);
+        const target = conversations.find((c) => c.id === convId);
         if (target) {
           setActiveConversation(target);
           setMobileActiveView('chat');
@@ -362,11 +530,8 @@ export default function App() {
       fetchConversations();
       fetchGlobalTasksCount();
       checkPushNotificationStatus();
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        subscribeUserToPush(token);
-      }
     }
-  }, [token]);
+  }, [token, fetchConversations, fetchGlobalTasksCount, checkPushNotificationStatus]);
 
   // === Active Conversation Effects ===
   useEffect(() => {
@@ -381,34 +546,39 @@ export default function App() {
     setHasMoreMessages(true);
     setTypingUsers([]);
     if (activeConversation) {
-      setLastReadTimestamps(prev => {
-        const updated = { ...prev, [activeConversation.id]: new Date().toISOString() };
+      const nowIso = new Date().toISOString();
+      setLastReadTimestamps((prev) => {
+        const updated = { ...prev, [activeConversation.id]: nowIso };
         localStorage.setItem('chat_last_read_timestamps', JSON.stringify(updated));
         return updated;
       });
+      // Xóa ngay số đếm chưa đọc trên giao diện khi mở cuộc hội thoại
+      setConversations((prev) =>
+        prev.map((c) => (c.id === activeConversation.id ? { ...c, unreadCount: 0, lastReadAt: nowIso } : c))
+      );
     }
-  }, [activeConversation]);
+  }, [activeConversation?.id]);
 
   useEffect(() => {
     if (!activeConversation || !token) return;
     fetch(`${API_URL}/chat/conversations/${activeConversation.id}/messages?limit=50`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` }
     })
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error(`HTTP error ${res.status}`);
         return res.json();
       })
-      .then(data => {
+      .then((data) => {
         const msgList = Array.isArray(data) ? data : [];
         setMessages(msgList);
         if (msgList.length < 50) setHasMoreMessages(false);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error('Lỗi tải tin nhắn:', err);
         setMessages([]);
       });
     if (socket) socket.emit('join-conversation', activeConversation.id);
-  }, [activeConversation, token, socket]);
+  }, [activeConversation?.id, token, socket, API_URL]);
 
   // === IndexedDB Sync ===
   useEffect(() => {
@@ -432,91 +602,155 @@ export default function App() {
     setIsLoadingOlder(true);
     const oldestMessageId = messages[0].id;
     try {
-      const res = await fetch(`${API_URL}/chat/conversations/${activeConversation.id}/messages?before=${oldestMessageId}&limit=50`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetch(
+        `${API_URL}/chat/conversations/${activeConversation.id}/messages?before=${oldestMessageId}&limit=50`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
       if (res.ok) {
         const data = await res.json();
         if (data.length < 50) setHasMoreMessages(false);
-        if (data.length > 0) setMessages(prev => [...data, ...prev]);
+        if (data.length > 0) setMessages((prev) => [...data, ...prev]);
       }
-    } catch (e) { console.error('Lỗi tải tin nhắn cũ:', e); }
-    finally { setIsLoadingOlder(false); }
+    } catch (e) {
+      console.error('Lỗi tải tin nhắn cũ:', e);
+    } finally {
+      setIsLoadingOlder(false);
+    }
   }, [isLoadingOlder, hasMoreMessages, activeConversation, token, messages, API_URL]);
 
-  const handleSendMessage = useCallback((messageData) => {
-    const tempId = 'temp-' + Date.now();
-    const payload = { ...messageData, senderId: user.id, tempId };
-    const fullMessage = {
-      id: tempId, senderId: user.id,
-      sender: { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl, username: user.username },
-      createdAt: new Date().toISOString(), status: 'sending', ...messageData
-    };
-    if (activeConversationRef.current && messageData.conversationId === activeConversationRef.current.id) {
-      setMessages(prev => [...prev, fullMessage]);
-    }
-    if (isOnline && socket?.connected) {
-      socket.emit('send-message', payload);
-    } else {
-      setOfflineOutbox(prev => [...prev, payload]);
-    }
-  }, [user, isOnline, socket]);
+  const handleSendMessage = useCallback(
+    (messageData) => {
+      const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+      const payload = { ...messageData, senderId: user.id, tempId };
+      const fullMessage = {
+        id: tempId,
+        senderId: user.id,
+        sender: { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl, username: user.username },
+        createdAt: new Date().toISOString(),
+        status: 'sending',
+        ...messageData
+      };
+      if (activeConversationRef.current && messageData.conversationId === activeConversationRef.current.id) {
+        setMessages((prev) => [...prev, fullMessage]);
+      }
+      if (isOnline && socket?.connected) {
+        socket.emit('send-message', payload);
+      } else {
+        setOfflineOutbox((prev) => [...prev, payload]);
+      }
+    },
+    [user, isOnline, socket]
+  );
 
-  const handlePinMessage = useCallback((messageId, conversationId) => {
-    if (socket) socket.emit('pin-message', { messageId, conversationId, pinnedBy: user.id });
-  }, [socket, user]);
+  const handlePinMessage = useCallback(
+    (messageId, conversationId) => {
+      if (socket) socket.emit('pin-message', { messageId, conversationId, pinnedBy: user.id });
+    },
+    [socket, user]
+  );
 
-  const handleToggleReaction = useCallback((messageId, emojiType) => {
-    if (socket && activeConversation) {
-      socket.emit('toggle-reaction', { messageId, userId: user.id, type: emojiType, conversationId: activeConversation.id });
-    }
-  }, [socket, activeConversation, user]);
+  const handleToggleReaction = useCallback(
+    (messageId, emojiType) => {
+      if (socket && activeConversation) {
+        socket.emit('toggle-reaction', {
+          messageId,
+          userId: user.id,
+          type: emojiType,
+          conversationId: activeConversation.id
+        });
+      }
+    },
+    [socket, activeConversation, user]
+  );
 
-  const handleRecallMessage = useCallback((messageId) => {
-    if (socket && activeConversation) {
-      socket.emit('recall-message', { messageId, conversationId: activeConversation.id, userId: user.id });
-    }
-  }, [socket, activeConversation, user]);
+  const handleRecallMessage = useCallback(
+    (messageId) => {
+      if (socket && activeConversation) {
+        socket.emit('recall-message', { messageId, conversationId: activeConversation.id, userId: user.id });
+      }
+    },
+    [socket, activeConversation, user]
+  );
 
-  const handleEditMessage = useCallback((messageId, newContent) => {
-    if (socket && activeConversation) {
-      socket.emit('edit-message', { messageId, content: newContent, conversationId: activeConversation.id });
-    }
-  }, [socket, activeConversation]);
+  const handleEditMessage = useCallback(
+    (messageId, newContent) => {
+      if (socket && activeConversation) {
+        socket.emit('edit-message', { messageId, content: newContent, conversationId: activeConversation.id });
+      }
+    },
+    [socket, activeConversation]
+  );
 
-  const handleDeleteMessageForMe = useCallback(async (messageId) => {
-    if (!token) return;
-    try {
-      const res = await fetch(`${API_URL}/chat/messages/${messageId}/delete-for-me`, {
-        method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+  const handleDeleteMessageForMe = useCallback(
+    async (messageId) => {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_URL}/chat/messages/${messageId}/delete-for-me`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          setMessages((prev) => prev.filter((m) => m.id !== messageId));
+        } else {
+          const errData = await res.json();
+          alert(errData.error || 'Lỗi khi xóa tin nhắn');
+        }
+      } catch (e) {
+        console.error('Lỗi xóa tin nhắn:', e);
+      }
+    },
+    [token, API_URL]
+  );
+
+  const handleUpdateNickname = useCallback(
+    (targetUserId, nickname) => {
+      setActiveConversation((prev) => {
+        if (!prev) return null;
+        return { ...prev, members: prev.members.map((m) => (m.user.id === targetUserId ? { ...m, nickname } : m)) };
       });
-      if (res.ok) { setMessages(prev => prev.filter(m => m.id !== messageId)); }
-      else { const errData = await res.json(); alert(errData.error || 'Lỗi khi xóa tin nhắn'); }
-    } catch (e) { console.error('Lỗi xóa tin nhắn:', e); }
-  }, [token, API_URL]);
+      fetchConversations();
+    },
+    [fetchConversations]
+  );
 
-  const handleUpdateNickname = useCallback((targetUserId, nickname) => {
-    setActiveConversation(prev => {
-      if (!prev) return null;
-      return { ...prev, members: prev.members.map(m => m.user.id === targetUserId ? { ...m, nickname } : m) };
-    });
-    fetchConversations();
-  }, [fetchConversations]);
+  const handleToggleMute = useCallback((convId, muted) => {
+    setConversations((prev) => prev.map((c) => (c.id === convId ? { ...c, isMuted: muted } : c)));
+    setActiveConversation((prev) => (prev && prev.id === convId ? { ...prev, isMuted: muted } : prev));
+  }, []);
 
   // === Computed Values ===
   const totalUnreadChats = useMemo(() => {
     if (!conversations || !Array.isArray(conversations)) return 0;
     let total = 0;
-    conversations.forEach(conv => {
+    conversations.forEach((conv) => {
       if (activeConversation?.id === conv.id) return;
+      if (typeof conv.unreadCount === 'number' && conv.unreadCount > 0) {
+        total += conv.unreadCount;
+        return;
+      }
       const lastMsg = conv.messages?.[0];
       if (lastMsg && lastMsg.senderId !== user?.id && lastMsg.sender?.id !== user?.id) {
-        const lastRead = lastReadTimestamps?.[conv.id];
+        const lastRead = lastReadTimestamps?.[conv.id] || conv.lastReadAt;
         if (!lastRead || new Date(lastMsg.createdAt) > new Date(lastRead)) total += 1;
       }
     });
     return total;
   }, [conversations, activeConversation, lastReadTimestamps, user]);
+
+  // Đồng bộ huy hiệu (App Badge) trên màn hình chính điện thoại (iOS/Android PWA)
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    const totalBadge = totalUnreadChats + pendingTasksCount;
+    if ('setAppBadge' in navigator && 'clearAppBadge' in navigator) {
+      if (totalBadge > 0) {
+        navigator.setAppBadge(totalBadge).catch(() => {});
+      } else {
+        navigator.clearAppBadge().catch(() => {});
+      }
+    }
+  }, [totalUnreadChats, pendingTasksCount]);
 
   // === Render ===
   if (!token || !user) {
@@ -530,71 +764,143 @@ export default function App() {
       <div style={styles.mainLayout}>
         {/* 1. Left Sidebar */}
         <Sidebar
-          user={user} token={token} conversations={conversations}
+          user={user}
+          token={token}
+          conversations={conversations}
           activeConversation={activeConversation}
-          setActiveConversation={(conv) => { setActiveConversation(conv); setMobileActiveView('chat'); }}
+          setActiveConversation={(conv) => {
+            setActiveConversation(conv);
+            setMobileActiveView('chat');
+          }}
           onlineUsers={onlineUsers}
-          onLogout={() => { handleLogout(socket); setConversations([]); setActiveConversation(null); setMessages([]); setMobileActiveView('list'); }}
+          onLogout={() => {
+            handleLogout(socket);
+            setConversations([]);
+            setActiveConversation(null);
+            setMessages([]);
+            setMobileActiveView('list');
+          }}
           onRefreshConversations={fetchConversations}
           onShowProfile={() => setShowProfile(true)}
-          mobileActiveView={mobileActiveView} setMobileActiveView={setMobileActiveView}
+          mobileActiveView={mobileActiveView}
+          setMobileActiveView={setMobileActiveView}
           className={mobileActiveView === 'list' ? 'mobile-show-list' : 'mobile-hide-list'}
-          theme={theme} toggleTheme={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-          pushStatus={pushStatus} onEnablePush={handleEnablePushNotifications}
-          dismissedPushBanner={dismissedPushBanner} onDismissPushBanner={dismissPushBanner}
-          onShowTasks={() => { setShowTasks(prev => !prev); setShowProfile(false); }}
-          pendingTasksCount={pendingTasksCount} lastReadTimestamps={lastReadTimestamps}
+          theme={theme}
+          toggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+          pushStatus={pushStatus}
+          onEnablePush={handleEnablePushNotifications}
+          dismissedPushBanner={dismissedPushBanner}
+          onDismissPushBanner={dismissPushBanner}
+          onShowTasks={() => {
+            setShowTasks((prev) => !prev);
+            setShowProfile(false);
+          }}
+          pendingTasksCount={pendingTasksCount}
+          lastReadTimestamps={lastReadTimestamps}
         />
 
-        {/* Mock views */}
-        <ContactsView mobileActiveView={mobileActiveView} user={user} conversations={conversations} />
-        <DiaryView mobileActiveView={mobileActiveView} user={user} />
+        {/* Danh bạ */}
+        <ContactsView
+          mobileActiveView={mobileActiveView}
+          user={user}
+          conversations={conversations}
+          onlineUsers={onlineUsers}
+          onSelectConversation={(conv) => {
+            setActiveConversation(conv);
+            setMobileActiveView('chat');
+          }}
+        />
 
         {/* 2. Center: Chat or Tasks */}
         {showTasks || mobileActiveView === 'tasks' ? (
-          <Suspense fallback={
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', background: 'var(--bg-chat-gradient)', color: 'var(--text-secondary)' }}>
-              <span className="typing-dot"></span><span className="typing-dot"></span><span className="typing-dot"></span>
-              <p style={{ marginTop: '10px', fontSize: '0.85rem' }}>Đang tải bảng công việc...</p>
-            </div>
-          }>
+          <Suspense
+            fallback={
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  width: '100%',
+                  background: 'var(--bg-chat-gradient)',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                <span className="typing-dot"></span>
+                <span className="typing-dot"></span>
+                <span className="typing-dot"></span>
+                <p style={{ marginTop: '10px', fontSize: '0.85rem' }}>Đang tải bảng công việc...</p>
+              </div>
+            }
+          >
             <TasksView
-              user={user} token={token}
-              onClose={() => { setShowTasks(false); if (mobileActiveView === 'tasks') setMobileActiveView('list'); }}
-              onSelectConversation={(convId) => {
-                const target = conversations.find(c => c.id === convId);
-                if (target) { setActiveConversation(target); setShowTasks(false); setMobileActiveView('chat'); }
+              user={user}
+              token={token}
+              onClose={() => {
+                setShowTasks(false);
+                if (mobileActiveView === 'tasks') setMobileActiveView('list');
               }}
-              socket={socket} mobileActiveView={mobileActiveView} setMobileActiveView={setMobileActiveView}
-              className={(showTasks || mobileActiveView === 'tasks') ? 'mobile-show-chat' : 'mobile-hide-chat'}
+              onSelectConversation={(convId) => {
+                const target = conversations.find((c) => c.id === convId);
+                if (target) {
+                  setActiveConversation(target);
+                  setShowTasks(false);
+                  setMobileActiveView('chat');
+                }
+              }}
+              socket={socket}
+              mobileActiveView={mobileActiveView}
+              setMobileActiveView={setMobileActiveView}
+              className={showTasks || mobileActiveView === 'tasks' ? 'mobile-show-chat' : 'mobile-hide-chat'}
             />
           </Suspense>
         ) : (
           <ChatWindow
-            user={user} token={token} conversation={activeConversation} conversations={conversations}
-            wallpaper={activeWallpaper} messages={messages} typingUsers={typingUsers}
-            onSendMessage={handleSendMessage} onPinMessage={handlePinMessage}
-            onToggleReaction={handleToggleReaction} onRecallMessage={handleRecallMessage}
-            onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessageForMe}
+            user={user}
+            token={token}
+            socket={socket}
+            conversation={activeConversation}
+            conversations={conversations}
+            wallpaper={activeWallpaper}
+            messages={messages}
+            typingUsers={typingUsers}
+            onSendMessage={handleSendMessage}
+            onPinMessage={handlePinMessage}
+            onToggleReaction={handleToggleReaction}
+            onRecallMessage={handleRecallMessage}
+            onEditMessage={handleEditMessage}
+            onDeleteMessage={handleDeleteMessageForMe}
             onStartCall={(isVideo) => handleStartCall(isVideo, activeConversation, user)}
             toggleRightSidebar={() => {
               const nextState = !showRightSidebar;
               setShowRightSidebar(nextState);
               setMobileActiveView(nextState ? 'options' : 'chat');
             }}
-            onlineUsers={onlineUsers} mobileActiveView={mobileActiveView} setMobileActiveView={setMobileActiveView}
+            onlineUsers={onlineUsers}
+            mobileActiveView={mobileActiveView}
+            setMobileActiveView={setMobileActiveView}
             className={mobileActiveView === 'chat' ? 'mobile-show-chat' : 'mobile-hide-chat'}
             onImageClick={(url) => setLightboxImage(url)}
-            fetchOlderMessages={fetchOlderMessages} hasMoreMessages={hasMoreMessages} isLoadingOlder={isLoadingOlder}
+            fetchOlderMessages={fetchOlderMessages}
+            hasMoreMessages={hasMoreMessages}
+            isLoadingOlder={isLoadingOlder}
           />
         )}
 
         {/* 3. Right Sidebar */}
         {showRightSidebar && activeConversation && (
           <RightSidebar
-            user={user} token={token} conversation={activeConversation} socket={socket}
-            onClose={() => { setShowRightSidebar(false); setMobileActiveView('chat'); }}
+            user={user}
+            token={token}
+            conversation={activeConversation}
+            socket={socket}
+            onClose={() => {
+              setShowRightSidebar(false);
+              setMobileActiveView('chat');
+            }}
             onUpdateNickname={handleUpdateNickname}
+            onToggleMute={handleToggleMute}
             onUpdateWallpaper={(val) => {
               setActiveWallpaper(val);
               if (activeConversation) {
@@ -602,7 +908,8 @@ export default function App() {
                 else localStorage.removeItem(`chat_wallpaper_${activeConversation.id}`);
               }
             }}
-            mobileActiveView={mobileActiveView} setMobileActiveView={setMobileActiveView}
+            mobileActiveView={mobileActiveView}
+            setMobileActiveView={setMobileActiveView}
             className={mobileActiveView === 'options' ? 'mobile-show-options' : 'mobile-hide-options'}
             onImageClick={(url) => setLightboxImage(url)}
           />
@@ -611,27 +918,58 @@ export default function App() {
 
       {/* 4. Video/Voice Call Overlay */}
       <VideoCall
-        user={user} token={token} socket={socket}
-        callState={callState} setCallState={setCallState}
-        callInfo={callInfo} setCallInfo={setCallInfo}
-        localStream={localStream} setLocalStream={setLocalStream}
-        remoteStream={remoteStream} setRemoteStream={setRemoteStream}
-        peerInstance={peerInstance} setPeerInstance={setPeerInstance}
+        user={user}
+        token={token}
+        socket={socket}
+        callState={callState}
+        setCallState={setCallState}
+        callInfo={callInfo}
+        setCallInfo={setCallInfo}
+        localStream={localStream}
+        setLocalStream={setLocalStream}
+        remoteStream={remoteStream}
+        setRemoteStream={setRemoteStream}
+        peerInstance={peerInstance}
+        setPeerInstance={setPeerInstance}
         conversation={activeConversation}
       />
 
       {/* 5. Profile Overlay */}
       {showProfile && (
-        <Suspense fallback={
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)' }}>
-            <span className="typing-dot"></span><span className="typing-dot"></span><span className="typing-dot"></span>
-          </div>
-        }>
+        <Suspense
+          fallback={
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(0, 0, 0, 0.4)',
+                backdropFilter: 'blur(10px)'
+              }}
+            >
+              <span className="typing-dot"></span>
+              <span className="typing-dot"></span>
+              <span className="typing-dot"></span>
+            </div>
+          }
+        >
           <ProfileView
-            user={user} token={token}
-            onClose={() => { setShowProfile(false); if (mobileActiveView === 'profile') setMobileActiveView('list'); }}
-            onProfileUpdate={(updatedUser) => { setUser(updatedUser); fetchConversations(); }}
-            pushStatus={pushStatus} onEnablePush={handleEnablePushNotifications}
+            user={user}
+            token={token}
+            onClose={() => {
+              setShowProfile(false);
+              if (mobileActiveView === 'profile') setMobileActiveView('list');
+            }}
+            onProfileUpdate={(updatedUser) => {
+              setUser(updatedUser);
+              fetchConversations();
+            }}
+            pushStatus={pushStatus}
+            onEnablePush={handleEnablePushNotifications}
+            onTestPush={handleTestPushNotification}
             mobileActiveView={mobileActiveView}
           />
         </Suspense>
@@ -642,9 +980,12 @@ export default function App() {
 
       {/* 7. Bottom Navigation (Mobile) */}
       <BottomNav
-        mobileActiveView={mobileActiveView} setMobileActiveView={setMobileActiveView}
-        showProfile={showProfile} setShowProfile={setShowProfile}
-        totalUnreadChats={totalUnreadChats} pendingTasksCount={pendingTasksCount}
+        mobileActiveView={mobileActiveView}
+        setMobileActiveView={setMobileActiveView}
+        showProfile={showProfile}
+        setShowProfile={setShowProfile}
+        totalUnreadChats={totalUnreadChats}
+        pendingTasksCount={pendingTasksCount}
       />
     </div>
   );
@@ -652,12 +993,23 @@ export default function App() {
 
 const styles = {
   appContainer: {
-    height: '100%', width: '100%', position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    backgroundColor: 'var(--bg-primary)',
+    height: '100%',
+    width: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    backgroundColor: 'var(--bg-primary)'
   },
   mainLayout: {
-    flex: 1, display: 'flex', height: '100%', width: '100%', overflow: 'hidden',
-  },
+    flex: 1,
+    display: 'flex',
+    height: '100%',
+    width: '100%',
+    overflow: 'hidden'
+  }
 };

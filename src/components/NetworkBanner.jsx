@@ -6,19 +6,22 @@ export default function NetworkBanner() {
   const [type, setType] = useState('offline'); // 'offline' | 'restored'
 
   useEffect(() => {
+    let restoreTimer = null;
+
     const handleOnline = () => {
       setIsOnline(true);
       setType('restored');
       setShow(true);
       
       // Tự động ẩn banner khôi phục sau 4 giây
-      const timer = setTimeout(() => {
+      if (restoreTimer) clearTimeout(restoreTimer);
+      restoreTimer = setTimeout(() => {
         setShow(false);
       }, 4000);
-      return () => clearTimeout(timer);
     };
 
     const handleOffline = () => {
+      if (restoreTimer) clearTimeout(restoreTimer);
       setIsOnline(false);
       setType('offline');
       setShow(true);
@@ -33,6 +36,7 @@ export default function NetworkBanner() {
     }
 
     return () => {
+      if (restoreTimer) clearTimeout(restoreTimer);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };

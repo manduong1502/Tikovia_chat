@@ -1,16 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FiSmile, FiMoreHorizontal, FiMic, FiImage, FiSend, FiPaperclip, FiClock, FiMapPin, FiX, FiCheckSquare } from 'react-icons/fi';
 import stickerPacks from '../stickers.json';
+import Avatar from './Avatar';
 
 export default function ChatInput({ 
   token, 
+  user = null,
+  socket = null,
   conversation, 
   onSendMessage, 
   replyingTo, 
   setReplyingTo,
   editingMsg = null,
   setEditingMsg = null,
-  onEditMessage = null
+  onEditMessage = null,
+  droppedFiles = null,
+  onConsumeDroppedFiles = null
 }) {
   const [text, setText] = useState('');
   const [showStickers, setShowStickers] = useState(false);
@@ -26,9 +31,11 @@ export default function ChatInput({
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [audioChunks, setAudioChunks] = useState([]);
   const mediaRecorderRef = useRef(null);
+  const streamRef = useRef(null);
   const recordingTimerRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
 
   // Reminders Form state
   const [showReminderModal, setShowReminderModal] = useState(false);
@@ -42,24 +49,50 @@ export default function ChatInput({
   const [taskAssigneeId, setTaskAssigneeId] = useState('');
   const [taskDueDate, setTaskDueDate] = useState('');
 
-  // Trạng thái Upload tiến trình
+  // Trạng thái Upload tiến trình & Hàng đợi Xem trước tệp đính kèm (Staging Preview)
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadFileName, setUploadFileName] = useState('');
   const [uploadTimeElapsed, setUploadTimeElapsed] = useState('00:00');
   const [uploadSpeed, setUploadSpeed] = useState('');
+  const [pendingFiles, setPendingFiles] = useState([]);
 
   // Refs
   const inputRef = useRef(null);
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const pendingFilesRef = useRef([]);
 
-  // Tự động co giãn chiều cao của ô nhập chat (Textarea)
+  useEffect(() => {
+    pendingFilesRef.current = pendingFiles;
+  }, [pendingFiles]);
+
+  // Giải phóng ObjectURL khi unmount hoặc đổi phòng chat
+  useEffect(() => {
+    return () => {
+      pendingFilesRef.current.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    setPendingFiles((prev) => {
+      prev.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
+    });
+  }, [conversation?.id]);
+
+  // Tự động co giãn chiều cao của ô nhập chat (Textarea từ 1 đến 5 dòng)
   useEffect(() => {
     const textarea = inputRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+      const nextHeight = text ? Math.min(Math.max(textarea.scrollHeight, 24), 120) : 24;
+      textarea.style.height = `${nextHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > 120 ? 'auto' : 'hidden';
     }
   }, [text]);
 
@@ -75,10 +108,32 @@ export default function ChatInput({
 
   // Sử dụng stickerPacks được import từ file json
 
-  // Quản lý gõ phím và kích hoạt Mentions
+  // Quản lý gõ phím, phát tín hiệu typing qua Socket và kích hoạt Mentions
   const handleInputChange = (e) => {
     const val = e.target.value;
     setText(val);
+
+    if (socket && typeof socket.emit === 'function' && conversation?.id) {
+      if (!isTypingRef.current && val.trim().length > 0) {
+        isTypingRef.current = true;
+        socket.emit('typing', {
+          conversationId: conversation.id,
+          displayName: user?.displayName || 'Thành viên',
+          isTyping: true
+        });
+      }
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        if (isTypingRef.current) {
+          isTypingRef.current = false;
+          socket.emit('typing', {
+            conversationId: conversation.id,
+            displayName: user?.displayName || 'Thành viên',
+            isTyping: false
+          });
+        }
+      }, 2500);
+    }
 
     // Phát hiện ký tự '@' để tag trong nhóm chat
     if (conversation.isGroup) {
@@ -121,7 +176,7 @@ export default function ChatInput({
     return new Promise((resolve, reject) => {
       setIsUploading(true);
       setUploadProgress(0);
-      setUploadFileName(file.name);
+      setUploadFileName(file.displayLabel || file.name);
       setUploadSpeed('');
       setUploadTimeElapsed('00:00');
       
@@ -286,25 +341,97 @@ export default function ChatInput({
     });
   };
 
-  // Chọn hình ảnh
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Chỉ nén ảnh tĩnh, bỏ qua ảnh gif động để tránh mất hiệu ứng động
-      if (file.type.startsWith('image/') && file.type !== 'image/gif') {
-        const compressed = await compressImage(file);
-        handleFileUpload(compressed, 'image');
-      } else {
-        handleFileUpload(file, 'image');
+  // Đưa danh sách file (từ nút chọn nhiều file, Ctrl+V dán ảnh chụp màn hình, hoặc Kéo-Thả) vào thanh Xem trước
+  const stageFiles = (rawFileList) => {
+    if (!rawFileList || rawFileList.length === 0) return;
+    const filesArray = Array.from(rawFileList);
+    const nowTag = new Date().toTimeString().slice(0, 8).replace(/:/g, '');
+
+    const newStaged = filesArray.map((file, idx) => {
+      let normalizedFile = file;
+      // Nếu là ảnh chụp màn hình dán từ Clipboard (thường có tên mặc định là image.png) thì đặt tên rõ ràng
+      if (file.type.startsWith('image/') && (!file.name || file.name === 'image.png' || file.name === 'blob')) {
+        const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        normalizedFile = new File([file], `Anh-chup-man-hinh-${nowTag}-${idx + 1}.${ext}`, {
+          type: file.type,
+          lastModified: Date.now()
+        });
       }
+      const isImg = normalizedFile.type.startsWith('image/');
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${idx}`,
+        file: normalizedFile,
+        type: isImg ? 'image' : 'file',
+        previewUrl: isImg ? URL.createObjectURL(normalizedFile) : null
+      };
+    });
+
+    setPendingFiles((prev) => [...prev, ...newStaged]);
+    setTimeout(() => inputRef.current?.focus(), 30);
+  };
+
+  // Nhận các file được Kéo-Thả từ cửa sổ ChatWindow
+  useEffect(() => {
+    if (droppedFiles && droppedFiles.length > 0) {
+      stageFiles(droppedFiles);
+      if (onConsumeDroppedFiles) onConsumeDroppedFiles();
+    }
+  }, [droppedFiles]);
+
+  const handleRemovePendingFile = (idToRemove) => {
+    setPendingFiles((prev) => {
+      const target = prev.find((item) => item.id === idToRemove);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((item) => item.id !== idToRemove);
+    });
+  };
+
+  const handleClearAllPendingFiles = () => {
+    setPendingFiles((prev) => {
+      prev.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
+    });
+  };
+
+  // Xử lý dán ảnh chụp màn hình hoặc tệp từ Clipboard (Ctrl + V)
+  const handlePaste = (e) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    const extractedFiles = [];
+    if (clipboardData.items && clipboardData.items.length > 0) {
+      for (let i = 0; i < clipboardData.items.length; i++) {
+        const item = clipboardData.items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) extractedFiles.push(file);
+        }
+      }
+    } else if (clipboardData.files && clipboardData.files.length > 0) {
+      extractedFiles.push(...Array.from(clipboardData.files));
+    }
+
+    if (extractedFiles.length > 0) {
+      e.preventDefault();
+      stageFiles(extractedFiles);
     }
   };
 
-  // Chọn tài liệu
+  // Chọn một hoặc nhiều hình ảnh
+  const handleImageChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      stageFiles(e.target.files);
+      e.target.value = '';
+    }
+  };
+
+  // Chọn một hoặc nhiều tài liệu
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      handleFileUpload(file, 'file');
+    if (e.target.files && e.target.files.length > 0) {
+      stageFiles(e.target.files);
+      e.target.value = '';
     }
   };
 
@@ -332,27 +459,63 @@ export default function ChatInput({
     }
   };
 
-  // Gửi tin nhắn văn bản / Sửa tin nhắn
-  const handleSendText = () => {
-    if (!text.trim()) return;
-    
-    if (editingMsg) {
-      if (onEditMessage) {
-        onEditMessage(editingMsg.id, text);
-      }
-      if (setEditingMsg) setEditingMsg(null);
-    } else {
-      onSendMessage({
+  // Gửi tin nhắn văn bản + toàn bộ ảnh/file đang chờ trong thanh Xem trước
+  const handleSendText = async () => {
+    const hasText = Boolean(text.trim());
+    const hasStagedFiles = pendingFiles.length > 0;
+    if (!hasText && !hasStagedFiles) return;
+    if (isUploading) return;
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (isTypingRef.current && socket && typeof socket.emit === 'function' && conversation?.id) {
+      isTypingRef.current = false;
+      socket.emit('typing', {
         conversationId: conversation.id,
-        type: 'text',
-        content: text,
-        replyToId: replyingTo?.id || null
+        displayName: user?.displayName || 'Thành viên',
+        isTyping: false
       });
     }
-    
+
+    const currentText = text;
+    const filesToUpload = [...pendingFiles];
+
     setText('');
+    setPendingFiles([]);
     setShowMentions(false);
-    if (setReplyingTo) setReplyingTo(null);
+
+    // 1. Nếu có các file/ảnh đang chờ trong thanh Preview -> Nén ảnh & tải lên lần lượt
+    if (filesToUpload.length > 0) {
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const item = filesToUpload[i];
+        let fileToSend = item.file;
+        if (item.type === 'image' && fileToSend.type.startsWith('image/') && fileToSend.type !== 'image/gif') {
+          fileToSend = await compressImage(fileToSend);
+        }
+        const batchLabel = filesToUpload.length > 1 ? `(${i + 1}/${filesToUpload.length}) ${fileToSend.name}` : fileToSend.name;
+        const fileWithLabel = new File([fileToSend], fileToSend.name, { type: fileToSend.type });
+        fileWithLabel.displayLabel = batchLabel;
+        await handleFileUpload(fileWithLabel, item.type);
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      }
+    }
+
+    // 2. Nếu có kèm chữ văn bản -> Gửi tin nhắn văn bản
+    if (hasText) {
+      if (editingMsg) {
+        if (onEditMessage) {
+          onEditMessage(editingMsg.id, currentText);
+        }
+        if (setEditingMsg) setEditingMsg(null);
+      } else {
+        onSendMessage({
+          conversationId: conversation.id,
+          type: 'text',
+          content: currentText,
+          replyToId: replyingTo?.id || null
+        });
+      }
+      if (setReplyingTo) setReplyingTo(null);
+    }
   };
 
   // Chia sẻ vị trí hiện tại
@@ -391,28 +554,15 @@ export default function ChatInput({
     });
   };
 
-  // Thiết lập nhắc hẹn
+  // Thiết lập nhắc hẹn (Tạo đồng bộ cả Message & Reminder trong 1 Transaction trên Backend)
   const handleCreateReminder = async (e) => {
     e.preventDefault();
-    if (!reminderTitle || !reminderTime) {
+    if (!reminderTitle.trim() || !reminderTime) {
       alert('Vui lòng chọn tiêu đề và thời gian hẹn');
       return;
     }
 
     try {
-      // 1. Tạo tin nhắn nhắc hẹn trước
-      const msgRes = onSendMessage({
-        conversationId: conversation.id,
-        type: 'reminder',
-        content: `⏰ Nhắc hẹn: "${reminderTitle}"`,
-        replyToId: replyingTo?.id || null,
-        metadata: {
-          remindAt: new Date(reminderTime).toISOString()
-        }
-      });
-      if (setReplyingTo) setReplyingTo(null);
-
-      // 2. Gọi API tạo nhắc hẹn trên server để thiết lập cron trigger (bên socket.on('send-message') sẽ tự động chạy hoặc gọi API)
       const res = await fetch(`${API_URL}/chat/reminders`, {
         method: 'POST',
         headers: {
@@ -420,14 +570,19 @@ export default function ChatInput({
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          title: reminderTitle,
+          conversationId: conversation.id,
+          title: reminderTitle.trim(),
           remindAt: new Date(reminderTime).toISOString(),
-          messageId: 'reminder_mock_id' // Sẽ map bên backend
+          replyToId: replyingTo?.id || null
         })
       });
 
-      if (!res.ok) throw new Error('Không thể đăng ký nhắc hẹn');
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Không thể đăng ký nhắc hẹn');
+      }
 
+      if (setReplyingTo) setReplyingTo(null);
       setShowReminderModal(false);
       setShowMoreMenu(false);
       setReminderTitle('');
@@ -479,22 +634,62 @@ export default function ChatInput({
     }
   };
 
-  // --- GHI ÂM TIN NHẮN THOẠI (VOICE MESSAGE) ---
+  // Dọn dẹp luồng Microphone an toàn khi hủy hoặc đóng component
+  const releaseMicrophoneStream = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      releaseMicrophoneStream();
+    };
+  }, []);
+
+  // --- GHI ÂM TIN NHẮN THOẠI (Hỗ trợ đa nền tảng Android/Desktop WebM & iOS Safari MP4/AAC) ---
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      streamRef.current = stream;
+
+      const candidateTypes = [
+        { mime: 'audio/webm;codecs=opus', ext: 'webm', cleanMime: 'audio/webm' },
+        { mime: 'audio/webm', ext: 'webm', cleanMime: 'audio/webm' },
+        { mime: 'audio/mp4', ext: 'm4a', cleanMime: 'audio/mp4' },
+        { mime: 'audio/ogg;codecs=opus', ext: 'ogg', cleanMime: 'audio/ogg' },
+        { mime: 'audio/aac', ext: 'aac', cleanMime: 'audio/aac' }
+      ];
+
+      let chosen = { mime: '', ext: 'webm', cleanMime: 'audio/webm' };
+      if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
+        const found = candidateTypes.find((c) => MediaRecorder.isTypeSupported(c.mime));
+        if (found) chosen = found;
+      }
+
+      const recorderOptions = chosen.mime ? { mimeType: chosen.mime } : undefined;
+      mediaRecorderRef.current = new MediaRecorder(stream, recorderOptions);
       
       const chunks = [];
       mediaRecorderRef.current.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
+        if (e.data && e.data.size > 0) chunks.push(e.data);
       };
 
       mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-        const audioFile = new File([audioBlob], 'voice-message.webm', { type: 'audio/webm' });
-        await handleFileUpload(audioFile, 'voice');
-        stream.getTracks().forEach(track => track.stop());
+        try {
+          if (chunks.length > 0) {
+            const audioBlob = new Blob(chunks, { type: chosen.cleanMime });
+            const audioFile = new File([audioBlob], `voice-message.${chosen.ext}`, {
+              type: chosen.cleanMime
+            });
+            await handleFileUpload(audioFile, 'voice');
+          }
+        } finally {
+          releaseMicrophoneStream();
+        }
       };
 
       mediaRecorderRef.current.start();
@@ -502,9 +697,10 @@ export default function ChatInput({
       setRecordingDuration(0);
 
       recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
+        setRecordingDuration((prev) => prev + 1);
       }, 1000);
     } catch (e) {
+      releaseMicrophoneStream();
       alert('Không thể truy cập microphone: ' + e.message);
     }
   };
@@ -517,10 +713,14 @@ export default function ChatInput({
     if (shouldSend) {
       mediaRecorderRef.current.stop();
     } else {
-      // Hủy ghi âm
+      // Hủy ghi âm và giải phóng ngay phần cứng Microphone
       mediaRecorderRef.current.onstop = null;
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+      try {
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) {}
+      releaseMicrophoneStream();
     }
     setIsRecording(false);
   };
@@ -565,7 +765,7 @@ export default function ChatInput({
       {replyingTo && (
         <div style={styles.replyPreviewBar}>
           <div style={styles.replyPreviewInfo}>
-            <span style={styles.replyPreviewTitle}>Đang trả lời <strong>{replyingTo.senderId === conversation.members.find(m => m.user.id === replyingTo.senderId)?.user.id ? 'Bạn' : (conversation.members.find(m => m.user.id === replyingTo.senderId)?.nickname || replyingTo.sender?.displayName || 'Người dùng')}</strong></span>
+            <span style={styles.replyPreviewTitle}>Đang trả lời <strong>{replyingTo.senderId === user?.id ? 'Bạn' : (conversation.members.find(m => m.user.id === replyingTo.senderId)?.nickname || replyingTo.sender?.displayName || 'Người dùng')}</strong></span>
             <span style={styles.replyPreviewContent}>
               {replyingTo.type === 'text' ? replyingTo.content : `[${replyingTo.type.toUpperCase()}]`}
             </span>
@@ -582,7 +782,7 @@ export default function ChatInput({
           <div style={styles.uploadProgressInfo}>
             <div style={styles.uploadProgressHeader}>
               <span style={styles.uploadProgressTitle}>
-                📂 Đang tải tài liệu lên Google Drive...
+                📂 Đang tải tệp lên ổ cứng máy chủ...
               </span>
               <span style={styles.uploadProgressTime}>
                 ⏱️ {uploadTimeElapsed}
@@ -602,6 +802,54 @@ export default function ChatInput({
         </div>
       )}
 
+      {/* 0.2 Thanh Xem trước Tệp / Ảnh chờ gửi (Staging Preview Bar cho Ctrl+V, Chọn nhiều file & Kéo thả) */}
+      {pendingFiles.length > 0 && !isUploading && (
+        <div style={styles.stagingBar} className="glass-card anim-scale-in">
+          <div style={styles.stagingHeader}>
+            <span style={styles.stagingTitle}>
+              📎 Đính kèm chờ gửi ({pendingFiles.length}) — Nhấn Enter hoặc nút Gửi
+            </span>
+            <button
+              type="button"
+              onClick={handleClearAllPendingFiles}
+              style={styles.stagingClearBtn}
+              className="btn-interactive"
+            >
+              Xóa hết
+            </button>
+          </div>
+          <div style={styles.stagingList} className="scroll-optimized">
+            {pendingFiles.map((item) => (
+              <div key={item.id} style={styles.stagingItem}>
+                {item.type === 'image' && item.previewUrl ? (
+                  <img src={item.previewUrl} alt={item.file.name} style={styles.stagingThumb} />
+                ) : (
+                  <div style={styles.stagingFileBox}>
+                    <FiPaperclip size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                    <div style={styles.stagingFileInfo}>
+                      <span style={styles.stagingFileName} title={item.file.name}>{item.file.name}</span>
+                      <span style={styles.stagingFileSize}>
+                        {item.file.size < 1024 * 1024
+                          ? `${(item.file.size / 1024).toFixed(1)} KB`
+                          : `${(item.file.size / (1024 * 1024)).toFixed(2)} MB`}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleRemovePendingFile(item.id)}
+                  style={styles.stagingRemoveBtn}
+                  title="Bỏ tệp này"
+                >
+                  <FiX size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 1. Popover Tag tên (@mention) */}
       {showMentions && mentionFilteredMembers.length > 0 && (
         <div style={{...styles.mentionsContainer, bottom: mentionCoords.bottom, left: mentionCoords.left}} className="glass-card mentions-popover">
@@ -614,7 +862,7 @@ export default function ChatInput({
                 background: idx === mentionIndex ? 'rgba(0,122,255,0.1)' : 'transparent'
               }}
             >
-              <img src={m.user.avatarUrl} alt="" style={styles.mentionAvatar} />
+              <Avatar url={m.user.avatarUrl} name={m.user.displayName} size={24} />
               <span>{m.user.displayName}</span>
             </div>
           ))}
@@ -727,13 +975,14 @@ export default function ChatInput({
             <FiSmile size={28} />
           </button>
 
-          {/* Ô nhập nhắn tin (Textarea hỗ trợ xuống dòng Shift+Enter) */}
+          {/* Ô nhập nhắn tin (Textarea hỗ trợ xuống dòng Shift+Enter & dán ảnh/file Ctrl+V) */}
           <textarea
             ref={inputRef}
-            placeholder="Tin nhắn"
+            placeholder={pendingFiles.length > 0 ? "Nhập lời nhắn kèm theo hoặc nhấn Enter để gửi..." : "Tin nhắn (Hỗ trợ Ctrl+V dán ảnh chụp màn hình)"}
             value={text}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             style={styles.textInput}
             rows={1}
           />
@@ -757,13 +1006,13 @@ export default function ChatInput({
             onClick={() => imageInputRef.current.click()} 
             style={styles.imageBtn} 
             className="btn-interactive input-image-btn"
-            title="Gửi hình ảnh"
+            title="Gửi hình ảnh (Có thể chọn nhiều ảnh)"
           >
             <FiImage size={18} />
           </button>
 
           {/* Nút gửi tin nhắn nhanh */}
-          {text.trim() && (
+          {(text.trim() || pendingFiles.length > 0) && (
             <button onClick={handleSendText} style={styles.sendBtn} className="btn-interactive anim-scale-in">
               <FiSend size={18} />
             </button>
@@ -771,18 +1020,20 @@ export default function ChatInput({
         </div>
       )}
 
-      {/* Inputs ẩn để chọn File/Ảnh */}
+      {/* Inputs ẩn để chọn File/Ảnh (Hỗ trợ chọn nhiều tệp cùng lúc với multiple) */}
       <input 
         type="file" 
         ref={imageInputRef} 
         onChange={handleImageChange} 
         accept="image/*" 
+        multiple
         style={{ display: 'none' }} 
       />
       <input 
         type="file" 
         ref={fileInputRef} 
         onChange={handleFileChange} 
+        multiple
         style={{ display: 'none' }} 
       />
 
@@ -1022,9 +1273,107 @@ const styles = {
     flexShrink: 0,
     transition: 'all var(--transition-fast)'
   },
+  stagingBar: {
+    padding: '10px 14px',
+    background: 'var(--bg-glass-active)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '16px',
+    marginBottom: '8px',
+    boxShadow: 'var(--shadow-md)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  },
+  stagingHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  stagingTitle: {
+    fontSize: '0.78rem',
+    fontWeight: '600',
+    color: 'var(--primary)'
+  },
+  stagingClearBtn: {
+    background: 'rgba(244, 63, 94, 0.12)',
+    color: 'var(--danger)',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '3px 8px',
+    fontSize: '0.72rem',
+    fontWeight: '600',
+    cursor: 'pointer'
+  },
+  stagingList: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    overflowX: 'auto',
+    paddingBottom: '4px',
+    paddingTop: '4px'
+  },
+  stagingItem: {
+    position: 'relative',
+    flexShrink: 0
+  },
+  stagingThumb: {
+    width: '62px',
+    height: '62px',
+    borderRadius: '10px',
+    objectFit: 'cover',
+    border: '1px solid var(--border-color)',
+    display: 'block'
+  },
+  stagingFileBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 12px',
+    borderRadius: '10px',
+    background: 'rgba(255, 255, 255, 0.04)',
+    border: '1px solid var(--border-color)',
+    maxWidth: '210px',
+    height: '62px',
+    boxSizing: 'border-box'
+  },
+  stagingFileInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0
+  },
+  stagingFileName: {
+    fontSize: '0.76rem',
+    fontWeight: '600',
+    color: 'var(--text-primary)',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
+  },
+  stagingFileSize: {
+    fontSize: '0.68rem',
+    color: 'var(--text-secondary)'
+  },
+  stagingRemoveBtn: {
+    position: 'absolute',
+    top: '-5px',
+    right: '-5px',
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    background: 'var(--danger)',
+    color: '#ffffff',
+    border: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+  },
   textInput: {
     flex: 1,
-    padding: '8px 0',
+    padding: '6px 0',
     background: 'transparent',
     border: 'none',
     color: 'var(--text-primary)',
@@ -1033,9 +1382,11 @@ const styles = {
     width: '100%',
     resize: 'none',
     fontFamily: 'inherit',
+    minHeight: '24px',
     height: '24px',
     maxHeight: '120px',
-    lineHeight: '1.4'
+    lineHeight: '1.45',
+    boxSizing: ' content-box'
   },
   sendBtn: {
     background: 'var(--primary-gradient)',

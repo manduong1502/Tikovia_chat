@@ -1,11 +1,10 @@
 import React from 'react';
-import { FiMessageSquare, FiUsers, FiCheckSquare, FiBookOpen, FiUser } from 'react-icons/fi';
+import { FiMessageSquare, FiUsers, FiCheckSquare, FiUser } from 'react-icons/fi';
 
 const NAV_ITEMS = [
   { id: 'list', label: 'Tin nhắn', icon: FiMessageSquare },
   { id: 'contacts', label: 'Danh bạ', icon: FiUsers },
   { id: 'tasks', label: 'Công việc', icon: FiCheckSquare },
-  { id: 'diary', label: 'Nhật ký', icon: FiBookOpen },
   { id: 'profile', label: 'Cá nhân', icon: FiUser },
 ];
 
@@ -17,7 +16,7 @@ export default function BottomNav({
   totalUnreadChats,
   pendingTasksCount,
 }) {
-  const showBottomNav = ['list', 'contacts', 'tasks', 'diary', 'profile'].includes(mobileActiveView) || showProfile;
+  const showBottomNav = ['list', 'contacts', 'tasks', 'profile'].includes(mobileActiveView) || showProfile;
   if (!showBottomNav) return null;
 
   let activeTabId = showProfile ? 'profile' : mobileActiveView;
@@ -26,8 +25,8 @@ export default function BottomNav({
   }
   const activeIndex = NAV_ITEMS.findIndex(item => item.id === activeTabId);
   const capsuleStyle = activeIndex !== -1 ? {
-    width: 'calc(20% - 12px)',
-    left: `calc(${activeIndex * 20}% + 6px)`,
+    width: 'calc(25% - 12px)',
+    left: `calc(${activeIndex * 25}% + 6px)`,
   } : {};
 
   return (

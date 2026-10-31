@@ -30,6 +30,7 @@ export default function VideoCall({
   const callInfoRef = useRef(callInfo);
   const localStreamRef = useRef(localStream);
   const callStateRef = useRef(callState);
+  const peerInstanceRef = useRef(peerInstance);
   const cleanupCallRef = useRef(null);
 
   useEffect(() => {
@@ -47,6 +48,10 @@ export default function VideoCall({
   useEffect(() => {
     callStateRef.current = callState;
   }, [callState]);
+
+  useEffect(() => {
+    peerInstanceRef.current = peerInstance;
+  }, [peerInstance]);
 
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
@@ -101,16 +106,20 @@ export default function VideoCall({
     }
   }, [remoteStream, callState]);
 
-  // Tự động huỷ cuộc gọi nếu đổ chuông quá lâu mà không có phản hồi (15 giây)
+  // Tự động huỷ cuộc gọi nếu đổ chuông quá lâu mà không có phản hồi (45 giây - đồng bộ với Server)
   useEffect(() => {
     if (callState === 'calling' || callState === 'incoming') {
       const timer = setTimeout(() => {
-        console.log('[VideoCall] Cuộc gọi quá thời gian chờ (timeout), tự động huỷ...');
+        console.log('[VideoCall] Cuộc gọi quá thời gian chờ (timeout 45s), tự động huỷ...');
+        const currentCallInfo = callInfoRef.current;
+        if (callStateRef.current === 'calling' && currentCallInfo?.to && socket) {
+          socket.emit('end-call', { to: currentCallInfo.to });
+        }
         cleanupCallRef.current?.();
-      }, 15000);
+      }, 45000);
       return () => clearTimeout(timer);
     }
-  }, [callState]);
+  }, [callState, socket]);
 
   // Thiết lập log giám sát chất lượng/kết nối WebRTC
   const setupCallDiagnostics = (call) => {
@@ -147,9 +156,9 @@ export default function VideoCall({
     });
   };
 
-  // Khởi tạo PeerJS khi có Socket
+  // Khởi tạo PeerJS theo user.id (Tránh khởi tạo lại khi đổi avatar/tên hoặc reconnect socket gây lỗi Unavailable-ID)
   useEffect(() => {
-    if (!socket || !user) return;
+    if (!user?.id) return;
 
     // Sử dụng PeerJS Cloud với STUN servers để vượt tường lửa/NAT của mạng di động/VPS
     const peer = new Peer(user.id, {
@@ -170,6 +179,11 @@ export default function VideoCall({
 
     peer.on('error', (err) => {
       console.error('PeerJS error:', err);
+      if (err.type === 'disconnected' && !peer.destroyed) {
+        try {
+          peer.reconnect();
+        } catch (e) {}
+      }
     });
 
     // Lắng nghe cuộc gọi đến duy nhất một lần (Tránh rò rỉ listener)
@@ -183,12 +197,13 @@ export default function VideoCall({
       }
     });
 
+    peerInstanceRef.current = peer;
     setPeerInstance(peer);
 
     return () => {
       peer.destroy();
     };
-  }, [socket, user]);
+  }, [user?.id]);
 
   // Tự động kích hoạt gọi đi khi trạng thái chuyển sang 'calling' (Người gọi - Caller)
   useEffect(() => {
@@ -226,12 +241,38 @@ export default function VideoCall({
       }
     });
 
-    // Đối phương đồng ý nghe cuộc gọi
+    // Đối phương đồng ý nghe cuộc gọi (Xử lý tập trung 1 nơi để không bị rò rỉ listener socket.once)
     socket.on('call-accepted', () => {
       console.log('Đối phương đã chấp nhận cuộc gọi!');
       callWasConnectedRef.current = true;
       callStartTimeRef.current = Date.now();
       setCallState('connected');
+
+      const activePeer = peerInstanceRef.current;
+      const activeCallInfo = callInfoRef.current;
+      const activeLocalStream = localStreamRef.current;
+
+      if (activePeer && activeCallInfo?.to && activeLocalStream) {
+        console.log('Caller side: call-accepted received, initiating PeerJS call...');
+        const call = activePeer.call(activeCallInfo.to, activeLocalStream);
+        if (call) {
+          currentCallRef.current = call;
+          setupCallDiagnostics(call);
+
+          call.on('stream', (userRemoteStream) => {
+            console.log('Caller side: Received remote stream, tracks:', userRemoteStream.getTracks().map(t => `${t.kind}: enabled=${t.enabled}, state=${t.readyState}`));
+            setRemoteStream(userRemoteStream);
+          });
+          call.on('close', () => {
+            console.log('PeerJS call closed (caller side).');
+            cleanupCallRef.current?.();
+          });
+          call.on('error', (err) => {
+            console.error('PeerJS call error (caller side):', err);
+            cleanupCallRef.current?.();
+          });
+        }
+      }
     });
 
     // Đối phương cúp máy hoặc từ chối
@@ -272,35 +313,14 @@ export default function VideoCall({
       setCallState('calling');
       
       // Bắn tín hiệu socket báo cho đối phương
+      const targetConversationId = callInfo?.conversationId || conversationRef.current?.id;
       socket.emit('call-user', {
         userToCall: callInfo.to,
         from: user.id,
         callerName: user.displayName,
         callerAvatar: user.avatarUrl,
         isVideo: isVideoCall,
-        conversationId: conversationRef.current?.id
-      });
-
-      // Lắng nghe chấp nhận cuộc gọi
-      socket.once('call-accepted', () => {
-        // Thực hiện call qua PeerJS
-        console.log('Caller side: call-accepted received, initiating PeerJS call...');
-        const call = peerInstance.call(callInfo.to, stream);
-        currentCallRef.current = call;
-        setupCallDiagnostics(call);
-
-        call.on('stream', (userRemoteStream) => {
-          console.log('Caller side: Received remote stream, tracks:', userRemoteStream.getTracks().map(t => `${t.kind}: enabled=${t.enabled}, state=${t.readyState}`));
-          setRemoteStream(userRemoteStream);
-        });
-        call.on('close', () => {
-          console.log('PeerJS call closed (caller side).');
-          cleanupCallRef.current?.();
-        });
-        call.on('error', (err) => {
-          console.error('PeerJS call error (caller side):', err);
-          cleanupCallRef.current?.();
-        });
+        conversationId: targetConversationId
       });
 
     } catch (e) {
@@ -379,8 +399,9 @@ export default function VideoCall({
     const currentCallInfo = callInfoRef.current;
     const currentLocalStream = localStreamRef.current;
 
-    // 1. Lưu nhật ký cuộc gọi vào phòng chat
-    if (currentConversation && socket && currentCallInfo) {
+    // 1. Lưu nhật ký cuộc gọi vào phòng chat (ưu tiên conversationId gắn theo cuộc gọi để tránh ghi nhầm phòng nếu người gọi chuyển tab)
+    const targetConvId = currentCallInfo?.conversationId || currentConversation?.id;
+    if (targetConvId && socket && currentCallInfo) {
       const isCaller = currentCallInfo.from === user.id;
       // Chỉ để máy người gọi gửi tin nhắn lưu nhật ký cuộc gọi tránh bị trùng 2 lần
       if (isCaller) {
@@ -401,7 +422,7 @@ export default function VideoCall({
 
         if (logText) {
           socket.emit('send-message', {
-            conversationId: currentConversation.id,
+            conversationId: targetConvId,
             senderId: user.id,
             type: 'call',
             content: logText,

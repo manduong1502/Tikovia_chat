@@ -82,16 +82,21 @@ const getDateLabel = (date) => {
   }
 };
 
+const SYSTEM_WAREHOUSE_ID = '00000000-0000-0000-0000-000000000001';
+
 // 2. Trích xuất thành Component con được Memoized (React.memo)
 // Ngăn chặn hoàn toàn việc vẽ lại các thẻ công việc không thay đổi khi thay đổi trạng thái của 1 thẻ khác.
 const TaskCard = React.memo(({
   task,
   isReceived,
+  currentUserId,
   nowTime,
   onSelectConversation,
   onUpdateStatus
 }) => {
   const partner = isReceived ? task.assigner : task.assignee;
+  const isUnclaimedWarehouseOrder = task.assigneeId === SYSTEM_WAREHOUSE_ID;
+  const canCancel = task.assignerId === currentUserId;
   const dueInfo = getDueTimeInfo(task.dueDate, task.status, nowTime);
 
   let statusLabel = 'Chờ làm';
@@ -184,7 +189,7 @@ const TaskCard = React.memo(({
               aria-label="Bắt đầu thực hiện công việc"
             >
               <FiPlay size={14} />
-              Bắt đầu
+              {isUnclaimedWarehouseOrder ? 'Nhận đơn' : 'Bắt đầu'}
             </button>
           )}
           {isReceived && task.status === 'in_progress' && (
@@ -198,7 +203,7 @@ const TaskCard = React.memo(({
               Hoàn thành
             </button>
           )}
-          {(task.status !== 'done' && task.status !== 'cancelled') && (
+          {canCancel && (task.status !== 'done' && task.status !== 'cancelled') && (
             <button 
               onClick={() => onUpdateStatus(task.id, 'cancelled')}
               style={styles.btnCancel}
@@ -388,8 +393,9 @@ export default function TasksView({
         body: JSON.stringify({ status: newStatus })
       });
       if (res.ok) {
+        const updatedTask = await res.json();
         setTasks(prev => {
-          const updateItem = (item) => item.id === taskId ? { ...item, status: newStatus } : item;
+          const updateItem = (item) => item.id === taskId ? { ...item, ...updatedTask } : item;
           return {
             assignedToMe: prev.assignedToMe.map(updateItem),
             assignedByMe: prev.assignedByMe.map(updateItem)
@@ -646,6 +652,7 @@ export default function TasksView({
                   key={task.id}
                   task={task}
                   isReceived={activeTab === 'received'}
+                  currentUserId={user?.id}
                   nowTime={nowTime}
                   onSelectConversation={onSelectConversation}
                   onUpdateStatus={handleUpdateTaskStatus}

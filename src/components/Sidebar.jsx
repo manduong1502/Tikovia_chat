@@ -347,12 +347,17 @@ export default function Sidebar({
               const { name, avatar, isOnline } = getConversationDetails(conv);
               const lastMsg = conv.messages && conv.messages.length > 0 ? conv.messages[0] : null;
               const isSelected = activeConversation?.id === conv.id;
-              const lastRead = lastReadTimestamps ? lastReadTimestamps[conv.id] : null;
-              const isUnread = lastMsg && 
-                               lastMsg.senderId !== user?.id && 
-                               lastMsg.sender?.id !== user?.id && 
-                               (!lastRead || new Date(lastMsg.createdAt) > new Date(lastRead)) &&
-                               !isSelected;
+              const lastRead = (lastReadTimestamps && lastReadTimestamps[conv.id]) || conv.lastReadAt || null;
+              const serverUnread = typeof conv.unreadCount === 'number' ? conv.unreadCount : 0;
+              const fallbackUnread =
+                lastMsg &&
+                lastMsg.senderId !== user?.id &&
+                lastMsg.sender?.id !== user?.id &&
+                (!lastRead || new Date(lastMsg.createdAt) > new Date(lastRead))
+                  ? 1
+                  : 0;
+              const unreadCount = isSelected ? 0 : Math.max(serverUnread, fallbackUnread);
+              const isUnread = unreadCount > 0;
 
               return (
                 <div
@@ -369,7 +374,10 @@ export default function Sidebar({
                       <span style={{ 
                         ...styles.itemTitle,
                         fontWeight: isUnread ? '700' : '600'
-                      }}>{name}</span>
+                      }}>
+                        {name}
+                        {conv.isMuted && <span title="Đã tắt thông báo" style={{ marginLeft: '6px', fontSize: '0.72rem', opacity: 0.7 }}>🔕</span>}
+                      </span>
                       <span style={{
                         ...styles.itemTime,
                         color: isUnread ? 'var(--primary)' : 'var(--text-muted)',
@@ -384,24 +392,37 @@ export default function Sidebar({
                       fontWeight: isUnread ? '600' : 'normal'
                     }}>
                       {lastMsg ? (
-                        <>
-                          {lastMsg.sender?.id === user.id ? 'Bạn: ' : `${lastMsg.sender?.displayName}: `}
-                          {lastMsg.type === 'text' && lastMsg.content}
-                          {lastMsg.type === 'image' && '📷 [Hình ảnh]'}
-                          {lastMsg.type === 'file' && '📁 [Tài liệu]'}
-                          {lastMsg.type === 'voice' && '🎙️ [Tin nhắn thoại]'}
-                          {lastMsg.type === 'location' && '📍 [Vị trí]'}
-                          {lastMsg.type === 'sticker' && '✨ [Sticker]'}
-                          {lastMsg.type === 'reminder' && '⏰ [Nhắc hẹn]'}
-                        </>
+                        lastMsg.isRecalled ? (
+                          <span style={{ fontStyle: 'italic' }}>Tin nhắn đã được thu hồi</span>
+                        ) : (
+                          <>
+                            {lastMsg.sender?.id === user.id || lastMsg.senderId === user.id ? 'Bạn: ' : `${lastMsg.sender?.displayName || 'Hệ thống'}: `}
+                            {lastMsg.type === 'text' && lastMsg.content}
+                            {lastMsg.type === 'image' && '📷 [Hình ảnh]'}
+                            {lastMsg.type === 'file' && '📁 [Tài liệu]'}
+                            {lastMsg.type === 'voice' && '🎙️ [Tin nhắn thoại]'}
+                            {lastMsg.type === 'location' && '📍 [Vị trí]'}
+                            {lastMsg.type === 'sticker' && '✨ [Sticker]'}
+                            {lastMsg.type === 'reminder' && `⏰ [Nhắc hẹn] ${lastMsg.content || ''}`}
+                            {lastMsg.type === 'task' && `📋 [Công việc] ${lastMsg.content || ''}`}
+                            {lastMsg.type === 'call' && `📞 ${lastMsg.content || '[Cuộc gọi]'}`}
+                          </>
+                        )
                       ) : (
                         <span style={{fontStyle: 'italic', color: 'var(--text-muted)'}}>Bắt đầu cuộc trò chuyện</span>
                       )}
                     </div>
                   </div>
                   {isUnread && (
-                    <div style={styles.unreadBadge}>
-                      1
+                    <div style={{
+                      ...styles.unreadBadge,
+                      minWidth: '18px',
+                      width: 'auto',
+                      padding: unreadCount > 9 ? '0 5px' : '0',
+                      borderRadius: '10px',
+                      backgroundColor: conv.isMuted ? 'var(--text-muted)' : 'var(--danger)'
+                    }}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
                     </div>
                   )}
                 </div>
