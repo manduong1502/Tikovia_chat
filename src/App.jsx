@@ -47,7 +47,10 @@ export default function App() {
     updateServiceWorker
   } = useRegisterSW({
     onRegistered(r) {
-      r && setInterval(() => { r.update(); }, 60000);
+      if (r) {
+        r.update();
+        setInterval(() => { r.update(); }, 30000);
+      }
     }
   });
 
@@ -56,6 +59,21 @@ export default function App() {
       updateServiceWorker(true);
     }
   }, [needRefresh, updateServiceWorker]);
+
+  // Tự động tải lại trang ngay khi Service Worker mới chiếm quyền điều khiển (skipWaiting + clients.claim)
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    let refreshing = false;
+    const handleControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+    };
+  }, []);
 
   // === Auth Hook ===
   const { user, setUser, token, isOnline, handleAuthSuccess, handleLogout, API_URL } = useAuth();
