@@ -416,11 +416,65 @@ input, textarea, select, [contenteditable="true"] {
     gap: 16px !important;
   }
 
+  /* Tối ưu Header khung chat trên di động: gọn gàng, không rớt dòng tên/trạng thái */
+  .chat-header-bar {
+    margin: 8px 10px 4px 10px !important;
+    padding: 8px 12px !important;
+    border-radius: 16px !important;
+    gap: 8px !important;
+  }
+
+  .chat-header-info {
+    gap: 8px !important;
+  }
+
+  .chat-header-actions {
+    gap: 6px !important;
+  }
+
+  .chat-header-btn {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  /* Mở rộng không gian hiển thị bong bóng chat & thẻ đa phương tiện trên di động */
+  .message-row-hover {
+    max-width: 88% !important;
+  }
+
+  /* Tối ưu thanh nhập tin nhắn trên di động */
+  .chat-input-container {
+    padding: 6px 10px 10px 10px !important;
+  }
+
+  .chat-input-bar {
+    padding: 5px 8px 5px 12px !important;
+    gap: 6px !important;
+  }
+
+  .chat-input-icon-btn {
+    padding: 4px !important;
+  }
+
+  .mobile-hide-when-typing {
+    display: none !important;
+  }
+
+  /* Tối ưu thanh lọc công việc trên di động */
+  .tasks-filter-bar {
+    gap: 8px !important;
+  }
+
+  .tasks-search-wrapper {
+    flex: 1 1 100% !important;
+    min-width: 100% !important;
+  }
+
 }
 
 @media (max-width: 480px) {
   /* Modals co giãn đẹp mắt trên điện thoại nhỏ */
-  .profile-modal-content, .create-group-modal, .reminder-modal {
+  .profile-modal-content, .create-group-modal, .reminder-modal, .task-modal {
     width: calc(100% - 24px) !important;
     padding: 16px !important;
     max-height: 95vh !important;
@@ -493,18 +547,20 @@ input, textarea, select, [contenteditable="true"] {
 /* Show hover menu button next to bubble on hover */
 .message-row-hover:hover .hover-menu-btn-desktop {
   opacity: 1 !important;
+  pointer-events: auto !important;
 }
 
 /* Hide by default on desktop, show on hover */
 .hover-menu-btn-desktop {
   opacity: 0;
+  pointer-events: none !important;
   transition: opacity 0.05s linear;
 }
 
-/* On mobile, keep it visible or rely on tap/long press */
-@media (max-width: 768px) {
+/* Trên di động/cảm ứng: Ẩn thanh hover desktop (đã có nhấn giữ 400ms mở menu đầy đủ), tránh chiếm chỗ hoặc cắt bong bóng chat */
+@media (max-width: 768px), (pointer: coarse) {
   .hover-menu-btn-desktop {
-    opacity: 0.6 !important;
+    display: none !important;
   }
 }
 

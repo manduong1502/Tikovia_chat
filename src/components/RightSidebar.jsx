@@ -770,7 +770,7 @@ export default function RightSidebar({
                       <button onClick={() => setIsEditingNickname(false)} style={styles.cancelNicknameBtn} className="btn-interactive">Hủy</button>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <button
                         onClick={() => {
                           setIsEditingNickname(true);
@@ -1226,14 +1226,17 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     width: '100%',
-    padding: '4px 0 0 0'
+    padding: '4px 0 0 0',
+    gap: '4px'
   },
   actionItem: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: '6px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    flex: 1,
+    minWidth: 0
   },
   actionCircle: {
     width: '42px',
@@ -1244,12 +1247,17 @@ const styles = {
     color: 'var(--primary)',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    flexShrink: 0
   },
   actionLabel: {
-    fontSize: '0.7rem',
+    fontSize: '0.68rem',
     color: 'var(--text-secondary)',
-    textAlign: 'center'
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '100%'
   },
   section: {
     padding: '14px',
@@ -1378,7 +1386,8 @@ const styles = {
     fontSize: '0.75rem',
     cursor: 'pointer',
     padding: 0,
-    textDecoration: 'underline'
+    textDecoration: 'underline',
+    whiteSpace: 'nowrap'
   },
   editNicknameBox: {
     display: 'flex',
@@ -1416,11 +1425,12 @@ const styles = {
     background: 'none',
     border: 'none',
     color: 'var(--text-secondary)',
-    padding: '6px 0',
-    fontSize: '0.78rem',
+    padding: '6px 2px',
+    fontSize: '0.76rem',
     fontWeight: '600',
     cursor: 'pointer',
     borderRadius: '8px',
+    whiteSpace: 'nowrap',
     transition: 'all 0.2s ease'
   },
   activeTabBtn: {

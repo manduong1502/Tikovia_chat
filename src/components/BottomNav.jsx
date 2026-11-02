@@ -13,6 +13,7 @@ export default function BottomNav({
   setMobileActiveView,
   showProfile,
   setShowProfile,
+  setShowTasks,
   totalUnreadChats,
   pendingTasksCount,
 }) {
@@ -53,9 +54,11 @@ export default function BottomNav({
             onClick={() => {
               if (item.id === 'profile') {
                 setShowProfile(true);
+                if (setShowTasks) setShowTasks(false);
                 setMobileActiveView('profile');
               } else {
                 setShowProfile(false);
+                if (setShowTasks) setShowTasks(item.id === 'tasks');
                 setMobileActiveView(item.id);
               }
             }}
@@ -69,7 +72,7 @@ export default function BottomNav({
                 </span>
               )}
             </div>
-            <span style={{ fontSize: '0.68rem', marginTop: '2px' }}>{item.label}</span>
+            <span style={{ fontSize: '0.68rem', marginTop: '2px', whiteSpace: 'nowrap' }}>{item.label}</span>
           </button>
         );
       })}

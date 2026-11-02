@@ -126,8 +126,7 @@ const TaskCard = React.memo(({
         ...styles.taskItemCard,
         opacity: isDone ? 0.6 : 1,
         borderLeft: `4px solid ${borderLeftColor}`,
-        boxShadow: isOverdue ? '0 0 16px rgba(244, 63, 94, 0.1)' : 'var(--shadow-sm)',
-        contentVisibility: 'auto'
+        boxShadow: isOverdue ? '0 0 16px rgba(244, 63, 94, 0.1)' : 'var(--shadow-sm)'
       }} 
       className="glass-card anim-scale-in"
     >
@@ -580,8 +579,8 @@ export default function TasksView({
       </div>
 
       {/* Search & Sort Panel */}
-      <div style={styles.filterBar}>
-        <div style={styles.searchWrapper}>
+      <div style={styles.filterBar} className="tasks-filter-bar">
+        <div style={styles.searchWrapper} className="tasks-search-wrapper">
           <FiSearch size={16} style={styles.searchIcon} />
           <input
             type="text"
@@ -751,13 +750,16 @@ const styles = {
   },
   tabBtn: {
     flex: 1,
-    padding: '12px',
+    padding: '11px 8px',
     background: 'none',
     border: 'none',
     borderRadius: '12px',
-    fontSize: '0.85rem',
+    fontSize: '0.82rem',
     fontWeight: '600',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
     transition: 'color 0.2s ease', // transition text color over 0.2s synchronously
     zIndex: 2,
     position: 'relative'
@@ -841,7 +843,9 @@ const styles = {
     fontSize: '0.7rem',
     fontWeight: '700',
     padding: '3px 10px',
-    borderRadius: '12px'
+    borderRadius: '12px',
+    whiteSpace: 'nowrap',
+    flexShrink: 0
   },
   taskItemBody: {
     display: 'flex',
@@ -879,6 +883,8 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap',
     borderTop: '1px solid var(--border-color)',
     paddingTop: '10px',
     marginTop: '4px'
@@ -895,11 +901,14 @@ const styles = {
     cursor: 'pointer',
     padding: '8px 12px',
     borderRadius: '8px',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
     transition: 'all 0.2s ease'
   },
   taskItemActions: {
     display: 'flex',
-    gap: '8px'
+    gap: '8px',
+    flexShrink: 0
   },
   btnStart: {
     display: 'flex',
@@ -912,6 +921,7 @@ const styles = {
     color: '#ffffff',
     fontSize: '0.78rem',
     fontWeight: '600',
+    whiteSpace: 'nowrap',
     cursor: 'pointer'
   },
   btnDone: {
@@ -925,6 +935,7 @@ const styles = {
     color: '#ffffff',
     fontSize: '0.78rem',
     fontWeight: '600',
+    whiteSpace: 'nowrap',
     cursor: 'pointer'
   },
   btnCancel: {
@@ -938,6 +949,7 @@ const styles = {
     color: 'var(--danger)',
     fontSize: '0.78rem',
     fontWeight: '600',
+    whiteSpace: 'nowrap',
     cursor: 'pointer',
     transition: 'all 0.2s ease'
   },

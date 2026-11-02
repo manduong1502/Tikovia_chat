@@ -202,10 +202,12 @@ export default function Sidebar({
       {/* Header */}
       <div style={styles.header}>
         <div style={{...styles.userInfo, cursor: 'pointer'}} onClick={onShowProfile} title="Xem trang cá nhân">
-          <Avatar url={user.avatarUrl} name={user.displayName} size={40} />
-          <div>
-            <h4 style={styles.userName}>{user.displayName}</h4>
-            <span style={styles.userStatus}><span className="badge-status status-online" style={{display: 'inline-block', marginRight: '5px'}}></span>Trực tuyến</span>
+          <div style={{ flexShrink: 0, display: 'flex' }}>
+            <Avatar url={user.avatarUrl} name={user.displayName} size={40} />
+          </div>
+          <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+            <h4 style={styles.userName} title={user.displayName}>{user.displayName}</h4>
+            <span style={styles.userStatus}><span className="badge-status status-online" style={{display: 'inline-block', marginRight: '5px', flexShrink: 0}}></span>Trực tuyến</span>
           </div>
         </div>
         <div style={styles.headerActions}>
@@ -563,16 +565,20 @@ const styles = {
     zIndex: 10
   },
   header: {
-    padding: '20px',
+    padding: '16px 18px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: '10px',
     borderBottom: '1px solid var(--border-color)'
   },
   userInfo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px'
+    gap: '10px',
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden'
   },
   avatar: {
     width: '40px',
@@ -584,17 +590,23 @@ const styles = {
   userName: {
     fontSize: '0.95rem',
     fontWeight: '600',
-    color: 'var(--text-primary)'
+    color: 'var(--text-primary)',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    margin: 0
   },
   userStatus: {
     fontSize: '0.75rem',
     color: 'var(--text-secondary)',
     display: 'flex',
-    alignItems: 'center'
+    alignItems: 'center',
+    whiteSpace: 'nowrap'
   },
   headerActions: {
     display: 'flex',
-    gap: '8px'
+    gap: '6px',
+    flexShrink: 0
   },
   actionBtn: {
     background: 'rgba(255, 255, 255, 0.05)',
@@ -676,10 +688,11 @@ const styles = {
     color: 'var(--text-secondary)',
     fontSize: '0.8rem',
     fontWeight: '600',
-    padding: '7px 12px',
+    padding: '7px 10px',
     borderRadius: '20px',
     cursor: 'pointer',
     textAlign: 'center',
+    whiteSpace: 'nowrap',
     transition: 'all var(--transition-spring)'
   },
   activeTab: {
@@ -757,6 +770,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: '8px',
     marginBottom: '4px'
   },
   itemTitle: {
@@ -765,11 +779,15 @@ const styles = {
     color: 'var(--text-primary)',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
-    textOverflow: 'ellipsis'
+    textOverflow: 'ellipsis',
+    flex: 1,
+    minWidth: 0
   },
   itemTime: {
-    fontSize: '0.75rem',
-    color: 'var(--text-muted)'
+    fontSize: '0.74rem',
+    color: 'var(--text-muted)',
+    whiteSpace: 'nowrap',
+    flexShrink: 0
   },
   itemMessage: {
     fontSize: '0.8rem',

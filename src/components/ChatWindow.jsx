@@ -754,12 +754,13 @@ export default function ChatWindow({
         
         return (
           <div style={{
-            width: '280px',
+            width: 'min(265px, 72vw)',
             maxWidth: '100%',
-            padding: '12px 14px',
+            boxSizing: 'border-box',
+            padding: '10px 12px',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
+            gap: '10px',
             background: 'var(--bg-glass-active)',
             borderRadius: '12px',
             boxShadow: 'var(--shadow-sm)',
@@ -777,10 +778,9 @@ export default function ChatWindow({
               gap: '4px'
             }}>
               <span style={{
-                fontSize: '0.85rem',
+                fontSize: '0.84rem',
                 fontWeight: '600',
                 color: 'var(--text-primary)',
-                wordBreak: 'break-all',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'
@@ -789,7 +789,8 @@ export default function ChatWindow({
               </span>
               <span style={{
                 fontSize: '0.72rem',
-                color: 'var(--text-secondary)'
+                color: 'var(--text-secondary)',
+                whiteSpace: 'nowrap'
               }}>
                 {formattedSize}
               </span>
@@ -862,15 +863,27 @@ export default function ChatWindow({
         return (
           <div style={styles.locationBox}>
             <div style={styles.locationHeader}>
-              <FiMapPin style={{color: 'var(--danger)', marginRight: '5px'}} />
-              <strong>Vị trí đã chia sẻ</strong>
+              <FiMapPin style={{ color: msg.senderId === user.id ? '#fecdd3' : 'var(--danger)', marginRight: '6px', flexShrink: 0 }} />
+              <strong style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Vị trí đã chia sẻ</strong>
             </div>
-            <p style={{fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px'}}>{metadata.address || 'Xem vị trí bản đồ'}</p>
+            <p style={{
+              fontSize: '0.82rem',
+              color: msg.senderId === user.id ? 'rgba(255, 255, 255, 0.9)' : 'var(--text-secondary)',
+              marginBottom: '8px',
+              lineHeight: '1.35',
+              wordBreak: 'break-word',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden'
+            }}>
+              {metadata.address || 'Xem vị trí bản đồ'}
+            </p>
             <iframe 
               title="Shared Location"
               width="100%" 
-              height="150" 
-              style={{border: 0, borderRadius: 'var(--radius-sm)'}}
+              height="145" 
+              style={{ border: 0, borderRadius: '10px', display: 'block', width: '100%' }}
               src={`https://maps.google.com/maps?q=${metadata.lat},${metadata.lng}&z=15&output=embed`}
             />
           </div>
@@ -1079,19 +1092,21 @@ export default function ChatWindow({
         </div>
       )}
       {/* Top Header */}
-      <div style={styles.header} className="glass">
-        <div style={styles.headerInfo}>
+      <div style={styles.header} className="glass chat-header-bar">
+        <div style={styles.headerInfo} className="chat-header-info">
           {/* Nút quay lại dành cho Mobile */}
           <button 
             onClick={() => setMobileActiveView('list')} 
             className="mobile-back-btn"
             style={styles.backBtn}
           >
-            <FiChevronLeft size={24} />
+            <FiChevronLeft size={22} />
           </button>
-          <Avatar url={getChatAvatar()} name={getChatTitle()} size={40} isOnline={!isGroup && isOnline} />
-          <div>
-            <h3 style={styles.title}>{getChatTitle()}</h3>
+          <div style={{ flexShrink: 0, display: 'flex' }}>
+            <Avatar url={getChatAvatar()} name={getChatTitle()} size={38} isOnline={!isGroup && isOnline} />
+          </div>
+          <div style={styles.headerTextCol}>
+            <h3 style={styles.title} title={getChatTitle()}>{getChatTitle()}</h3>
             <span style={styles.status}>
               {isGroup 
                 ? `${conversation.members.length} thành viên`
@@ -1099,7 +1114,7 @@ export default function ChatWindow({
             </span>
           </div>
         </div>
-        <div style={styles.headerActions}>
+        <div style={styles.headerActions} className="chat-header-actions">
           <button 
             title="Tìm kiếm tin nhắn" 
             onClick={() => {
@@ -1110,22 +1125,22 @@ export default function ChatWindow({
               ...styles.headerBtn,
               color: showSearch ? 'var(--primary)' : 'var(--text-primary)'
             }} 
-            className="btn-interactive"
+            className="btn-interactive chat-header-btn"
           >
-            <FiSearch size={18} />
+            <FiSearch size={17} />
           </button>
           {!isGroup && (
             <>
-              <button title="Gọi thoại" onClick={() => onStartCall(false)} style={styles.headerBtn} className="btn-interactive">
-                <FiPhone size={18} />
+              <button title="Gọi thoại" onClick={() => onStartCall(false)} style={styles.headerBtn} className="btn-interactive chat-header-btn">
+                <FiPhone size={17} />
               </button>
-              <button title="Gọi Video" onClick={() => onStartCall(true)} style={styles.headerBtn} className="btn-interactive">
-                <FiVideo size={18} />
+              <button title="Gọi Video" onClick={() => onStartCall(true)} style={styles.headerBtn} className="btn-interactive chat-header-btn">
+                <FiVideo size={17} />
               </button>
             </>
           )}
-          <button title="Tùy chọn cuộc trò chuyện" onClick={toggleRightSidebar} style={styles.headerBtn} className="btn-interactive">
-            <FiSidebar size={18} />
+          <button title="Tùy chọn cuộc trò chuyện" onClick={toggleRightSidebar} style={styles.headerBtn} className="btn-interactive chat-header-btn">
+            <FiSidebar size={17} />
           </button>
         </div>
       </div>
@@ -1410,10 +1425,16 @@ export default function ChatWindow({
                         {renderMessageContent(msg)}
                       </div>
 
-                      {/* Options Trigger Buttons next to bubble (Desktop hover) */}
+                      {/* Options Trigger Buttons next to bubble (Desktop hover only - zero layout footprint) */}
                       {!msg.isRecalled && msg.status !== 'sending' && (
                         <div 
                           style={{
+                            position: 'absolute',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            ...(isMe
+                              ? { right: 'calc(100% + 8px)', left: 'auto' }
+                              : { left: 'calc(100% + 8px)', right: 'auto' }),
                             display: 'flex',
                             alignItems: 'center',
                             gap: '2px',
@@ -1425,6 +1446,8 @@ export default function ChatWindow({
                             borderRadius: '20px',
                             boxShadow: 'var(--shadow-sm)',
                             pointerEvents: 'auto',
+                            whiteSpace: 'nowrap',
+                            zIndex: 15,
                             transition: 'opacity 0.05s linear'
                           }}
                           className="hover-menu-btn-desktop"
@@ -1977,6 +2000,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: '10px',
     background: 'var(--bg-glass)',
     backdropFilter: 'blur(24px)',
     WebkitBackdropFilter: 'blur(24px)',
@@ -1989,7 +2013,18 @@ const styles = {
   headerInfo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px'
+    gap: '10px',
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden'
+  },
+  headerTextCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1px',
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden'
   },
   backBtn: {
     background: 'none',
@@ -1999,8 +2034,9 @@ const styles = {
     display: 'none',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: '8px',
-    padding: '4px'
+    marginRight: '0px',
+    padding: '4px',
+    flexShrink: 0
   },
   avatar: {
     width: '40px',
@@ -2011,15 +2047,26 @@ const styles = {
   title: {
     fontSize: '0.95rem',
     fontWeight: '600',
-    letterSpacing: '-0.01em'
+    letterSpacing: '-0.01em',
+    margin: 0,
+    lineHeight: '1.25',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
   },
   status: {
     fontSize: '0.72rem',
-    color: 'var(--text-secondary)'
+    color: 'var(--text-secondary)',
+    lineHeight: '1.2',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    display: 'block'
   },
   headerActions: {
     display: 'flex',
-    gap: '8px'
+    gap: '8px',
+    flexShrink: 0
   },
   headerBtn: {
     background: 'var(--bg-surface)',
@@ -2032,6 +2079,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
     transition: 'all 0.25s var(--transition-spring)'
   },
   pinBanner: {
@@ -2092,28 +2140,32 @@ const styles = {
   messageRow: {
     display: 'flex',
     alignItems: 'flex-end',
-    gap: '10px',
-    maxWidth: '75%',
-    width: 'fit-content',
-    contentVisibility: 'auto',
-    containIntrinsicSize: '0 80px'
+    gap: '8px',
+    maxWidth: '82%',
+    width: 'fit-content'
   },
   messageAvatar: {
     width: '32px',
     height: '32px',
     borderRadius: 'var(--radius-circle)',
-    marginBottom: '0px'
+    marginBottom: '0px',
+    flexShrink: 0
   },
   messageContentWrapper: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '3px'
+    gap: '3px',
+    minWidth: 0,
+    maxWidth: '100%'
   },
   senderLabel: {
     fontSize: '0.75rem',
     color: 'var(--text-secondary)',
     marginLeft: '4px',
-    fontWeight: '500'
+    fontWeight: '500',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
   },
   messageBubble: {
     padding: '10px 14px',
@@ -2122,7 +2174,11 @@ const styles = {
     position: 'relative',
     boxShadow: 'var(--shadow-sm)',
     border: '1px solid var(--border-color)',
-    groupHover: 'true', // Trạng thái hover để hiện nút ghim
+    maxWidth: '100%',
+    minWidth: 0,
+    boxSizing: 'border-box',
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
     WebkitTouchCallout: 'none',
     WebkitUserSelect: 'none',
     userSelect: 'none'
@@ -2140,8 +2196,8 @@ const styles = {
   imageWrapper: {
     borderRadius: 'var(--radius-md)',
     overflow: 'hidden',
-    maxWidth: '320px',
-    maxHeight: '380px',
+    maxWidth: 'min(300px, 72vw)',
+    maxHeight: '360px',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
@@ -2149,7 +2205,7 @@ const styles = {
   },
   chatImage: {
     maxWidth: '100%',
-    maxHeight: '380px',
+    maxHeight: '360px',
     width: 'auto',
     height: 'auto',
     objectFit: 'contain',
@@ -2163,7 +2219,9 @@ const styles = {
     padding: '8px 12px',
     borderRadius: 'var(--radius-sm)',
     border: '1px solid var(--border-color)',
-    width: '240px'
+    width: 'min(240px, 68vw)',
+    maxWidth: '100%',
+    boxSizing: 'border-box'
   },
   fileIcon: {
     fontSize: '1.5rem'
@@ -2192,8 +2250,9 @@ const styles = {
     alignItems: 'center'
   },
   voiceBox: {
-    width: '240px',
-    padding: '4px',
+    width: 'min(230px, 64vw)',
+    maxWidth: '100%',
+    padding: '2px',
     boxSizing: 'border-box'
   },
   voiceAudio: {
@@ -2201,16 +2260,22 @@ const styles = {
     height: '32px'
   },
   locationBox: {
-    width: '260px'
+    width: 'min(260px, 70vw)',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
+    overflow: 'hidden'
   },
   locationHeader: {
     display: 'flex',
     alignItems: 'center',
     marginBottom: '6px',
-    fontSize: '0.85rem'
+    fontSize: '0.85rem',
+    whiteSpace: 'nowrap'
   },
   reminderBox: {
-    width: '240px',
+    width: 'min(240px, 68vw)',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
     background: 'var(--bg-surface)',
     borderLeft: '3px solid var(--accent)',
     padding: '8px 12px',
@@ -2219,13 +2284,16 @@ const styles = {
   reminderHeader: {
     display: 'flex',
     alignItems: 'center',
-    fontSize: '0.8rem'
+    fontSize: '0.8rem',
+    whiteSpace: 'nowrap'
   },
   bubbleWrapper: {
     display: 'flex',
     alignItems: 'center',
     position: 'relative',
-    gap: '8px'
+    gap: '8px',
+    maxWidth: '100%',
+    minWidth: 0
   },
   actionPopover: {
     position: 'absolute',
@@ -2338,7 +2406,8 @@ const styles = {
     transition: 'all var(--transition-fast)'
   },
   callCardContainer: {
-    width: '240px',
+    width: 'min(235px, 68vw)',
+    maxWidth: '100%',
     padding: '12px 14px',
     display: 'flex',
     flexDirection: 'column',
@@ -2406,7 +2475,8 @@ const styles = {
     color: 'var(--text-secondary)'
   },
   taskCardContainer: {
-    width: '260px',
+    width: 'min(265px, 72vw)',
+    maxWidth: '100%',
     padding: '12px 14px 12px 10px',
     display: 'flex',
     flexDirection: 'column',
@@ -2520,10 +2590,11 @@ const styles = {
   voicePlayerContainer: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    minWidth: '220px',
-    maxWidth: '280px',
-    padding: '6px 8px',
+    gap: '10px',
+    width: '100%',
+    minWidth: 0,
+    maxWidth: '100%',
+    padding: '2px 4px',
     boxSizing: 'border-box'
   },
   voicePlayBtn: {
@@ -2541,31 +2612,36 @@ const styles = {
   },
   voiceTimeline: {
     flex: 1,
+    minWidth: 0,
     height: '24px',
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    overflow: 'hidden'
   },
   voiceWaveContainer: {
     display: 'flex',
     alignItems: 'center',
     gap: '3px',
     width: '100%',
+    minWidth: 0,
     height: '100%'
   },
   voiceWaveBar: {
     flex: 1,
+    minWidth: '2px',
     borderRadius: '2px',
     transition: 'all 0.1s ease'
   },
   voiceDuration: {
-    fontSize: '0.75rem',
+    fontSize: '0.74rem',
     color: 'var(--text-secondary)',
-    fontWeight: '500',
-    minWidth: '35px',
+    fontWeight: '600',
+    minWidth: '34px',
     textAlign: 'right',
-    flexShrink: 0
+    flexShrink: 0,
+    whiteSpace: 'nowrap'
   },
   searchBarContainer: {
     display: 'flex',

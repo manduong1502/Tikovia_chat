@@ -738,7 +738,7 @@ export default function ChatInput({
   );
 
   return (
-    <div style={styles.container} className="glass">
+    <div style={styles.container} className="glass chat-input-container">
       {/* 0. Edit Preview Bar */}
       {editingMsg && (
         <div style={styles.replyPreviewBar}>
@@ -807,7 +807,7 @@ export default function ChatInput({
         <div style={styles.stagingBar} className="glass-card anim-scale-in">
           <div style={styles.stagingHeader}>
             <span style={styles.stagingTitle}>
-              📎 Đính kèm chờ gửi ({pendingFiles.length}) — Nhấn Enter hoặc nút Gửi
+              📎 Đính kèm chờ gửi ({pendingFiles.length})
             </span>
             <button
               type="button"
@@ -946,12 +946,12 @@ export default function ChatInput({
       {/* 4. Khung Ghi âm đang hoạt động */}
       {isRecording ? (
         <div style={styles.recordingOverlay} className="glass-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
             <span style={styles.recordDot} className="pulse-red-animation"></span>
             <span style={styles.recordTime}>Đang ghi âm: {formatTime(recordingDuration)}</span>
           </div>
           {/* Waveform animation */}
-          <div style={{ display: 'flex', gap: '3px', alignItems: 'center', marginRight: 'auto', marginLeft: '16px' }}>
+          <div style={{ display: 'flex', gap: '3px', alignItems: 'center', marginRight: 'auto', marginLeft: '10px', flexShrink: 0 }}>
             <div className="wave-bar" style={{ height: '14px', width: '3px', backgroundColor: 'var(--danger)', borderRadius: '2px' }} />
             <div className="wave-bar" style={{ height: '8px', width: '3px', backgroundColor: 'var(--danger)', borderRadius: '2px' }} />
             <div className="wave-bar" style={{ height: '18px', width: '3px', backgroundColor: 'var(--danger)', borderRadius: '2px' }} />
@@ -965,20 +965,20 @@ export default function ChatInput({
         </div>
       ) : (
         /* Giao diện input chat chính */
-        <div style={styles.inputBar}>
+        <div style={styles.inputBar} className="chat-input-bar">
           {/* Nút Sticker */}
           <button 
             onClick={() => { setShowStickers(!showStickers); setShowMoreMenu(false); }} 
             style={styles.smileBtn} 
-            className="btn-interactive"
+            className="btn-interactive chat-input-icon-btn"
           >
-            <FiSmile size={28} />
+            <FiSmile size={24} />
           </button>
 
           {/* Ô nhập nhắn tin (Textarea hỗ trợ xuống dòng Shift+Enter & dán ảnh/file Ctrl+V) */}
           <textarea
             ref={inputRef}
-            placeholder={pendingFiles.length > 0 ? "Nhập lời nhắn kèm theo hoặc nhấn Enter để gửi..." : "Tin nhắn (Hỗ trợ Ctrl+V dán ảnh chụp màn hình)"}
+            placeholder={pendingFiles.length > 0 ? "Nhập lời nhắn kèm theo..." : "Tin nhắn"}
             value={text}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
@@ -991,14 +991,18 @@ export default function ChatInput({
           <button 
             onClick={() => { setShowMoreMenu(!showMoreMenu); setShowStickers(false); }} 
             style={{...styles.iconBtn, color: showMoreMenu ? 'var(--primary)' : 'var(--text-secondary)'}} 
-            className="btn-interactive"
+            className="btn-interactive chat-input-icon-btn"
           >
-            <FiMoreHorizontal size={26} />
+            <FiMoreHorizontal size={23} />
           </button>
 
-          {/* Nút Ghi âm */}
-          <button onClick={startRecording} style={styles.iconBtn} className="btn-interactive input-mic-btn">
-            <FiMic size={26} />
+          {/* Nút Ghi âm (Ẩn trên mobile khi đang gõ chữ để nhường chỗ cho nút Gửi) */}
+          <button
+            onClick={startRecording}
+            style={styles.iconBtn}
+            className={`btn-interactive input-mic-btn chat-input-icon-btn ${(text.trim() || pendingFiles.length > 0) ? 'mobile-hide-when-typing' : ''}`}
+          >
+            <FiMic size={22} />
           </button>
 
           {/* Nút Gửi Ảnh */}
@@ -1008,13 +1012,13 @@ export default function ChatInput({
             className="btn-interactive input-image-btn"
             title="Gửi hình ảnh (Có thể chọn nhiều ảnh)"
           >
-            <FiImage size={18} />
+            <FiImage size={17} />
           </button>
 
           {/* Nút gửi tin nhắn nhanh */}
           {(text.trim() || pendingFiles.length > 0) && (
             <button onClick={handleSendText} style={styles.sendBtn} className="btn-interactive anim-scale-in">
-              <FiSend size={18} />
+              <FiSend size={17} />
             </button>
           )}
         </div>
@@ -1289,12 +1293,16 @@ const styles = {
   stagingHeader: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    gap: '8px'
   },
   stagingTitle: {
     fontSize: '0.78rem',
     fontWeight: '600',
-    color: 'var(--primary)'
+    color: 'var(--primary)',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
   },
   stagingClearBtn: {
     background: 'rgba(244, 63, 94, 0.12)',
@@ -1304,7 +1312,9 @@ const styles = {
     padding: '3px 8px',
     fontSize: '0.72rem',
     fontWeight: '600',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0
   },
   stagingList: {
     display: 'flex',
@@ -1563,12 +1573,14 @@ const styles = {
   },
   recordTime: {
     color: 'var(--text-primary)',
-    fontSize: '0.85rem',
-    fontWeight: '600'
+    fontSize: '0.84rem',
+    fontWeight: '600',
+    whiteSpace: 'nowrap'
   },
   recordActions: {
     display: 'flex',
-    gap: '10px'
+    gap: '10px',
+    flexShrink: 0
   },
   recordCancelBtn: {
     background: 'none',
@@ -1576,7 +1588,8 @@ const styles = {
     color: 'var(--text-secondary)',
     cursor: 'pointer',
     fontSize: '0.8rem',
-    fontWeight: '600'
+    fontWeight: '600',
+    whiteSpace: 'nowrap'
   },
   recordSendBtn: {
     background: 'var(--danger)',
@@ -1586,7 +1599,8 @@ const styles = {
     borderRadius: '16px',
     cursor: 'pointer',
     fontSize: '0.8rem',
-    fontWeight: '600'
+    fontWeight: '600',
+    whiteSpace: 'nowrap'
   },
   // Modals
   modalOverlay: {

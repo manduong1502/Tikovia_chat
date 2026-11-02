@@ -781,7 +781,11 @@ export default function App() {
             setMobileActiveView('list');
           }}
           onRefreshConversations={fetchConversations}
-          onShowProfile={() => setShowProfile(true)}
+          onShowProfile={() => {
+            setShowProfile(true);
+            setShowTasks(false);
+            setMobileActiveView('profile');
+          }}
           mobileActiveView={mobileActiveView}
           setMobileActiveView={setMobileActiveView}
           className={mobileActiveView === 'list' ? 'mobile-show-list' : 'mobile-hide-list'}
@@ -792,7 +796,12 @@ export default function App() {
           dismissedPushBanner={dismissedPushBanner}
           onDismissPushBanner={dismissPushBanner}
           onShowTasks={() => {
-            setShowTasks((prev) => !prev);
+            setShowTasks((prev) => {
+              const next = !prev;
+              if (next) setMobileActiveView('tasks');
+              else if (mobileActiveView === 'tasks') setMobileActiveView('list');
+              return next;
+            });
             setShowProfile(false);
           }}
           pendingTasksCount={pendingTasksCount}
@@ -984,6 +993,7 @@ export default function App() {
         setMobileActiveView={setMobileActiveView}
         showProfile={showProfile}
         setShowProfile={setShowProfile}
+        setShowTasks={setShowTasks}
         totalUnreadChats={totalUnreadChats}
         pendingTasksCount={pendingTasksCount}
       />
