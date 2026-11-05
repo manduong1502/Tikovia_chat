@@ -15,32 +15,16 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import useAuth from './hooks/useAuth';
 import useCall from './hooks/useCall';
 import usePushNotification from './hooks/usePushNotification';
+import { initAudioUnlock, playNotificationChime } from './utils/sound';
 
 const ProfileView = React.lazy(() => import('./components/ProfileView'));
 const TasksView = React.lazy(() => import('./components/TasksView'));
 
-// Âm báo thông báo nhẹ nhàng bằng Web Audio API khi nhận tin nhắn ở phòng khác hoặc nhắc hẹn
-function playNotificationChime() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
-    gain.gain.setValueAtTime(0.08, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.25);
-    setTimeout(() => ctx.close().catch(() => {}), 350);
-  } catch (e) {}
-}
-
 export default function App() {
+  // Mở khóa AudioContext & HTML5 Audio ngay từ cử chỉ chạm đầu tiên trên điện thoại (iOS/Android)
+  useEffect(() => {
+    initAudioUnlock();
+  }, []);
   // === PWA Service Worker Auto-Update ===
   const {
     needRefresh: [needRefresh],
@@ -109,6 +93,24 @@ export default function App() {
   const [activeWallpaper, setActiveWallpaper] = useState('');
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [inAppToast, setInAppToast] = useState(null);
+  const lastChimeTimeRef = useRef(0);
+  const toastTimeoutRef = useRef(null);
+
+  const triggerSoundAndToast = useCallback((toastData, playSound = true) => {
+    const now = Date.now();
+    if (playSound && now - lastChimeTimeRef.current > 1200) {
+      lastChimeTimeRef.current = now;
+      playNotificationChime();
+    }
+    if (toastData) {
+      setInAppToast(toastData);
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = setTimeout(() => {
+        setInAppToast(null);
+      }, 4500);
+    }
+  }, []);
 
   // === Last Read Timestamps ===
   const [lastReadTimestamps, setLastReadTimestamps] = useState(() => {
@@ -322,16 +324,41 @@ export default function App() {
         fetchGlobalTasksCountRef.current();
       }
 
+      const isFromOther = newMessage.senderId !== user.id && newMessage.sender?.id !== user.id;
+      const existingConv = conversationsRef.current.find((c) => c.id === newMessage.conversationId);
+
+      if (isFromOther && !existingConv?.isMuted) {
+        const senderTitle = existingConv?.isGroup
+          ? `${existingConv.name || 'Nhóm chat'} • ${newMessage.sender?.displayName || 'Thành viên'}`
+          : newMessage.sender?.displayName || 'Tin nhắn mới';
+
+        let previewBody = newMessage.content || 'Bạn có tin nhắn mới';
+        if (newMessage.type === 'image') previewBody = '📷 Đã gửi một hình ảnh';
+        else if (newMessage.type === 'file') previewBody = '📁 Đã gửi một tệp đính kèm';
+        else if (newMessage.type === 'voice') previewBody = '🎙️ Đã gửi một tin nhắn thoại';
+        else if (newMessage.type === 'location') previewBody = '📍 Đã chia sẻ một vị trí';
+        else if (newMessage.type === 'sticker') previewBody = '✨ Đã gửi một nhãn dán';
+        else if (newMessage.type === 'task') previewBody = `📋 Công việc: ${newMessage.content || ''}`;
+        else if (newMessage.type === 'reminder') previewBody = `⏰ Nhắc hẹn: ${newMessage.content || ''}`;
+
+        triggerSoundAndToast(
+          !isViewingThisConv
+            ? {
+                title: senderTitle,
+                body: previewBody,
+                conversationId: newMessage.conversationId
+              }
+            : null,
+          true
+        );
+      }
+
       // Cập nhật danh sách hội thoại ngay tại chỗ (tránh bão HTTP request)
-      const existsInList = conversationsRef.current.some((c) => c.id === newMessage.conversationId);
+      const existsInList = Boolean(existingConv);
       if (existsInList) {
         setConversations((prev) => {
           const updatedList = prev.map((c) => {
             if (c.id !== newMessage.conversationId) return c;
-            const isFromOther = newMessage.senderId !== user.id && newMessage.sender?.id !== user.id;
-            if (!isViewingThisConv && isFromOther && !c.isMuted) {
-              playNotificationChime();
-            }
             return {
               ...c,
               messages: [newMessage],
@@ -498,7 +525,24 @@ export default function App() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     const handleSWMessage = (event) => {
-      if (event.data?.type === 'SWITCH_CONVERSATION') {
+      if (event.data?.type === 'SW_PUSH_RECEIVED') {
+        const payload = event.data.payload || {};
+        const pushConvId = payload.conversationId || payload.data?.conversationId || null;
+        const activeConv = activeConversationRef.current;
+        const isChatVisible = window.innerWidth > 768 || mobileActiveViewRef.current === 'chat';
+        const isViewingThisConv = Boolean(activeConv && activeConv.id === pushConvId && isChatVisible);
+
+        triggerSoundAndToast(
+          !isViewingThisConv && payload.title
+            ? {
+                title: payload.title,
+                body: payload.body || 'Bạn có thông báo mới',
+                conversationId: pushConvId
+              }
+            : null,
+          true
+        );
+      } else if (event.data?.type === 'SWITCH_CONVERSATION') {
         const { conversationId } = event.data;
         const targetConv = conversationsRef.current.find((c) => c.id === conversationId);
         if (targetConv) {
@@ -522,7 +566,7 @@ export default function App() {
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleSWMessage);
     };
-  }, [token, fetchConversations]);
+  }, [token, fetchConversations, triggerSoundAndToast]);
 
   // === URL Query Parameter Handler ===
   useEffect(() => {
@@ -778,6 +822,86 @@ export default function App() {
   return (
     <div style={styles.appContainer}>
       <NetworkBanner />
+
+      {/* Thanh thông báo nổi trong ứng dụng (In-App Notification Banner) */}
+      {inAppToast && (
+        <div
+          onClick={() => {
+            if (inAppToast.conversationId) {
+              const target = conversations.find((c) => c.id === inAppToast.conversationId);
+              if (target) {
+                setActiveConversation(target);
+                setShowTasks(false);
+                setShowProfile(false);
+                setMobileActiveView('chat');
+              }
+            }
+            setInAppToast(null);
+          }}
+          style={{
+            position: 'fixed',
+            top: 'max(12px, env(safe-area-inset-top))',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            width: 'min(92vw, 400px)',
+            background: 'rgba(15, 23, 42, 0.94)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '1px solid rgba(99, 102, 241, 0.45)',
+            borderRadius: '16px',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            boxShadow: '0 14px 34px rgba(0, 0, 0, 0.45)',
+            cursor: 'pointer'
+          }}
+          className="anim-scale-in"
+        >
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '12px',
+              background: 'var(--primary-gradient)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.1rem',
+              flexShrink: 0
+            }}
+          >
+            🔔
+          </div>
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+            <div
+              style={{
+                fontSize: '0.84rem',
+                fontWeight: '700',
+                color: '#ffffff',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
+              {inAppToast.title}
+            </div>
+            <div
+              style={{
+                fontSize: '0.76rem',
+                color: '#cbd5e1',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                marginTop: '2px'
+              }}
+            >
+              {inAppToast.body}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={styles.mainLayout}>
         {/* 1. Left Sidebar */}

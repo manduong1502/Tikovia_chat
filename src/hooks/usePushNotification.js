@@ -1,4 +1,31 @@
 import { useState, useCallback, useEffect } from 'react';
+import { playNotificationChime } from '../utils/sound';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+function isSameServerKey(existingSub, expectedKeyBytes) {
+  try {
+    const appServerKey = existingSub?.options?.applicationServerKey;
+    if (!appServerKey || !expectedKeyBytes) return false;
+    const subBytes = new Uint8Array(appServerKey);
+    if (subBytes.length !== expectedKeyBytes.length) return false;
+    for (let i = 0; i < subBytes.length; i++) {
+      if (subBytes[i] !== expectedKeyBytes[i]) return false;
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 export default function usePushNotification(token, socket) {
   const [pushStatus, setPushStatus] = useState('prompt');
@@ -87,23 +114,14 @@ export default function usePushNotification(token, socket) {
         }
         const { publicKey } = await keyRes.json();
         const savedKey = localStorage.getItem('chat_vapid_public_key');
-
-        const urlBase64ToUint8Array = (base64String) => {
-          const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-          const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-          const rawData = window.atob(base64);
-          const outputArray = new Uint8Array(rawData.length);
-          for (let i = 0; i < rawData.length; ++i) {
-            outputArray[i] = rawData.charCodeAt(i);
-          }
-          return outputArray;
-        };
+        const expectedKeyBytes = urlBase64ToUint8Array(publicKey);
 
         currentStep = 'Kiểm tra đăng ký Push hiện có';
         let subscription = await registration.pushManager.getSubscription();
 
-        // Chỉ huỷ subscription cũ nếu VAPID publicKey trên server thay đổi hoặc người dùng bấm làm mới cưỡng bức
-        if (subscription && (forceRefresh || (savedKey && savedKey !== publicKey))) {
+        // Huỷ subscription cũ nếu VAPID key không trùng khớp từng byte, hoặc người dùng bấm làm mới cưỡng bức
+        const keyMatched = subscription ? isSameServerKey(subscription, expectedKeyBytes) : false;
+        if (subscription && (forceRefresh || !keyMatched || (savedKey && savedKey !== publicKey))) {
           await subscription.unsubscribe().catch(() => {});
           subscription = null;
         }
@@ -112,7 +130,7 @@ export default function usePushNotification(token, socket) {
           currentStep = 'Tạo token đăng ký (Apple APNs / Google FCM)';
           subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(publicKey)
+            applicationServerKey: expectedKeyBytes
           });
         }
 
@@ -181,23 +199,24 @@ export default function usePushNotification(token, socket) {
   // Kích hoạt xin quyền và đăng ký thông báo đẩy thông qua Cử chỉ Người dùng (User Gesture)
   const handleEnablePushNotifications = useCallback(async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      alert('Trình duyệt hoặc thiết bị này không hỗ trợ thông báo đẩy.');
+      alert('Trình duyệt hoặc thiết bị này không hỗ trợ thông báo đẩy.\nTrên iPhone (iOS), bạn cần nhấn Chia sẻ -> Thêm vào MH chính (Add to Home Screen) rồi mở ứng dụng từ màn hình chính.');
       return;
     }
 
     try {
+      playNotificationChime();
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         setPushStatus('checking');
         const res = await subscribeUserToPush(token, true);
         if (res.success) {
-          alert('Đã bật và đồng bộ thông báo đẩy trên điện thoại thành công!');
+          alert('✅ Đã bật và đồng bộ thông báo đẩy + âm báo trên điện thoại thành công!');
         } else {
           alert(`Đăng ký với máy chủ thất bại. Chi tiết: ${res.error}\n\nVui lòng tải lại trang và thử lại.`);
         }
       } else if (permission === 'denied') {
         setPushStatus('denied');
-        alert('Bạn đã chặn quyền thông báo. Vui lòng bật lại quyền thông báo trong cài đặt trình duyệt.');
+        alert('Bạn đã chặn quyền thông báo. Vui lòng bật lại quyền thông báo trong Cài đặt điện thoại / trình duyệt.');
       } else {
         setPushStatus('prompt');
       }
@@ -211,19 +230,36 @@ export default function usePushNotification(token, socket) {
   const handleTestPushNotification = useCallback(async () => {
     if (!token) return;
     try {
+      // Phát thử chuông báo ngay lập tức để kiểm tra loa thiết bị
+      playNotificationChime();
+
       // Đảm bảo đồng bộ subscription mới nhất trước khi test
       await subscribeUserToPush(token, false);
-      const res = await fetch(`${API_URL}/chat/device-test`, {
+
+      let res = await fetch(`${API_URL}/chat/device-test`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert(data.message || 'Đã gửi thông báo thử nghiệm! Hãy kiểm tra thanh thông báo của điện thoại.');
+      let data = await res.json();
+
+      // Nếu tất cả subscription cũ trên server bị hết hạn/lỗi (sent === 0), tự động làm mới cưỡng bức token và gửi lại
+      if (!res.ok || data.sent === 0) {
+        await subscribeUserToPush(token, true);
+        res = await fetch(`${API_URL}/chat/device-test`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        data = await res.json();
+      }
+
+      if (res.ok && data.sent > 0) {
+        alert(data.message || '🔔 Đã gửi thông báo thử nghiệm thành công! Hãy kiểm tra thanh thông báo của điện thoại.');
       } else {
-        alert(data.error || 'Không thể gửi thông báo thử nghiệm.');
+        alert(data.error || data.message || 'Không thể gửi thông báo thử nghiệm. Hãy bấm "Đồng bộ lại" rồi thử lại.');
       }
     } catch (err) {
       alert('Lỗi kết nối khi gửi thông báo thử nghiệm: ' + err.message);
