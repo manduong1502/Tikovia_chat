@@ -146,14 +146,24 @@ export default function usePushNotification(token, socket) {
         if (subscription && (forceRefresh || !keyMatched || (savedKey && savedKey !== publicKey))) {
           await subscription.unsubscribe().catch(() => {});
           subscription = null;
+          // Chờ ngắn 250ms để tiến trình APNs (iOS) / FCM (Android) hoàn tất thu hồi trước khi xin token mới
+          await new Promise((r) => setTimeout(r, 250));
         }
 
         if (!subscription) {
           currentStep = 'Tạo token đăng ký (Apple APNs / Google FCM)';
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: expectedKeyBytes
-          });
+          try {
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: expectedKeyBytes
+            });
+          } catch (subErr) {
+            await new Promise((r) => setTimeout(r, 350));
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: expectedKeyBytes
+            });
+          }
         }
 
         currentStep = 'Lưu và đồng bộ token lên máy chủ';
@@ -253,7 +263,10 @@ export default function usePushNotification(token, socket) {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         setPushStatus('checking');
-        const res = await subscribeUserToPush(token, true);
+        let res = await subscribeUserToPush(token, false);
+        if (!res.success) {
+          res = await subscribeUserToPush(token, true);
+        }
         if (res.success) {
           alert('✅ Đã bật và đồng bộ thông báo đẩy + âm báo trên điện thoại thành công!');
         } else {
