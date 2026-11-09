@@ -71,11 +71,14 @@ self.addEventListener('push', (event) => {
         : `msg-${uniqueMsgId}`;
 
     let safeIcon = data.icon || '/pwa-192x192.png';
-    if (safeIcon.includes('dicebear.com') || safeIcon.toLowerCase().endsWith('.svg')) {
+    const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+    const uploadsIdx = typeof safeIcon === 'string' ? safeIcon.indexOf('/api/uploads/') : -1;
+    if (typeof safeIcon !== 'string' || safeIcon.includes('dicebear.com') || safeIcon.toLowerCase().endsWith('.svg')) {
       safeIcon = '/pwa-192x192.png';
-    } else if (safeIcon.startsWith('/api/uploads/')) {
-      const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-      safeIcon = `${apiBase}${safeIcon}`;
+    } else if (uploadsIdx !== -1) {
+      safeIcon = `${apiBase}${safeIcon.slice(uploadsIdx)}`;
+    } else if (safeIcon.startsWith('http://localhost') || safeIcon.startsWith('http://127.0.0.1') || safeIcon.startsWith('http://192.168.')) {
+      safeIcon = '/pwa-192x192.png';
     }
 
     const options = {
@@ -97,10 +100,14 @@ self.addEventListener('push', (event) => {
       }
     };
 
-    const promiseChain = Promise.all([
-      // Luôn hiển thị thông báo ngay lập tức (Tuân thủ bắt buộc userVisibleOnly của Apple iOS WebKit)
-      self.registration.showNotification(title, options),
-      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+    const showPromise = self.registration
+      .showNotification(title, options)
+      .catch(() => self.registration.showNotification(title, { ...options, icon: '/pwa-192x192.png' }))
+      .catch(() => fallbackShow());
+
+    const notifyClientsPromise = clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windowClients) => {
         if ('setAppBadge' in self.navigator) {
           self.navigator.setAppBadge().catch(() => {});
         }
@@ -111,9 +118,9 @@ self.addEventListener('push', (event) => {
           });
         });
       })
-    ]).catch(() => fallbackShow());
+      .catch(() => {});
 
-    event.waitUntil(promiseChain);
+    event.waitUntil(Promise.all([showPromise, notifyClientsPromise]));
   } catch (err) {
     event.waitUntil(fallbackShow());
   }

@@ -27,6 +27,20 @@ function isSameServerKey(existingSub, expectedKeyBytes) {
   }
 }
 
+function isIOSDevice() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isStandalonePWA() {
+  if (typeof window === 'undefined') return false;
+  return Boolean(
+    window.navigator?.standalone ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+  );
+}
+
 export default function usePushNotification(token, socket) {
   const [pushStatus, setPushStatus] = useState('prompt');
   const [dismissedPushBanner, setDismissedPushBanner] = useState(
@@ -70,6 +84,7 @@ export default function usePushNotification(token, socket) {
               setPushStatus('granted');
               resolve({ success: true });
             } else {
+              setPushStatus('prompt');
               resolve({ success: false, error: res?.error || 'Đồng bộ qua máy chủ thất bại.' });
             }
           });
@@ -81,8 +96,8 @@ export default function usePushNotification(token, socket) {
         return { success: true };
       }
 
-      setPushStatus('granted');
-      return { success: true };
+      setPushStatus('prompt');
+      return { success: false, error: 'Không thể kết nối máy chủ để lưu token thông báo.' };
     },
     [API_URL, socket, token]
   );
@@ -92,6 +107,13 @@ export default function usePushNotification(token, socket) {
     async (userToken, forceRefresh = false) => {
       let currentStep = 'Khởi tạo';
       if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        if (isIOSDevice() && !isStandalonePWA()) {
+          setPushStatus('ios-browser');
+          return {
+            success: false,
+            error: 'Trên iPhone/iPad, bạn cần bấm nút Chia sẻ (Share) -> "Thêm vào MH chính" rồi mở ứng dụng từ Màn hình chính để nhận thông báo.'
+          };
+        }
         setPushStatus('unsupported');
         return { success: false, error: 'Thiết bị hoặc trình duyệt không hỗ trợ API Web Push.' };
       }
@@ -106,7 +128,7 @@ export default function usePushNotification(token, socket) {
         const registration = await navigator.serviceWorker.ready;
 
         currentStep = 'Tải khoá VAPID từ máy chủ';
-        const keyRes = await fetch(`${API_URL}/chat/device-key`, {
+        const keyRes = await fetch(`${API_URL}/chat/device-key?_=${Date.now()}`, {
           headers: { Authorization: `Bearer ${activeToken}` }
         });
         if (!keyRes.ok) {
@@ -141,11 +163,7 @@ export default function usePushNotification(token, socket) {
         return await syncSubscriptionToServer(subscription, activeToken);
       } catch (e) {
         console.error('Lỗi thiết lập thông báo đẩy:', e);
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-          setPushStatus('granted');
-        } else {
-          setPushStatus('prompt');
-        }
+        setPushStatus('prompt');
         return {
           success: false,
           error: `[Lỗi tại bước: ${currentStep}] ${e.message || 'Lỗi mạng hoặc kết nối.'}`
@@ -161,6 +179,11 @@ export default function usePushNotification(token, socket) {
 
     if (!window.isSecureContext) {
       setPushStatus('insecure');
+      return;
+    }
+
+    if (isIOSDevice() && !isStandalonePWA()) {
+      setPushStatus('ios-browser');
       return;
     }
 
@@ -209,13 +232,24 @@ export default function usePushNotification(token, socket) {
 
   // Kích hoạt xin quyền và đăng ký thông báo đẩy thông qua Cử chỉ Người dùng (User Gesture)
   const handleEnablePushNotifications = useCallback(async () => {
+    playNotificationChime();
+
+    if (isIOSDevice() && !isStandalonePWA()) {
+      alert(
+        '📲 HƯỚNG DẪN BẬT THÔNG BÁO TRÊN IPHONE:\n\n' +
+          '1. Nhấn vào nút Chia sẻ (Share - biểu tượng ô vuông có mũi tên hướng lên ở thanh công cụ Safari).\n' +
+          '2. Chọn "Thêm vào MH chính" (Add to Home Screen) -> Nhấn "Thêm".\n' +
+          '3. Ra màn hình chính mở ứng dụng ChatTikovia và bấm "Bật thông báo".'
+      );
+      return;
+    }
+
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      alert('Trình duyệt hoặc thiết bị này không hỗ trợ thông báo đẩy.\nTrên iPhone (iOS), bạn cần nhấn Chia sẻ -> Thêm vào MH chính (Add to Home Screen) rồi mở ứng dụng từ màn hình chính.');
+      alert('Trình duyệt hoặc thiết bị này không hỗ trợ thông báo đẩy.');
       return;
     }
 
     try {
-      playNotificationChime();
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         setPushStatus('checking');
@@ -227,7 +261,11 @@ export default function usePushNotification(token, socket) {
         }
       } else if (permission === 'denied') {
         setPushStatus('denied');
-        alert('Bạn đã chặn quyền thông báo. Vui lòng bật lại quyền thông báo trong Cài đặt điện thoại / trình duyệt.');
+        alert(
+          '⚠️ Quyền thông báo đang bị chặn trên thiết bị này.\n\n' +
+            '• Trên iPhone: Vào Cài đặt (Settings) -> Thông báo (Notifications) -> ChatTikovia -> Bật "Cho phép thông báo" & "Âm thanh".\n' +
+            '• Trên Android: Nhấn giữ biểu tượng ChatTikovia -> Thông tin ứng dụng -> Thông báo -> Bật Cho phép.'
+        );
       } else {
         setPushStatus('prompt');
       }
@@ -257,7 +295,11 @@ export default function usePushNotification(token, socket) {
 
       // Nếu tất cả subscription cũ trên server bị hết hạn/lỗi (sent === 0), tự động làm mới cưỡng bức token và gửi lại
       if (!res.ok || data.sent === 0) {
-        await subscribeUserToPush(token, true);
+        const refreshRes = await subscribeUserToPush(token, true);
+        if (!refreshRes.success) {
+          alert(`Không thể làm mới token thông báo: ${refreshRes.error}`);
+          return;
+        }
         res = await fetch(`${API_URL}/chat/device-test`, {
           method: 'POST',
           headers: {

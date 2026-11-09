@@ -268,20 +268,34 @@ export default function Sidebar({
       </div>
 
       {/* Banner Đăng ký thông báo đẩy */}
-      {pushStatus === 'prompt' && !dismissedPushBanner && (
+      {(pushStatus === 'prompt' || pushStatus === 'ios-browser' || pushStatus === 'denied') && !dismissedPushBanner && (
         <div style={styles.pushBanner}>
           <div style={styles.pushBannerContent}>
-            <span style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center' }}>🔔</span>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>Thông báo trên điện thoại</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', lineHeight: '0.9rem' }}>Nhận cuộc gọi & tin nhắn mới cả khi tắt app</div>
+            <span style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center' }}>
+              {pushStatus === 'ios-browser' ? '📲' : '🔔'}
+            </span>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                {pushStatus === 'ios-browser'
+                  ? 'Cài ứng dụng vào Màn hình chính'
+                  : pushStatus === 'denied'
+                    ? 'Thông báo đang bị chặn'
+                    : 'Thông báo trên điện thoại'}
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', lineHeight: '0.9rem' }}>
+                {pushStatus === 'ios-browser'
+                  ? 'Nhấn Chia sẻ ⬆️ -> Thêm vào MH chính để nhận thông báo'
+                  : pushStatus === 'denied'
+                    ? 'Bấm để xem cách bật lại quyền thông báo'
+                    : 'Nhận cuộc gọi & tin nhắn mới cả khi tắt app'}
+              </div>
             </div>
             <button 
               onClick={onEnablePush} 
               style={styles.pushBannerBtn}
               className="btn-interactive"
             >
-              Bật ngay
+              {pushStatus === 'ios-browser' ? 'Hướng dẫn' : 'Bật ngay'}
             </button>
             <button 
               onClick={onDismissPushBanner} 

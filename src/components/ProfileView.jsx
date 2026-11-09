@@ -54,6 +54,7 @@ export default function ProfileView({
     switch (status) {
       case 'granted': return 'Đã bật thông báo';
       case 'prompt': return 'Chưa kích hoạt';
+      case 'ios-browser': return 'Cần thêm vào Màn hình chính (iOS)';
       case 'denied': return 'Bị chặn bởi trình duyệt';
       case 'unsupported': return 'Thiết bị không hỗ trợ';
       case 'insecure': return 'Không bảo mật (Cần HTTPS)';
@@ -65,7 +66,8 @@ export default function ProfileView({
   const getStatusColor = (status) => {
     switch (status) {
       case 'granted': return '#10b981';
-      case 'prompt': return '#f59e0b';
+      case 'prompt':
+      case 'ios-browser': return '#f59e0b';
       case 'denied': return '#ef4444';
       case 'unsupported':
       case 'insecure': return '#ef4444';
@@ -74,17 +76,19 @@ export default function ProfileView({
   };
 
   const shouldShowButton = (status) => {
-    return status === 'prompt' || status === 'granted';
+    return status === 'prompt' || status === 'granted' || status === 'ios-browser' || status === 'denied';
   };
 
   const getHelpText = (status) => {
     switch (status) {
       case 'insecure':
         return '⚠️ Tính năng thông báo đẩy yêu cầu kết nối HTTPS bảo mật. Vui lòng thiết lập SSL/HTTPS cho tên miền của bạn để kích hoạt.';
+      case 'ios-browser':
+        return '📲 Trên iPhone/iPad: Nhấn nút Chia sẻ (Share ⬆️) ở thanh công cụ Safari -> Chọn "Thêm vào MH chính" (Add to Home Screen) -> Mở ứng dụng ChatTikovia từ màn hình chính rồi bấm "Bật thông báo".';
       case 'unsupported':
         return '⚠️ Thiết bị hoặc trình duyệt này không hỗ trợ Push API. Hãy đảm bảo bạn đã cài đặt ứng dụng vào màn hình chính (Add to Home Screen) trên iOS/Android.';
       case 'denied':
-        return '❌ Quyền thông báo đang bị từ chối. Hãy mở cài đặt trình duyệt hoặc cài đặt ứng dụng trên điện thoại để cấp quyền thông báo.';
+        return '❌ Quyền thông báo đang bị từ chối. Hãy vào Cài đặt điện thoại -> Thông báo -> ChatTikovia để bật lại "Cho phép thông báo" và "Âm thanh".';
       case 'granted':
         return '✅ Thiết bị này đã đăng ký nhận thông báo đẩy thành công. Bạn sẽ nhận được chuông/rung khi có tin nhắn, công việc, nhắc hẹn và cuộc gọi mới kể cả khi đóng ứng dụng.';
       case 'prompt':

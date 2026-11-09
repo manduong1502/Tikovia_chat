@@ -63,22 +63,38 @@ export default function useAuth() {
 
   // Đăng xuất
   const handleLogout = useCallback(async (socket) => {
+    // Huỷ đăng ký thiết bị nhận thông báo đẩy của tài khoản cũ trước khi xoá token
+    try {
+      const currentToken = localStorage.getItem('chat_token');
+      const savedSubStr = localStorage.getItem('chat_push_subscription');
+      let endpoint = null;
+      if (savedSubStr) {
+        const parsed = JSON.parse(savedSubStr);
+        endpoint = parsed?.endpoint;
+      }
+      if (!endpoint && 'serviceWorker' in navigator && 'PushManager' in window) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        endpoint = sub?.endpoint;
+      }
+      if (currentToken && endpoint) {
+        await fetch(`${API_URL}/chat/device-unsubscribe`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${currentToken}`
+          },
+          body: JSON.stringify({ endpoint })
+        }).catch(() => {});
+      }
+    } catch (e) {}
+
     if (socket) {
       socket.disconnect();
     }
-    // Xóa active conversation trong IndexedDB khi đăng xuất
-    if (typeof window !== 'undefined' && 'indexedDB' in window) {
-      const request = indexedDB.open('ChatTikoviaDB', 1);
-      request.onsuccess = (e) => {
-        const db = e.target.result;
-        if (db.objectStoreNames.contains('settings')) {
-          const tx = db.transaction('settings', 'readwrite');
-          tx.objectStore('settings').delete('activeConversationId');
-        }
-      };
-    }
     localStorage.removeItem('chat_token');
     localStorage.removeItem('chat_user');
+    localStorage.removeItem('chat_push_subscription');
     localStorage.removeItem('chat_conversations_cache');
     localStorage.removeItem('chat_last_read_timestamps');
     localStorage.removeItem('chat_offline_outbox');

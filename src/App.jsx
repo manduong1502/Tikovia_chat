@@ -256,17 +256,22 @@ export default function App() {
     newSocket.on('connect', () => {
       newSocket.emit('register-user', user.id);
 
+      fetchConversations();
+      fetchGlobalTasksCountRef.current();
+
       const activeConv = activeConversationRef.current;
       if (activeConv) {
         newSocket.emit('join-conversation', activeConv.id);
-      }
-
-      const savedSub = localStorage.getItem('chat_push_subscription');
-      if (savedSub) {
-        try {
-          const subscription = JSON.parse(savedSub);
-          newSocket.emit('sync-push-subscription', { subscription });
-        } catch (e) {}
+        fetch(`${API_URL}/chat/conversations/${activeConv.id}/messages?limit=50`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (Array.isArray(data)) {
+              setMessages(data);
+            }
+          })
+          .catch(() => {});
       }
 
       sendOfflineOutbox(newSocket);
@@ -587,7 +592,7 @@ export default function App() {
     }
   }, [conversations]);
 
-  // === Initial Data Loading ===
+  // === Initial Data Loading & Foreground Wakeup Sync ===
   useEffect(() => {
     if (token) {
       fetchConversations();
@@ -595,6 +600,43 @@ export default function App() {
       checkPushNotificationStatus();
     }
   }, [token, fetchConversations, fetchGlobalTasksCount, checkPushNotificationStatus]);
+
+  // Tự động đồng bộ lại tin nhắn & kết nối Socket ngay khi người dùng mở khoá điện thoại / quay lại ứng dụng
+  useEffect(() => {
+    if (!token) return;
+    const handleAppWakeup = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (socket && !socket.connected) {
+        socket.connect();
+      }
+      fetchConversations();
+      fetchGlobalTasksCountRef.current();
+
+      const activeConv = activeConversationRef.current;
+      if (activeConv) {
+        fetch(`${API_URL}/chat/conversations/${activeConv.id}/messages?limit=50`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (Array.isArray(data)) setMessages(data);
+          })
+          .catch(() => {});
+
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'CLEAR_CONVERSATION_NOTIFICATIONS',
+            conversationId: activeConv.id
+          });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleAppWakeup);
+    return () => {
+      document.removeEventListener('visibilitychange', handleAppWakeup);
+    };
+  }, [token, socket, API_URL, fetchConversations]);
 
   // === Active Conversation Effects ===
   useEffect(() => {
