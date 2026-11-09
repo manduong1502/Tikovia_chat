@@ -184,7 +184,7 @@ export default function usePushNotification(token, socket) {
     }
   }, [token, subscribeUserToPush]);
 
-  // Lắng nghe sự kiện xoay vòng token từ Service Worker
+  // Lắng nghe sự kiện xoay vòng token từ Service Worker & tự động đồng bộ lại khi người dùng mở lại App từ màn hình nền
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !token) return;
     const handleMessage = (event) => {
@@ -192,9 +192,20 @@ export default function usePushNotification(token, socket) {
         syncSubscriptionToServer(event.data.subscription, token);
       }
     };
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        checkPushNotificationStatus();
+      }
+    };
     navigator.serviceWorker.addEventListener('message', handleMessage);
-    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
-  }, [token, syncSubscriptionToServer]);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
+  }, [token, syncSubscriptionToServer, checkPushNotificationStatus]);
 
   // Kích hoạt xin quyền và đăng ký thông báo đẩy thông qua Cử chỉ Người dùng (User Gesture)
   const handleEnablePushNotifications = useCallback(async () => {

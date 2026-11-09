@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Peer from 'peerjs';
 import { FiPhoneOff, FiVideo, FiVideoOff, FiMic, FiMicOff, FiVolume2, FiVolumeX, FiRefreshCw } from 'react-icons/fi';
 import Avatar from './Avatar';
+import { startCallRingtone, stopCallRingtone } from '../utils/sound';
 
 export default function VideoCall({
   user,
@@ -105,6 +106,20 @@ export default function VideoCall({
       });
     }
   }, [remoteStream, callState]);
+
+  // Phát nhạc chuông & rung khi có cuộc gọi đến hoặc âm hồi chuông khi đang gọi đi
+  useEffect(() => {
+    if (callState === 'incoming') {
+      startCallRingtone(true);
+    } else if (callState === 'calling') {
+      startCallRingtone(false);
+    } else {
+      stopCallRingtone();
+    }
+    return () => {
+      stopCallRingtone();
+    };
+  }, [callState]);
 
   // Tự động huỷ cuộc gọi nếu đổ chuông quá lâu mà không có phản hồi (45 giây - đồng bộ với Server)
   useEffect(() => {

@@ -139,11 +139,42 @@ self.addEventListener('pushsubscriptionchange', (event) => {
   );
 });
 
+// Dọn dẹp các thông báo cũ trên thanh trạng thái điện thoại khi người dùng mở xem cuộc trò chuyện
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'CLEAR_CONVERSATION_NOTIFICATIONS') {
+    const targetConvId = event.data.conversationId;
+    self.registration
+      .getNotifications()
+      .then((notifications) => {
+        notifications.forEach((n) => {
+          if (!targetConvId || n.data?.conversationId === targetConvId) {
+            n.close();
+          }
+        });
+      })
+      .catch(() => {});
+  }
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const notificationData = event.notification.data || {};
   const conversationId = notificationData.conversationId;
+
+  // Tự động đóng tất cả các thông báo khác cùng thuộc cuộc hội thoại vừa bấm
+  if (conversationId) {
+    self.registration
+      .getNotifications()
+      .then((notifications) => {
+        notifications.forEach((n) => {
+          if (n.data?.conversationId === conversationId) {
+            n.close();
+          }
+        });
+      })
+      .catch(() => {});
+  }
 
   let targetUrl = notificationData.url || '/';
   if (conversationId) {

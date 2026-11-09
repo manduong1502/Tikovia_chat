@@ -501,25 +501,20 @@ export default function App() {
     });
 
     newSocket.on('reminder-trigger', (reminder) => {
-      playNotificationChime();
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        try {
-          new Notification(`⏰ Nhắc hẹn: ${reminder.title}`, {
-            body: `Tạo bởi: ${reminder.creatorName}`,
-            icon: '/pwa-192x192.png'
-          });
-        } catch (e) {
-          alert(`⏰ [Nhắc hẹn] ${reminder.title} (Tạo bởi: ${reminder.creatorName})`);
-        }
-      } else {
-        alert(`⏰ [Nhắc hẹn] ${reminder.title} (Tạo bởi: ${reminder.creatorName})`);
-      }
+      triggerSoundAndToast(
+        {
+          title: `⏰ Nhắc hẹn: ${reminder.title}`,
+          body: `Tạo bởi: ${reminder.creatorName} - Đã đến giờ hẹn!`,
+          conversationId: reminder.conversationId
+        },
+        true
+      );
     });
 
     return () => {
       newSocket.disconnect();
     };
-  }, [token, user, API_URL, fetchConversations, sendOfflineOutbox]);
+  }, [token, user, API_URL, fetchConversations, sendOfflineOutbox, triggerSoundAndToast]);
 
   // === Service Worker Message Handler ===
   useEffect(() => {
@@ -547,6 +542,8 @@ export default function App() {
         const targetConv = conversationsRef.current.find((c) => c.id === conversationId);
         if (targetConv) {
           setActiveConversation(targetConv);
+          setShowProfile(false);
+          setShowTasks(false);
           setMobileActiveView('chat');
         } else {
           fetchConversations().then(() => {
@@ -554,6 +551,8 @@ export default function App() {
               const conv = latestConvs.find((c) => c.id === conversationId);
               if (conv) {
                 setActiveConversation(conv);
+                setShowProfile(false);
+                setShowTasks(false);
                 setMobileActiveView('chat');
               }
               return latestConvs;
@@ -577,6 +576,8 @@ export default function App() {
         const target = conversations.find((c) => c.id === convId);
         if (target) {
           setActiveConversation(target);
+          setShowProfile(false);
+          setShowTasks(false);
           setMobileActiveView('chat');
           const url = new URL(window.location.href);
           url.searchParams.delete('convId');
@@ -618,6 +619,14 @@ export default function App() {
       setConversations((prev) =>
         prev.map((c) => (c.id === activeConversation.id ? { ...c, unreadCount: 0, lastReadAt: nowIso } : c))
       );
+
+      // Báo cho Service Worker tự động đóng các thông báo cũ của phòng chat này trên thanh thông báo điện thoại
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'CLEAR_CONVERSATION_NOTIFICATIONS',
+          conversationId: activeConversation.id
+        });
+      }
     }
   }, [activeConversation?.id]);
 
@@ -641,22 +650,6 @@ export default function App() {
       });
     if (socket) socket.emit('join-conversation', activeConversation.id);
   }, [activeConversation?.id, token, socket, API_URL]);
-
-  // === IndexedDB Sync ===
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'indexedDB' in window) {
-      const request = indexedDB.open('ChatTikoviaDB', 1);
-      request.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings');
-      };
-      request.onsuccess = (e) => {
-        const db = e.target.result;
-        const tx = db.transaction('settings', 'readwrite');
-        tx.objectStore('settings').put(activeConversation ? activeConversation.id : null, 'activeConversationId');
-      };
-    }
-  }, [activeConversation]);
 
   // === Action Handlers ===
   const fetchOlderMessages = useCallback(async () => {
