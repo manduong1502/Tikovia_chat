@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        - VITE_API_URL=https://api-chat.tikovia.vn/api
+        - VITE_API_URL=https://api-chat.bonix.site/api
     container_name: tiko-chattikovia-web
     restart: always
     ports:
