@@ -96,6 +96,19 @@ export default function App() {
   const [inAppToast, setInAppToast] = useState(null);
   const lastChimeTimeRef = useRef(0);
   const toastTimeoutRef = useRef(null);
+  const notifiedMessageIdsRef = useRef(new Set());
+
+  const recordNotifiedMessageId = useCallback((msgId) => {
+    if (!msgId) return false;
+    const set = notifiedMessageIdsRef.current;
+    if (set.has(msgId)) return true;
+    set.add(msgId);
+    if (set.size > 200) {
+      const first = set.values().next().value;
+      set.delete(first);
+    }
+    return false;
+  }, []);
 
   const triggerSoundAndToast = useCallback((toastData, playSound = true) => {
     const now = Date.now();
@@ -331,8 +344,20 @@ export default function App() {
 
       const isFromOther = newMessage.senderId !== user.id && newMessage.sender?.id !== user.id;
       const existingConv = conversationsRef.current.find((c) => c.id === newMessage.conversationId);
+      const alreadyNotified = recordNotifiedMessageId(newMessage.id);
 
-      if (isFromOther && !existingConv?.isMuted) {
+      if (isViewingThisConv && document.visibilityState === 'visible') {
+        setTimeout(() => {
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'CLEAR_CONVERSATION_NOTIFICATIONS',
+              conversationId: newMessage.conversationId
+            });
+          }
+        }, 450);
+      }
+
+      if (isFromOther && !existingConv?.isMuted && !alreadyNotified) {
         const senderTitle = existingConv?.isGroup
           ? `${existingConv.name || 'Nhóm chat'} • ${newMessage.sender?.displayName || 'Thành viên'}`
           : newMessage.sender?.displayName || 'Tin nhắn mới';
@@ -450,6 +475,12 @@ export default function App() {
     });
 
     newSocket.on('message-recalled', ({ messageId, conversationId }) => {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller && messageId) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'CLEAR_MESSAGE_NOTIFICATION',
+          messageId
+        });
+      }
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
@@ -528,9 +559,39 @@ export default function App() {
       if (event.data?.type === 'SW_PUSH_RECEIVED') {
         const payload = event.data.payload || {};
         const pushConvId = payload.conversationId || payload.data?.conversationId || null;
+        const pushMsgId = payload.data?.messageId || payload.messageId || null;
         const activeConv = activeConversationRef.current;
         const isChatVisible = window.innerWidth > 768 || mobileActiveViewRef.current === 'chat';
         const isViewingThisConv = Boolean(activeConv && activeConv.id === pushConvId && isChatVisible);
+
+        if (isViewingThisConv && document.visibilityState === 'visible' && pushConvId) {
+          setTimeout(() => {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({
+                type: 'CLEAR_CONVERSATION_NOTIFICATIONS',
+                conversationId: pushConvId
+              });
+            }
+          }, 350);
+        }
+
+        // Nếu tin nhắn này đã được thông báo qua Socket.io thì bỏ qua để tránh kêu chuông 2 lần
+        if (pushMsgId && recordNotifiedMessageId(pushMsgId)) {
+          return;
+        }
+
+        // Nếu Web Push đến trước khi Socket kịp kết nối lại sau khi mở khóa màn hình, đồng bộ ngay dữ liệu mới
+        fetchConversations();
+        if (activeConv && pushConvId && activeConv.id === pushConvId && token) {
+          fetch(`${API_URL}/chat/conversations/${activeConv.id}/messages?limit=50`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (Array.isArray(data)) setMessages(data);
+            })
+            .catch(() => {});
+        }
 
         triggerSoundAndToast(
           !isViewingThisConv && payload.title

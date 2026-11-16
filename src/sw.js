@@ -81,10 +81,30 @@ self.addEventListener('push', (event) => {
       safeIcon = '/pwa-192x192.png';
     }
 
+    let safeImage;
+    if (typeof data.image === 'string' && data.image.trim()) {
+      const imgUploadsIdx = data.image.indexOf('/api/uploads/');
+      if (imgUploadsIdx !== -1) {
+        safeImage = `${apiBase}${data.image.slice(imgUploadsIdx)}`;
+      } else if (data.image.startsWith('https://')) {
+        safeImage = data.image;
+      }
+    }
+
+    const baseData = {
+      url: data.url || data.data?.url || '/',
+      conversationId: pushConvId,
+      messageId: data.data?.messageId || data.messageId || null,
+      type: data.type || data.data?.type || 'message'
+    };
+
     const options = {
       body: data.body || 'Bạn có tin nhắn mới',
       icon: safeIcon,
       badge: '/pwa-192x192.png',
+      ...(safeImage ? { image: safeImage } : {}),
+      dir: 'ltr',
+      lang: 'vi',
       timestamp: data.timestamp || Date.now(),
       silent: false,
       renotify: true,
@@ -93,24 +113,39 @@ self.addEventListener('push', (event) => {
         : [250, 120, 250],
       tag: notificationTag,
       requireInteraction: Boolean(data.isCall),
-      data: {
-        url: data.url || data.data?.url || '/',
-        conversationId: pushConvId,
-        type: data.type || data.data?.type || 'message'
-      }
+      actions: data.isCall
+        ? [
+            { action: 'answer', title: '📞 Trả lời ngay' },
+            { action: 'dismiss', title: 'Đóng' }
+          ]
+        : [{ action: 'open', title: '💬 Xem tin nhắn' }],
+      data: baseData
     };
 
     const showPromise = self.registration
       .showNotification(title, options)
-      .catch(() => self.registration.showNotification(title, { ...options, icon: '/pwa-192x192.png' }))
+      .catch(() =>
+        self.registration.showNotification(title, {
+          body: options.body,
+          icon: '/pwa-192x192.png',
+          badge: '/pwa-192x192.png',
+          tag: options.tag,
+          silent: false,
+          renotify: true,
+          vibrate: options.vibrate,
+          data: baseData
+        })
+      )
       .catch(() => fallbackShow());
+
+    const badgeCount = Number(data.badgeCount) > 0 ? Number(data.badgeCount) : 1;
+    if ('setAppBadge' in self.navigator) {
+      self.navigator.setAppBadge(badgeCount).catch(() => {});
+    }
 
     const notifyClientsPromise = clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((windowClients) => {
-        if ('setAppBadge' in self.navigator) {
-          self.navigator.setAppBadge().catch(() => {});
-        }
         windowClients.forEach((client) => {
           client.postMessage({
             type: 'SW_PUSH_RECEIVED',
@@ -146,7 +181,7 @@ self.addEventListener('pushsubscriptionchange', (event) => {
   );
 });
 
-// Dọn dẹp các thông báo cũ trên thanh trạng thái điện thoại khi người dùng mở xem cuộc trò chuyện
+// Dọn dẹp các thông báo cũ trên thanh trạng thái điện thoại khi người dùng mở xem cuộc trò chuyện hoặc khi tin nhắn bị thu hồi
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'CLEAR_CONVERSATION_NOTIFICATIONS') {
     const targetConvId = event.data.conversationId;
@@ -160,11 +195,23 @@ self.addEventListener('message', (event) => {
         });
       })
       .catch(() => {});
+  } else if (event.data?.type === 'CLEAR_MESSAGE_NOTIFICATION' && event.data.messageId) {
+    const targetTag = `msg-${event.data.messageId}`;
+    self.registration
+      .getNotifications({ tag: targetTag })
+      .then((notifications) => {
+        notifications.forEach((n) => n.close());
+      })
+      .catch(() => {});
   }
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+
+  if (event.action === 'dismiss') {
+    return;
+  }
 
   const notificationData = event.notification.data || {};
   const conversationId = notificationData.conversationId;

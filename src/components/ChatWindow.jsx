@@ -321,13 +321,17 @@ export default function ChatWindow({
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
-  // Quyết định URL tệp hiển thị trực tiếp từ ổ cứng SSD máy chủ
+  // Quyết định URL tệp hiển thị trực tiếp từ ổ cứng SSD máy chủ (Có kiểm tra chống javascript:/data: XSS)
   const getFileUrl = (content) => {
-    if (!content) return '';
-    if (content.startsWith('http')) {
-      return content;
+    if (!content || typeof content !== 'string') return '';
+    const trimmed = content.trim();
+    if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
+      return trimmed;
     }
-    return `${BASE_URL}${content}`;
+    if (trimmed.startsWith('/')) {
+      return `${BASE_URL}${trimmed}`;
+    }
+    return '';
   };
 
   // Helper định dạng ngày phân tách dạng Voz
@@ -701,17 +705,16 @@ export default function ChatWindow({
         };
 
         let renderedText = escapeHTML(msg.content);
-        
-        // Match urls
-        renderedText = renderedText.replace(urlRegex, (url) => {
-          return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline; word-break: break-all;">${url}</a>`;
+
+        // Đánh dấu đậm các tag @mention trước (chỉ khớp khi đứng đầu câu hoặc sau khoảng trắng để không làm hỏng URL có ký tự @)
+        const mentionRegex = /(^|\s)(@[a-zA-Z0-9À-ỹ_]+(?:\s+[a-zA-Z0-9À-ỹ_]+)?)/g;
+        renderedText = renderedText.replace(mentionRegex, (fullMatch, prefix, mentionPart) => {
+          return `${prefix}<span style="color: #fca5a5; font-weight: bold; background: rgba(239, 68, 68, 0.1); padding: 2px 4px; border-radius: 4px;">${mentionPart}</span>`;
         });
 
-        // Match mentions (format: @DisplayName)
-        const mentionRegex = /@([a-zA-Z0-9À-ỹ\s]+)/g;
-        // Đánh dấu đậm các tag mention
-        renderedText = renderedText.replace(mentionRegex, (match) => {
-          return `<span style="color: #fca5a5; font-weight: bold; background: rgba(239, 68, 68, 0.1); padding: 2px 4px; border-radius: 4px;">${match}</span>`;
+        // Sau đó định dạng liên kết URL an toàn
+        renderedText = renderedText.replace(urlRegex, (url) => {
+          return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline; word-break: break-all;">${url}</a>`;
         });
 
         return <div dangerouslySetInnerHTML={{ __html: renderedText }} />;
@@ -803,9 +806,10 @@ export default function ChatWindow({
               gap: '6px',
               flexShrink: 0
             }}>
-              {metadata.webViewLink && (
+              {typeof metadata.webViewLink === 'string' &&
+                (metadata.webViewLink.startsWith('https://') || metadata.webViewLink.startsWith('http://')) && (
                 <button 
-                  onClick={() => window.open(metadata.webViewLink, '_blank')}
+                  onClick={() => window.open(metadata.webViewLink, '_blank', 'noopener,noreferrer')}
                   style={{
                     width: '30px',
                     height: '30px',
@@ -883,8 +887,10 @@ export default function ChatWindow({
               title="Shared Location"
               width="100%" 
               height="145" 
+              sandbox="allow-scripts allow-same-origin"
+              referrerPolicy="no-referrer"
               style={{ border: 0, borderRadius: '10px', display: 'block', width: '100%' }}
-              src={`https://maps.google.com/maps?q=${metadata.lat},${metadata.lng}&z=15&output=embed`}
+              src={`https://maps.google.com/maps?q=${Number(metadata.lat) || 0},${Number(metadata.lng) || 0}&z=15&output=embed`}
             />
           </div>
         );
