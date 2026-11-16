@@ -190,7 +190,7 @@ export default function RightSidebar({
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const uploadRes = await fetch(`${API_URL}/chat/upload`, {
+      const uploadRes = await fetch(`${API_URL}/chat/upload?type=avatar`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData

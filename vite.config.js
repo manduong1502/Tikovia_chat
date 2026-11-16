@@ -32,7 +32,7 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.js',
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'badge-96x96.png'],
       manifest: {
         name: 'ChatTikovia - Chat Nội bộ Doanh nghiệp',
         short_name: 'ChatTikovia',

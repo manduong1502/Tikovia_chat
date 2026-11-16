@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { playNotificationChime } from '../utils/sound';
 
 function urlBase64ToUint8Array(base64String) {
@@ -218,6 +218,7 @@ export default function usePushNotification(token, socket) {
   }, [token, subscribeUserToPush]);
 
   // Lắng nghe sự kiện xoay vòng token từ Service Worker & tự động đồng bộ lại khi người dùng mở lại App từ màn hình nền
+  const lastForegroundSyncRef = useRef(0);
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !token) return;
     const handleMessage = (event) => {
@@ -226,9 +227,12 @@ export default function usePushNotification(token, socket) {
       }
     };
     const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible') {
-        checkPushNotificationStatus();
-      }
+      if (document.visibilityState !== 'visible') return;
+      // visibilitychange + focus thường bắn cùng lúc khi mở khoá máy → chỉ đồng bộ tối đa 1 lần / 2 phút
+      const now = Date.now();
+      if (now - lastForegroundSyncRef.current < 2 * 60 * 1000) return;
+      lastForegroundSyncRef.current = now;
+      checkPushNotificationStatus();
     };
     navigator.serviceWorker.addEventListener('message', handleMessage);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
