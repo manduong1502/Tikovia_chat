@@ -115,6 +115,21 @@ async function handlePushPayload(data) {
   const isChatMessage = msgType === 'message' && Boolean(pushConvId) && !isCall;
   const shouldGroup = isChatMessage && !data.isMention && !isAppleWebKitPush();
 
+  // Android / máy tính: nếu người dùng ĐANG mở ứng dụng trên màn hình, chỉ báo trong app (chuông + banner nội bộ),
+  // không bật thêm thông báo hệ thống để tránh kêu 2 lần. iOS vẫn luôn hiển thị (bắt buộc theo quy định WebKit).
+  if (!isAppleWebKitPush() && !isCall && data.tag !== 'device-test') {
+    const windowClients = await clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .catch(() => []);
+    const hasFocusedVisibleClient = windowClients.some(
+      (c) => c.focused === true && c.visibilityState === 'visible'
+    );
+    if (hasFocusedVisibleClient) {
+      await notifyOpenClients(data);
+      return;
+    }
+  }
+
   let finalTitle = title;
   let finalBody = data.body || 'Bạn có tin nhắn mới';
   let notificationTag;

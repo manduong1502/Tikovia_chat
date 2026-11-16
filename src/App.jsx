@@ -173,6 +173,8 @@ export default function App() {
   const activeConversationRef = useRef(null);
   const conversationsRef = useRef(conversations);
   const mobileActiveViewRef = useRef(mobileActiveView);
+  const sessionExpiredRef = useRef(() => {});
+  const isLoggingOutRef = useRef(false);
 
   useEffect(() => {
     activeConversationRef.current = activeConversation;
@@ -191,6 +193,10 @@ export default function App() {
       const res = await fetch(`${API_URL}/chat/conversations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (res.status === 401) {
+        sessionExpiredRef.current();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setConversations(data);
@@ -265,6 +271,17 @@ export default function App() {
       timeout: 20000
     });
     setSocket(newSocket);
+
+    // Phiên đăng nhập bị thu hồi (đổi mật khẩu ở máy khác) hoặc token hết hạn → đăng xuất sạch sẽ thiết bị này
+    newSocket.on('connect_error', (err) => {
+      const msg = String(err?.message || '');
+      if (msg.includes('Session revoked') || msg.includes('Invalid token') || msg.includes('Token missing')) {
+        sessionExpiredRef.current(msg.includes('Session revoked') ? 'revoked' : 'expired');
+      }
+    });
+    newSocket.on('force-logout', () => {
+      sessionExpiredRef.current('revoked');
+    });
 
     newSocket.on('connect', () => {
       newSocket.emit('register-user', user.id);
@@ -414,6 +431,28 @@ export default function App() {
 
     newSocket.on('conversation-updated', () => {
       fetchConversations();
+    });
+
+    // Đã đọc trên thiết bị khác (hoặc vừa trả lời) → xoá số chưa đọc + thông báo cũ của cuộc trò chuyện này trên máy hiện tại
+    newSocket.on('conversation-read-sync', ({ conversationId, lastReadAt } = {}) => {
+      if (!conversationId) return;
+      const readIso = lastReadAt || new Date().toISOString();
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0, lastReadAt: readIso } : c))
+      );
+      setLastReadTimestamps((prev) => {
+        const updated = { ...prev, [conversationId]: readIso };
+        try {
+          localStorage.setItem('chat_last_read_timestamps', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'CLEAR_CONVERSATION_NOTIFICATIONS',
+          conversationId
+        });
+      }
     });
 
     newSocket.on('conversation-removed', ({ conversationId }) => {
@@ -878,6 +917,31 @@ export default function App() {
     setActiveConversation((prev) => (prev && prev.id === convId ? { ...prev, isMuted: muted } : prev));
   }, []);
 
+  const performLogout = useCallback(() => {
+    handleLogout(socket);
+    setConversations([]);
+    setActiveConversation(null);
+    setMessages([]);
+    setMobileActiveView('list');
+  }, [handleLogout, socket]);
+
+  // Cập nhật hàm xử lý hết phiên mới nhất cho các listener Socket / fetch dùng qua ref
+  useEffect(() => {
+    sessionExpiredRef.current = (reason = 'expired') => {
+      if (isLoggingOutRef.current) return;
+      isLoggingOutRef.current = true;
+      performLogout();
+      setTimeout(() => {
+        alert(
+          reason === 'revoked'
+            ? '🔒 Mật khẩu tài khoản vừa được thay đổi trên thiết bị khác. Vui lòng đăng nhập lại bằng mật khẩu mới.'
+            : '⏰ Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+        );
+        isLoggingOutRef.current = false;
+      }, 50);
+    };
+  }, [performLogout]);
+
   // === Computed Values ===
   const totalUnreadChats = useMemo(() => {
     if (!conversations || !Array.isArray(conversations)) return 0;
@@ -1011,13 +1075,7 @@ export default function App() {
             setMobileActiveView('chat');
           }}
           onlineUsers={onlineUsers}
-          onLogout={() => {
-            handleLogout(socket);
-            setConversations([]);
-            setActiveConversation(null);
-            setMessages([]);
-            setMobileActiveView('list');
-          }}
+          onLogout={performLogout}
           onRefreshConversations={fetchConversations}
           onShowProfile={() => {
             setShowProfile(true);
@@ -1210,14 +1268,20 @@ export default function App() {
               setShowProfile(false);
               if (mobileActiveView === 'profile') setMobileActiveView('list');
             }}
-            onProfileUpdate={(updatedUser) => {
-              setUser(updatedUser);
+            onProfileUpdate={(updatedUser, newToken) => {
+              if (newToken) {
+                // Đổi mật khẩu: chuyển sang token mới → Socket tự kết nối lại bằng phiên mới
+                handleAuthSuccess(updatedUser, newToken);
+              } else {
+                setUser(updatedUser);
+              }
               fetchConversations();
             }}
             pushStatus={pushStatus}
             onEnablePush={handleEnablePushNotifications}
             onTestPush={handleTestPushNotification}
             mobileActiveView={mobileActiveView}
+            currentSocketId={socket?.id || null}
           />
         </Suspense>
       )}

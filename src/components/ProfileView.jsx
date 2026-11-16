@@ -10,7 +10,8 @@ export default function ProfileView({
   pushStatus, 
   onEnablePush,
   onTestPush,
-  mobileActiveView
+  mobileActiveView,
+  currentSocketId
 }) {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [phone, setPhone] = useState(user?.phone || '');
@@ -114,9 +115,27 @@ export default function ProfileView({
       avatarUrl
     };
 
-    if (password && newPassword) {
+    const isChangingPassword = Boolean(password && newPassword);
+    if (isChangingPassword) {
+      if (newPassword.length < 8) {
+        setError('Mật khẩu mới phải có ít nhất 8 ký tự');
+        setLoading(false);
+        return;
+      }
       payload.password = password;
       payload.newPassword = newPassword;
+      payload.currentSocketId = currentSocketId || null;
+      // Gửi kèm thiết bị hiện tại để máy chủ giữ lại thông báo đẩy của máy này, gỡ các máy khác
+      try {
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+          const reg = await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise((resolve) => setTimeout(() => resolve(null), 1500))
+          ]);
+          const sub = reg ? await reg.pushManager.getSubscription() : null;
+          if (sub?.endpoint) payload.currentEndpoint = sub.endpoint;
+        }
+      } catch (e) {}
     }
 
     try {
@@ -136,8 +155,12 @@ export default function ProfileView({
       }
 
       localStorage.setItem('chat_user', JSON.stringify(data.user));
-      onProfileUpdate(data.user);
-      setSuccess('Cập nhật thông tin trang cá nhân thành công!');
+      if (data.token) {
+        // Đổi mật khẩu thành công: máy chủ cấp token mới cho thiết bị này, các thiết bị khác bị đăng xuất
+        localStorage.setItem('chat_token', data.token);
+      }
+      onProfileUpdate(data.user, data.token || null);
+      setSuccess(data.token ? 'Đổi mật khẩu thành công! Các thiết bị khác đã được đăng xuất.' : 'Cập nhật thông tin trang cá nhân thành công!');
       
       setPassword('');
       setNewPassword('');
@@ -387,7 +410,7 @@ export default function ProfileView({
                         type={showNewPassword ? 'text' : 'password'} 
                         value={newPassword} 
                         onChange={(e) => setNewPassword(e.target.value)} 
-                        placeholder="Nhập mật khẩu mới..." 
+                        placeholder="Nhập mật khẩu mới (tối thiểu 8 ký tự)..." 
                         className="input-premium"
                         style={{ ...styles.input, width: '100%', paddingRight: '44px' }} 
                       />
