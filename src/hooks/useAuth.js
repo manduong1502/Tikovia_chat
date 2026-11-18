@@ -16,12 +16,10 @@ export default function useAuth() {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
 
-      // Tự động đồng bộ thông tin cá nhân mới nhất từ server (Stale-While-Revalidate)
+      // Tự động đồng bộ thông tin cá nhân mới nhất từ server (Stale-While-Revalidate; dùng ?_=... chống cache, không gửi header lạ gây lỗi CORS preflight)
       fetch(`${API_URL}/auth/me?_=${Date.now()}`, {
-        headers: { 
-          'Authorization': `Bearer ${savedToken}`,
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
+        headers: {
+          Authorization: `Bearer ${savedToken}`
         }
       })
         .then(res => {

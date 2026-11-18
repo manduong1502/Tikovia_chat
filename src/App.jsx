@@ -209,8 +209,18 @@ export default function App() {
   const activeConversationRef = useRef(null);
   const conversationsRef = useRef(conversations);
   const mobileActiveViewRef = useRef(mobileActiveView);
+  const messagesRef = useRef(messages);
+  const hasMoreMessagesRef = useRef(hasMoreMessages);
+  const loadingOlderRef = useRef(false);
   const sessionExpiredRef = useRef(() => {});
   const isLoggingOutRef = useRef(false);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  useEffect(() => {
+    hasMoreMessagesRef.current = hasMoreMessages;
+  }, [hasMoreMessages]);
 
   useEffect(() => {
     activeConversationRef.current = activeConversation;
@@ -246,14 +256,18 @@ export default function App() {
   }, [mobileActiveView]);
 
   // === Fetch Functions ===
-  const fetchConversations = useCallback(async () => {
-    if (!token) return;
+  const fetchConversations = useCallback(async (overrideToken = null) => {
+    const activeToken = typeof overrideToken === 'string' && overrideToken ? overrideToken : token;
+    if (!activeToken) return;
     try {
       const res = await fetch(`${API_URL}/chat/conversations`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${activeToken}` }
       });
       if (res.status === 401) {
-        sessionExpiredRef.current();
+        // Chỉ đăng xuất nếu token vừa bị từ chối vẫn là token hiện hành (tránh request cũ vừa bị thay thế khi đổi mật khẩu)
+        if (localStorage.getItem('chat_token') === activeToken) {
+          sessionExpiredRef.current();
+        }
         return;
       }
       if (res.ok) {
@@ -333,13 +347,16 @@ export default function App() {
     setSocket(newSocket);
 
     // Phiên đăng nhập bị thu hồi (đổi mật khẩu ở máy khác) hoặc token hết hạn → đăng xuất sạch sẽ thiết bị này
+    // (Bỏ qua nếu thiết bị này vừa tự đổi mật khẩu và đã lưu token mới vào localStorage)
     newSocket.on('connect_error', (err) => {
+      if (localStorage.getItem('chat_token') !== token) return;
       const msg = String(err?.message || '');
       if (msg.includes('Session revoked') || msg.includes('Invalid token') || msg.includes('Token missing')) {
         sessionExpiredRef.current(msg.includes('Session revoked') ? 'revoked' : 'expired');
       }
     });
     newSocket.on('force-logout', () => {
+      if (localStorage.getItem('chat_token') !== token) return;
       sessionExpiredRef.current('revoked');
     });
 
@@ -852,28 +869,52 @@ export default function App() {
   }, [activeConversation?.id, token, socket, API_URL]);
 
   // === Action Handlers ===
+  // Dùng ref đồng bộ (loadingOlderRef) chống gọi trùng khi nhiều sự kiện scroll bắn trong cùng 1 khung hình,
+  // khử trùng lặp ID tin nhắn và giữ tham chiếu hàm ổn định để ChatWindow (React.memo) không phải vẽ lại thừa
   const fetchOlderMessages = useCallback(async () => {
-    if (isLoadingOlder || !hasMoreMessages || !activeConversation || !token || messages.length === 0) return;
+    const activeConv = activeConversationRef.current;
+    const currentMessages = messagesRef.current;
+    if (
+      loadingOlderRef.current ||
+      !hasMoreMessagesRef.current ||
+      !activeConv ||
+      !token ||
+      currentMessages.length === 0
+    ) {
+      return;
+    }
+    loadingOlderRef.current = true;
     setIsLoadingOlder(true);
-    const oldestMessageId = messages[0].id;
+    const convIdAtStart = activeConv.id;
+    const oldestMessageId = currentMessages[0].id;
     try {
       const res = await fetch(
-        `${API_URL}/chat/conversations/${activeConversation.id}/messages?before=${oldestMessageId}&limit=50`,
+        `${API_URL}/chat/conversations/${convIdAtStart}/messages?before=${oldestMessageId}&limit=50`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
-      if (res.ok) {
+      if (res.ok && activeConversationRef.current?.id === convIdAtStart) {
         const data = await res.json();
-        if (data.length < 50) setHasMoreMessages(false);
-        if (data.length > 0) setMessages((prev) => [...data, ...prev]);
+        if (data.length < 50) {
+          hasMoreMessagesRef.current = false;
+          setHasMoreMessages(false);
+        }
+        if (data.length > 0) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const uniqueOlder = data.filter((m) => m?.id && !existingIds.has(m.id));
+            return uniqueOlder.length > 0 ? [...uniqueOlder, ...prev] : prev;
+          });
+        }
       }
     } catch (e) {
       console.error('Lỗi tải tin nhắn cũ:', e);
     } finally {
+      loadingOlderRef.current = false;
       setIsLoadingOlder(false);
     }
-  }, [isLoadingOlder, hasMoreMessages, activeConversation, token, messages, API_URL]);
+  }, [token, API_URL]);
 
   const handleSendMessage = useCallback(
     (messageData) => {
@@ -1340,10 +1381,11 @@ export default function App() {
               if (newToken) {
                 // Đổi mật khẩu: chuyển sang token mới → Socket tự kết nối lại bằng phiên mới
                 handleAuthSuccess(updatedUser, newToken);
+                fetchConversations(newToken);
               } else {
                 setUser(updatedUser);
+                fetchConversations();
               }
-              fetchConversations();
             }}
             pushStatus={pushStatus}
             onEnablePush={handleEnablePushNotifications}

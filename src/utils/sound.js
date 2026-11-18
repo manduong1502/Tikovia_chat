@@ -211,9 +211,9 @@ function playFallbackHtmlAudio() {
 export function playNotificationChime() {
   if (typeof window === 'undefined') return;
 
-  // Rung điện thoại (Android hỗ trợ navigator.vibrate)
+  // Rung điện thoại (chỉ gọi sau khi người dùng đã chạm màn hình ít nhất 1 lần để tránh cảnh báo chặn của Chrome)
   try {
-    if ('vibrate' in navigator) {
+    if ('vibrate' in navigator && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) {
       navigator.vibrate([200, 100, 200]);
     }
   } catch (e) {}
@@ -255,7 +255,7 @@ export function startCallRingtone(isIncoming = true) {
   const playPulse = () => {
     if (isIncoming) {
       try {
-        if ('vibrate' in navigator) {
+        if ('vibrate' in navigator && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) {
           navigator.vibrate([400, 200, 400]);
         }
       } catch (e) {}
@@ -314,7 +314,11 @@ export function stopCallRingtone() {
     callRingtoneInterval = null;
   }
   try {
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    if (
+      typeof navigator !== 'undefined' &&
+      'vibrate' in navigator &&
+      (!navigator.userActivation || navigator.userActivation.hasBeenActive)
+    ) {
       navigator.vibrate(0);
     }
   } catch (e) {}

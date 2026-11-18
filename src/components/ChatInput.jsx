@@ -273,8 +273,38 @@ export default function ChatInput({
     if (setReplyingTo) setReplyingTo(null);
   };
 
-  // Xử lý sự kiện nhấn phím Enter để gửi và Shift+Enter để xuống dòng
+  // Lọc thành viên để nhắc tag tên @ (ưu tiên các thành viên khác lên đầu danh sách)
+  const mentionFilteredMembers = (conversation.members || []).filter(
+    (m) => m.user?.id !== user?.id && (m.user?.displayName || '').toLowerCase().includes(mentionSearch.toLowerCase())
+  );
+
+  // Xử lý phím điều hướng menu @mention (Lên/Xuống/Enter/Tab/Esc) và phím Enter gửi tin nhắn
   const handleKeyDown = (e) => {
+    if (showMentions && mentionFilteredMembers.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % mentionFilteredMembers.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev - 1 + mentionFilteredMembers.length) % mentionFilteredMembers.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        if (e.isComposing) return;
+        e.preventDefault();
+        const picked = mentionFilteredMembers[mentionIndex] || mentionFilteredMembers[0];
+        if (picked) handleSelectMention(picked);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowMentions(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter') {
       if (e.isComposing) return; // Bỏ qua nếu đang gõ tiếng Việt (IME composition)
       if (!e.shiftKey) {
@@ -384,11 +414,6 @@ export default function ChatInput({
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, []);
-
-  // Lọc thành viên để nhắc tag tên @
-  const mentionFilteredMembers = conversation.members.filter(m => 
-    m.user.displayName.toLowerCase().includes(mentionSearch.toLowerCase())
-  );
 
   return (
     <div style={styles.container} className="glass chat-input-container">

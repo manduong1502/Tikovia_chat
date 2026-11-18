@@ -103,13 +103,16 @@ function ChatWindow({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
 
-  // Lọc danh sách tin nhắn khớp từ khóa
+  // Lọc danh sách tin nhắn khớp từ khóa (kiểm tra !isRecalled và chuỗi hợp lệ trước để không lỗi với tin đã thu hồi có content = null)
   const searchMatches = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    return messages.filter(msg => 
-      msg.type === 'text' && 
-      msg.content.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !msg.isRecalled
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return messages.filter(
+      (msg) =>
+        !msg.isRecalled &&
+        msg.type === 'text' &&
+        typeof msg.content === 'string' &&
+        msg.content.toLowerCase().includes(q)
     );
   }, [searchQuery, messages]);
 
@@ -240,6 +243,7 @@ function ChatWindow({
   const stickToBottomRef = useRef(true);
   const expandPendingRef = useRef(false);
   const trimTimerRef = useRef(null);
+  const justTrimmedUntilRef = useRef(0);
   const windowSizeRef = useRef(INITIAL_WINDOW_SIZE);
 
   // ===== Cửa sổ hiển thị (render window) =====
@@ -343,6 +347,7 @@ function ChatWindow({
     trimTimerRef.current = setTimeout(() => {
       trimTimerRef.current = null;
       if (!stickToBottomRef.current) return;
+      justTrimmedUntilRef.current = Date.now() + 250;
       setWindowState((s) => (
         s.size > WINDOW_TRIM_THRESHOLD && !s.searchActive ? { ...s, size: INITIAL_WINDOW_SIZE } : s
       ));
@@ -365,9 +370,11 @@ function ChatWindow({
       const rect = wrapperEl.getBoundingClientRect();
       const feedRect = chatFeedRef.current.getBoundingClientRect();
       const distFromTop = rect.top - feedRect.top;
-      
+      const distFromBottom = feedRect.bottom - rect.bottom;
+
+      // Menu đầy đủ (cảm xúc + 7 dòng thao tác) cao ~295px → nếu phía trên hẹp dưới 310px và phía dưới rộng hơn thì xổ xuống
       let dir = 'up';
-      if (distFromTop < 220) {
+      if (distFromTop < 310 && distFromBottom > distFromTop) {
         dir = 'down';
       }
       setPopoverDirection(dir);
@@ -524,8 +531,8 @@ function ChatWindow({
       visibleMessages.length > 0 &&
       visibleMessages[0].id !== prevFirstVisibleId;
 
-    if (isTopShift && (!messagesChanged || (!stickToBottomRef.current && !appendedByMe))) {
-      // Bù chiều cao để nội dung đang xem đứng yên. Chrome/Android có thể đã tự bù (scroll anchoring) → không bù 2 lần
+    if (isTopShift && !stickToBottomRef.current && !appendedByMe) {
+      // Đang đọc lịch sử phía trên → bù chiều cao để nội dung đang xem đứng yên (không bù 2 lần nếu trình duyệt đã neo)
       const heightDifference = feed.scrollHeight - lastScrollHeightRef.current;
       const prevTop = lastScrollTopRef.current;
       const liveTop = feed.scrollTop;
@@ -558,6 +565,15 @@ function ChatWindow({
   const handleScroll = () => {
     const feed = chatFeedRef.current;
     if (!feed) return;
+
+    // Bỏ qua sự kiện scroll giả do trình duyệt kẹp lại scrollHeight ngay khoảnh khắc thu gọn cửa sổ ở đáy
+    if (Date.now() < justTrimmedUntilRef.current) {
+      feed.scrollTop = feed.scrollHeight;
+      lastScrollHeightRef.current = feed.scrollHeight;
+      lastScrollTopRef.current = feed.scrollTop;
+      stickToBottomRef.current = true;
+      return;
+    }
 
     // Cập nhật scrollHeight hiện tại của hộp thoại để so khớp khi render
     lastScrollHeightRef.current = feed.scrollHeight;

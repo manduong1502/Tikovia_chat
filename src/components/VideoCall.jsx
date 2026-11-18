@@ -171,12 +171,16 @@ export default function VideoCall({
     });
   };
 
-  // Khởi tạo PeerJS theo user.id (Tránh khởi tạo lại khi đổi avatar/tên hoặc reconnect socket gây lỗi Unavailable-ID)
+  // Khởi tạo PeerJS với mã định danh riêng cho từng thiết bị/tab (`userId-suffix`)
+  // → mở đồng thời trên Máy tính + Điện thoại không bao giờ bị đụng lỗi "ID is taken"
   useEffect(() => {
     if (!user?.id) return;
 
+    const deviceSuffix = Math.random().toString(36).slice(2, 8);
+    const devicePeerId = `${user.id}-${deviceSuffix}`;
+
     // Sử dụng PeerJS Cloud với STUN servers để vượt tường lửa/NAT của mạng di động/VPS
-    const peer = new Peer(user.id, {
+    const peer = new Peer(devicePeerId, {
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -256,8 +260,8 @@ export default function VideoCall({
       }
     });
 
-    // Đối phương đồng ý nghe cuộc gọi (Xử lý tập trung 1 nơi để không bị rò rỉ listener socket.once)
-    socket.on('call-accepted', () => {
+    // Đối phương đồng ý nghe cuộc gọi (Kết nối thẳng tới đúng thiết bị vừa bấm nghe nhờ acceptedSignal.peerId)
+    socket.on('call-accepted', (acceptedSignal) => {
       console.log('Đối phương đã chấp nhận cuộc gọi!');
       callWasConnectedRef.current = true;
       callStartTimeRef.current = Date.now();
@@ -266,10 +270,14 @@ export default function VideoCall({
       const activePeer = peerInstanceRef.current;
       const activeCallInfo = callInfoRef.current;
       const activeLocalStream = localStreamRef.current;
+      const targetPeerId =
+        acceptedSignal && typeof acceptedSignal === 'object' && acceptedSignal.peerId
+          ? acceptedSignal.peerId
+          : activeCallInfo?.to;
 
-      if (activePeer && activeCallInfo?.to && activeLocalStream) {
-        console.log('Caller side: call-accepted received, initiating PeerJS call...');
-        const call = activePeer.call(activeCallInfo.to, activeLocalStream);
+      if (activePeer && targetPeerId && activeLocalStream) {
+        console.log('Caller side: call-accepted received, initiating PeerJS call to', targetPeerId);
+        const call = activePeer.call(targetPeerId, activeLocalStream);
         if (call) {
           currentCallRef.current = call;
           setupCallDiagnostics(call);
@@ -365,8 +373,11 @@ export default function VideoCall({
       callStartTimeRef.current = Date.now();
       setCallState('connected');
 
-      // Báo socket đã đồng ý
-      socket.emit('answer-call', { to: callInfo.from });
+      // Báo socket đã đồng ý kèm PeerID của chính thiết bị đang nghe máy
+      socket.emit('answer-call', {
+        to: callInfo.from,
+        signal: { peerId: peerInstanceRef.current?.id || user.id }
+      });
 
       // Nếu cuộc gọi PeerJS đã đến trước đó và được lưu trong Ref, trả lời ngay
       if (currentCallRef.current) {

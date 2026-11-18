@@ -50,6 +50,15 @@ export default function ProfileView({
 
   // Active section for desktop dashboard layout: 'info', 'security', 'notifications'
   const [activeSection, setActiveSection] = useState('info');
+  const [isMobileViewport, setIsMobileViewport] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth <= 768
+  );
+
+  useEffect(() => {
+    const onResize = () => setIsMobileViewport(window.innerWidth <= 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const getPermissionText = (status) => {
     switch (status) {
@@ -292,6 +301,7 @@ export default function ProfileView({
 
           <div className="profile-desktop-tabs">
             <button 
+              type="button"
               onClick={() => setActiveSection('info')} 
               style={{...styles.desktopTabBtn, ...(activeSection === 'info' ? styles.desktopTabBtnActive : {})}}
               className="btn-interactive"
@@ -300,6 +310,7 @@ export default function ProfileView({
               <span>Thông tin tài khoản</span>
             </button>
             <button 
+              type="button"
               onClick={() => setActiveSection('security')} 
               style={{...styles.desktopTabBtn, ...(activeSection === 'security' ? styles.desktopTabBtnActive : {})}}
               className="btn-interactive"
@@ -308,6 +319,7 @@ export default function ProfileView({
               <span>Đổi mật khẩu</span>
             </button>
             <button 
+              type="button"
               onClick={() => setActiveSection('notifications')} 
               style={{...styles.desktopTabBtn, ...(activeSection === 'notifications' ? styles.desktopTabBtnActive : {})}}
               className="btn-interactive"
@@ -320,7 +332,7 @@ export default function ProfileView({
 
         <div className="profile-right-content">
           <form onSubmit={handleSave} style={styles.formContainer}>
-            {(activeSection === 'info' || mobileActiveView === 'profile') && (
+            {(activeSection === 'info' || isMobileViewport) && (
               <div style={styles.sectionCard} className="glass-card">
                 <div style={styles.sectionHeader}>
                   <FiUser size={20} style={{ color: 'var(--primary)' }} />
@@ -373,7 +385,7 @@ export default function ProfileView({
               </div>
             )}
 
-            {(activeSection === 'security' || mobileActiveView === 'profile') && (
+            {(activeSection === 'security' || isMobileViewport) && (
               <div style={styles.sectionCard} className="glass-card">
                 <div style={styles.sectionHeader}>
                   <FiLock size={20} style={{ color: 'var(--primary)' }} />
@@ -428,7 +440,7 @@ export default function ProfileView({
               </div>
             )}
 
-            {(activeSection === 'notifications' || mobileActiveView === 'profile') && (
+            {(activeSection === 'notifications' || isMobileViewport) && (
               <div style={styles.sectionCard} className="glass-card">
                 <div style={styles.sectionHeader}>
                   <FiBell size={20} style={{ color: 'var(--primary)' }} />
