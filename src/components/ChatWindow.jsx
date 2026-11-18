@@ -159,7 +159,67 @@ const spawnReactionBurst = (emoji, x, y) => {
   }, 900);
 };
 
-export default function ChatWindow({
+// Bộ nhớ đệm HTML đã định dạng của tin nhắn văn bản (escape + link + @tag) → không phải chạy lại regex mỗi lần vẽ lại danh sách
+const formattedTextCache = new Map();
+const FORMATTED_TEXT_CACHE_LIMIT = 800;
+
+function formatMessageTextHtml(content) {
+  const key = content || '';
+  const cached = formattedTextCache.get(key);
+  if (cached !== undefined) return cached;
+
+  const escaped = key
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  // Đánh dấu đậm các tag @mention trước (chỉ khớp khi đứng đầu câu hoặc sau khoảng trắng để không làm hỏng URL có ký tự @)
+  const withMentions = escaped.replace(
+    /(^|\s)(@[a-zA-Z0-9À-ỹ_]+(?:\s+[a-zA-Z0-9À-ỹ_]+)?)/g,
+    (fullMatch, prefix, mentionPart) =>
+      `${prefix}<span style="color: #fca5a5; font-weight: bold; background: rgba(239, 68, 68, 0.1); padding: 2px 4px; border-radius: 4px;">${mentionPart}</span>`
+  );
+
+  // Sau đó định dạng liên kết URL an toàn
+  const html = withMentions.replace(
+    /(https?:\/\/[^\s]+)/g,
+    (url) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline; word-break: break-all;">${url}</a>`
+  );
+
+  if (formattedTextCache.size >= FORMATTED_TEXT_CACHE_LIMIT) {
+    formattedTextCache.delete(formattedTextCache.keys().next().value);
+  }
+  formattedTextCache.set(key, html);
+  return html;
+}
+
+/**
+ * Chỉ vẽ lại khung chat khi dữ liệu liên quan thật sự thay đổi.
+ * Danh sách người online thay đổi liên tục (mỗi lần ai đó khoá/mở máy) nhưng khung chat chỉ cần biết
+ * "người đang chat cùng có online không" → so sánh đúng giá trị đó thay vì cả mảng.
+ */
+function areChatWindowPropsEqual(prev, next) {
+  const nextKeys = Object.keys(next);
+  if (nextKeys.length !== Object.keys(prev).length) return false;
+  for (const key of nextKeys) {
+    if (key === 'onlineUsers') continue;
+    if (prev[key] !== next[key]) return false;
+  }
+  const conv = next.conversation;
+  if (!conv || conv.isGroup) return true;
+  const other = conv.members?.find((m) => m.user?.id !== next.user?.id);
+  if (!other) return true;
+  const prevOnline = Array.isArray(prev.onlineUsers) && prev.onlineUsers.includes(other.user.id);
+  const nextOnline = Array.isArray(next.onlineUsers) && next.onlineUsers.includes(other.user.id);
+  return prevOnline === nextOnline;
+}
+
+export default React.memo(ChatWindow, areChatWindowPropsEqual);
+
+function ChatWindow({
   user,
   token,
   conversation,
@@ -318,6 +378,7 @@ export default function ChatWindow({
   const lastConversationIdRef = useRef(null);
   const lastScrollHeightRef = useRef(0);
   const lastMessageCountRef = useRef(0);
+  const stickToBottomRef = useRef(true);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const BASE_URL = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
 
@@ -416,7 +477,8 @@ export default function ChatWindow({
     setActivePopoverMsgId(msgId);
   };
 
-  // Cuộn thông minh: tránh nhảy giật màn hình khi tải tin nhắn cũ, tự cuộn đáy khi có tin nhắn mới
+  // Cuộn thông minh: "dính đáy" khi người dùng đang ở cuối cuộc trò chuyện, giữ nguyên vị trí khi đang đọc tin cũ
+  // hoặc khi tải thêm tin nhắn cũ ở phía trên
   useEffect(() => {
     if (!conversation) return;
 
@@ -426,40 +488,56 @@ export default function ChatWindow({
     const feed = chatFeedRef.current;
     if (!feed) return;
 
+    const prevCount = lastMessageCountRef.current;
+    lastMessageCountRef.current = messages.length;
+
     if (isNewConversation) {
-      // Đổi cuộc hội thoại: Cuộn xuống đáy ngay lập tức
+      // Đổi cuộc hội thoại: luôn bắt đầu ở đáy (kể cả khi tin nhắn của phòng mới tải về sau)
+      stickToBottomRef.current = true;
       feed.scrollTop = feed.scrollHeight;
-      lastMessageCountRef.current = messages.length;
       lastScrollHeightRef.current = feed.scrollHeight;
       return;
     }
 
-    // Nếu tin nhắn được thêm vào đỉnh (tải tin nhắn cũ)
-    const isPrepended = messages.length > lastMessageCountRef.current && 
-                        messages[0]?.id !== messages[messages.length - lastMessageCountRef.current]?.id;
+    const lastMsg = messages[messages.length - 1];
+    const appendedByMe =
+      messages.length > prevCount && lastMsg && (lastMsg.senderId === user.id || lastMsg.status === 'sending');
+
+    // Tải thêm tin nhắn cũ ở phía trên khi người dùng đang đọc lịch sử → bù chiều cao để màn hình không bị nhảy
+    const isPrepended =
+      !stickToBottomRef.current &&
+      messages.length > prevCount &&
+      prevCount > 0 &&
+      messages[0]?.id !== messages[messages.length - prevCount]?.id;
 
     if (isPrepended) {
-      // Giữ nguyên vị trí cuộn tương đối bằng cách bù đắp phần chênh lệch chiều cao mới
-      const newScrollHeight = feed.scrollHeight;
-      const heightDifference = newScrollHeight - lastScrollHeightRef.current;
+      const heightDifference = feed.scrollHeight - lastScrollHeightRef.current;
       feed.scrollTop = feed.scrollTop + heightDifference;
-    } else {
-      // Nếu có tin nhắn mới hoặc đang gõ chữ
-      const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 300;
-      if (isNearBottom && messages.length > lastMessageCountRef.current) {
-        // Cuộn mượt xuống đáy
-        const timer = setTimeout(() => {
-          if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-          }
-        }, 100);
-        return () => clearTimeout(timer);
+    } else if (stickToBottomRef.current || appendedByMe) {
+      // Đang ở đáy (hoặc chính mình vừa gửi) → bám đáy. Tin mới đến dùng cuộn mượt, các trường hợp khác cuộn tức thì
+      stickToBottomRef.current = true;
+      const isSmallAppend = messages.length - prevCount > 0 && messages.length - prevCount <= 3;
+      if (isSmallAppend) {
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        });
+      } else {
+        feed.scrollTop = feed.scrollHeight;
       }
     }
 
-    lastMessageCountRef.current = messages.length;
     lastScrollHeightRef.current = feed.scrollHeight;
   }, [messages, typingUsers, conversation?.id]);
+
+  // Ảnh tải xong làm khung chat cao thêm → nếu đang bám đáy thì kéo xuống đáy, tránh "trôi" lên giữa chừng
+  const handleMediaLoaded = () => {
+    const feed = chatFeedRef.current;
+    if (!feed) return;
+    if (stickToBottomRef.current) {
+      feed.scrollTop = feed.scrollHeight;
+    }
+    lastScrollHeightRef.current = feed.scrollHeight;
+  };
 
   // Lắng nghe sự kiện cuộn để kích hoạt tải thêm tin nhắn cũ
   const handleScroll = () => {
@@ -468,6 +546,8 @@ export default function ChatWindow({
 
     // Cập nhật scrollHeight hiện tại của hộp thoại để so khớp khi render
     lastScrollHeightRef.current = feed.scrollHeight;
+    // Người dùng ở cách đáy dưới 120px → coi như đang "bám đáy"
+    stickToBottomRef.current = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
 
     // Nếu cuộn lên gần đỉnh (cách đỉnh <= 15px) và không trong quá trình load tin nhắn
     if (feed.scrollTop <= 15) {
@@ -690,34 +770,7 @@ export default function ChatWindow({
 
     switch (msg.type) {
       case 'text':
-        // Định dạng liên kết URL và tag @
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        
-        // Hàm escape các thẻ HTML thô chống tấn công XSS
-        const escapeHTML = (str) => {
-          if (!str) return '';
-          return str
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-        };
-
-        let renderedText = escapeHTML(msg.content);
-
-        // Đánh dấu đậm các tag @mention trước (chỉ khớp khi đứng đầu câu hoặc sau khoảng trắng để không làm hỏng URL có ký tự @)
-        const mentionRegex = /(^|\s)(@[a-zA-Z0-9À-ỹ_]+(?:\s+[a-zA-Z0-9À-ỹ_]+)?)/g;
-        renderedText = renderedText.replace(mentionRegex, (fullMatch, prefix, mentionPart) => {
-          return `${prefix}<span style="color: #fca5a5; font-weight: bold; background: rgba(239, 68, 68, 0.1); padding: 2px 4px; border-radius: 4px;">${mentionPart}</span>`;
-        });
-
-        // Sau đó định dạng liên kết URL an toàn
-        renderedText = renderedText.replace(urlRegex, (url) => {
-          return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline; word-break: break-all;">${url}</a>`;
-        });
-
-        return <div dangerouslySetInnerHTML={{ __html: renderedText }} />;
+        return <div dangerouslySetInnerHTML={{ __html: formatMessageTextHtml(msg.content) }} />;
 
       case 'sticker':
         const isUrl = msg.content && (msg.content.startsWith('http://') || msg.content.startsWith('https://'));
@@ -742,7 +795,9 @@ export default function ChatWindow({
               alt="Uploaded" 
               style={styles.chatImage} 
               onClick={() => onImageClick ? onImageClick(getFileUrl(msg.content)) : window.open(getFileUrl(msg.content), '_blank')}
+              onLoad={handleMediaLoaded}
               loading="lazy"
+              decoding="async"
             />
           </div>
         );

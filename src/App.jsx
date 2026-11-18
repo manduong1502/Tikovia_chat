@@ -26,15 +26,24 @@ export default function App() {
     initAudioUnlock();
   }, []);
   // === PWA Service Worker Auto-Update ===
+  // Kiểm tra bản mới khi mở lại ứng dụng + định kỳ 30 phút (trước đây 30 giây/lần → tốn pin & dữ liệu di động)
   const {
     needRefresh: [needRefresh],
     updateServiceWorker
   } = useRegisterSW({
     onRegistered(r) {
-      if (r) {
-        r.update();
-        setInterval(() => { r.update(); }, 30000);
-      }
+      if (!r) return;
+      r.update();
+      let lastCheck = Date.now();
+      const checkForUpdate = () => {
+        if (Date.now() - lastCheck < 5 * 60 * 1000) return;
+        lastCheck = Date.now();
+        r.update().catch(() => {});
+      };
+      setInterval(checkForUpdate, 30 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') checkForUpdate();
+      });
     }
   });
 
@@ -44,18 +53,41 @@ export default function App() {
     }
   }, [needRefresh, updateServiceWorker]);
 
-  // Tự động tải lại trang ngay khi Service Worker mới chiếm quyền điều khiển (skipWaiting + clients.claim)
+  // Khi có phiên bản mới: KHÔNG tải lại ngay lúc người dùng đang gõ tin hoặc đang gọi điện.
+  // Chờ tới lúc ứng dụng bị ẩn (khoá màn hình / chuyển app) rồi mới tải lại trong nền.
+  const callStateRef = useRef('idle');
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     let refreshing = false;
-    const handleControllerChange = () => {
+    let pendingReload = false;
+
+    const reloadNow = () => {
       if (refreshing) return;
       refreshing = true;
       window.location.reload();
     };
+
+    const tryDeferredReload = () => {
+      if (!pendingReload || refreshing) return;
+      if (document.visibilityState === 'hidden' && callStateRef.current === 'idle') {
+        reloadNow();
+      }
+    };
+
+    const handleControllerChange = () => {
+      if (refreshing) return;
+      if (document.visibilityState === 'hidden' && callStateRef.current === 'idle') {
+        reloadNow();
+      } else {
+        pendingReload = true;
+      }
+    };
+
     navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+    document.addEventListener('visibilitychange', tryDeferredReload);
     return () => {
       navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      document.removeEventListener('visibilitychange', tryDeferredReload);
     };
   }, []);
 
@@ -159,6 +191,10 @@ export default function App() {
     peerInstance, setPeerInstance, handleStartCall
   } = useCall();
 
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
+
   // === Push Notification Hook ===
   const {
     pushStatus,
@@ -182,6 +218,29 @@ export default function App() {
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  // Lưu bộ nhớ đệm danh sách hội thoại (để mở app hiện ngay) theo kiểu gom nhóm:
+  // ghi 1 lần sau 1,2 giây yên lặng hoặc ngay khi ứng dụng bị ẩn, thay vì ghi đồng bộ ở MỖI tin nhắn đến (gây khựng trên điện thoại yếu)
+  useEffect(() => {
+    if (!token) return undefined;
+    const writeCache = () => {
+      try {
+        localStorage.setItem('chat_conversations_cache', JSON.stringify(conversations));
+      } catch (e) {}
+    };
+    const timer = setTimeout(writeCache, 1200);
+    const flushOnHide = () => {
+      if (document.visibilityState === 'hidden') {
+        clearTimeout(timer);
+        writeCache();
+      }
+    };
+    document.addEventListener('visibilitychange', flushOnHide);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', flushOnHide);
+    };
+  }, [conversations, token]);
   useEffect(() => {
     mobileActiveViewRef.current = mobileActiveView;
   }, [mobileActiveView]);
@@ -206,8 +265,6 @@ export default function App() {
           if (latestActive) setActiveConversation(latestActive);
         }
 
-        localStorage.setItem('chat_conversations_cache', JSON.stringify(data));
-
         const onlineIds = [];
         data.forEach((c) => {
           c.members?.forEach((m) => {
@@ -216,7 +273,10 @@ export default function App() {
             }
           });
         });
-        setOnlineUsers(Array.from(new Set(onlineIds)));
+        const nextOnline = Array.from(new Set(onlineIds));
+        setOnlineUsers((prev) =>
+          prev.length === nextOnline.length && nextOnline.every((id) => prev.includes(id)) ? prev : nextOnline
+        );
       }
     } catch (e) {
       console.error('Lỗi tải danh sách chat:', e);
@@ -419,9 +479,6 @@ export default function App() {
             };
           });
           updatedList.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-          try {
-            localStorage.setItem('chat_conversations_cache', JSON.stringify(updatedList));
-          } catch (e) {}
           return updatedList;
         });
       } else {
@@ -467,25 +524,26 @@ export default function App() {
 
     newSocket.on('user-typing', ({ conversationId, userId, displayName, isTyping }) => {
       const activeConv = activeConversationRef.current;
-      if (!activeConv || activeConv.id !== conversationId) return;
+      if (!activeConv || activeConv.id !== conversationId || userId === user.id) return;
       setTypingUsers((prev) => {
         if (isTyping) {
           if (prev.some((u) => u.userId === userId)) return prev;
           return [...prev, { userId, displayName }];
         } else {
+          if (!prev.some((u) => u.userId === userId)) return prev;
           return prev.filter((u) => u.userId !== userId);
         }
       });
     });
 
+    // Trạng thái online thay đổi liên tục (mỗi lần ai đó khoá/mở máy) → chỉ cập nhật state khi thật sự khác,
+    // tránh vẽ lại toàn bộ giao diện vô ích
     newSocket.on('user-status-changed', ({ userId, status }) => {
-      setOnlineUsers((prev) =>
-        status === 'online'
-          ? prev.includes(userId)
-            ? prev
-            : [...prev, userId]
-          : prev.filter((id) => id !== userId)
-      );
+      setOnlineUsers((prev) => {
+        const isListed = prev.includes(userId);
+        if (status === 'online') return isListed ? prev : [...prev, userId];
+        return isListed ? prev.filter((id) => id !== userId) : prev;
+      });
     });
 
     newSocket.on('message-pin-toggled', ({ messageId, isPinned, message }) => {
@@ -942,6 +1000,20 @@ export default function App() {
     };
   }, [performLogout]);
 
+  // Các hàm truyền xuống ChatWindow được giữ nguyên tham chiếu (useCallback) để React.memo bỏ qua các lần vẽ lại không cần thiết
+  const handleStartCallInActive = useCallback(
+    (isVideo) => handleStartCall(isVideo, activeConversationRef.current, user),
+    [handleStartCall, user]
+  );
+
+  const handleToggleRightSidebar = useCallback(() => {
+    const nextState = !showRightSidebar;
+    setShowRightSidebar(nextState);
+    setMobileActiveView(nextState ? 'options' : 'chat');
+  }, [showRightSidebar]);
+
+  const handleOpenLightbox = useCallback((url) => setLightboxImage(url), []);
+
   // === Computed Values ===
   const totalUnreadChats = useMemo(() => {
     if (!conversations || !Array.isArray(conversations)) return 0;
@@ -1176,17 +1248,13 @@ export default function App() {
             onRecallMessage={handleRecallMessage}
             onEditMessage={handleEditMessage}
             onDeleteMessage={handleDeleteMessageForMe}
-            onStartCall={(isVideo) => handleStartCall(isVideo, activeConversation, user)}
-            toggleRightSidebar={() => {
-              const nextState = !showRightSidebar;
-              setShowRightSidebar(nextState);
-              setMobileActiveView(nextState ? 'options' : 'chat');
-            }}
+            onStartCall={handleStartCallInActive}
+            toggleRightSidebar={handleToggleRightSidebar}
             onlineUsers={onlineUsers}
             mobileActiveView={mobileActiveView}
             setMobileActiveView={setMobileActiveView}
             className={mobileActiveView === 'chat' ? 'mobile-show-chat' : 'mobile-hide-chat'}
-            onImageClick={(url) => setLightboxImage(url)}
+            onImageClick={handleOpenLightbox}
             fetchOlderMessages={fetchOlderMessages}
             hasMoreMessages={hasMoreMessages}
             isLoadingOlder={isLoadingOlder}
