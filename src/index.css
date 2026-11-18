@@ -120,18 +120,27 @@ button:focus, a:focus, input:focus, textarea:focus, select:focus, div:focus {
   outline: none !important;
 }
 
+html {
+  height: var(--app-height, 100dvh);
+  min-height: calc(100% + env(safe-area-inset-top, 0px));
+  width: 100%;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   font-family: var(--font-family);
   background-color: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
-  height: 100%;
+  overscroll-behavior: none;
+  height: var(--app-height, 100dvh);
   width: 100%;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   
@@ -155,9 +164,10 @@ input, textarea, select, [contenteditable="true"] {
 }
 
 #root {
-  height: 100%;
+  height: var(--app-height, 100dvh);
   width: 100%;
   overflow: hidden;
+  background-color: var(--bg-primary);
 }
 
 /* Scrollbar */
@@ -295,7 +305,7 @@ input, textarea, select, [contenteditable="true"] {
   .bottom-nav-floating {
     display: flex;
     position: fixed;
-    bottom: 16px;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
     left: 16px;
     right: 16px;
     height: 64px;
@@ -357,7 +367,8 @@ input, textarea, select, [contenteditable="true"] {
     display: flex !important;
     width: 100% !important;
     max-width: 100% !important;
-    border-right: none !important;
+    border: none !important;
+    background: var(--bg-primary) !important;
   }
 
   .mobile-hide-list {
@@ -378,7 +389,8 @@ input, textarea, select, [contenteditable="true"] {
     display: flex !important;
     width: 100% !important;
     max-width: 100% !important;
-    border-left: none !important;
+    border: none !important;
+    background: var(--bg-primary) !important;
   }
 
   .mobile-hide-options {
@@ -387,7 +399,7 @@ input, textarea, select, [contenteditable="true"] {
 
   /* Adjustment for list items on mobile to have padding-bottom to avoid overlay by bottom navigation */
   .mobile-list-padding {
-    padding-bottom: 96px !important;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   /* Hiển thị nút back trên mobile */
@@ -400,7 +412,12 @@ input, textarea, select, [contenteditable="true"] {
     width: calc(100% - 24px) !important;
     left: 12px !important;
     right: 12px !important;
-    bottom: 76px !important;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  html.keyboard-open .sticker-popover,
+  html.keyboard-open .more-menu-popover {
+    bottom: 72px !important;
   }
 
   .mentions-popover {
@@ -442,9 +459,13 @@ input, textarea, select, [contenteditable="true"] {
     max-width: 88% !important;
   }
 
-  /* Tối ưu thanh nhập tin nhắn trên di động */
+  /* Tối ưu thanh nhập tin nhắn trên di động (tự nâng lên khỏi thanh Home Indicator iPhone khi đóng phím, sát phím khi mở phím) */
   .chat-input-container {
-    padding: 6px 10px 10px 10px !important;
+    padding: 6px 10px max(10px, env(safe-area-inset-bottom, 0px)) 10px !important;
+  }
+
+  html.keyboard-open .chat-input-container {
+    padding-bottom: 8px !important;
   }
 
   .chat-input-bar {
@@ -800,7 +821,7 @@ img {
 @media (max-width: 768px) {
   .profile-dashboard-wrapper {
     flex-direction: column !important;
-    padding: 20px 16px 110px 16px !important; /* Thêm padding-bottom trên di động để chừa không gian cho bottom nav bar */
+    padding: 20px 16px calc(104px + env(safe-area-inset-bottom, 0px)) 16px !important; /* Chừa không gian cho bottom nav + Home Indicator */
     gap: 20px !important;
   }
 

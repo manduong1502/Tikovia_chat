@@ -510,6 +510,7 @@ const styles = {
     bottom: 0,
     zIndex: 90,
     backgroundColor: 'var(--bg-primary)',
+    paddingTop: 'env(safe-area-inset-top, 0px)',
     display: 'flex',
     flexDirection: 'column',
     overflowY: 'auto',
@@ -519,7 +520,7 @@ const styles = {
   },
   toastContainer: {
     position: 'fixed',
-    top: '20px',
+    top: 'calc(12px + env(safe-area-inset-top, 0px))',
     left: '50%',
     transform: 'translateX(-50%)',
     zIndex: 9999,

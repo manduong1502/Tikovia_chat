@@ -80,7 +80,7 @@ export default function NetworkBanner() {
 const styles = {
   banner: {
     position: 'fixed',
-    top: '20px',
+    top: 'calc(10px + env(safe-area-inset-top, 0px))',
     left: '50%',
     transform: 'translateX(-50%)',
     zIndex: 9999,

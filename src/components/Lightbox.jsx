@@ -28,7 +28,7 @@ const styles = {
     top: 0,
     left: 0,
     width: '100vw',
-    height: '100vh',
+    height: 'var(--app-height, 100dvh)',
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     zIndex: 99999,
     display: 'flex',
@@ -37,7 +37,7 @@ const styles = {
   },
   closeBtn: {
     position: 'absolute',
-    top: '20px',
+    top: 'calc(16px + env(safe-area-inset-top, 0px))',
     right: '20px',
     background: 'rgba(255, 255, 255, 0.15)',
     border: 'none',

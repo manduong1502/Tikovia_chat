@@ -113,6 +113,10 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute('content', theme === 'light' ? '#f6f8fb' : '#0a0d14');
+    }
   }, [theme]);
 
   // === UI State ===
@@ -188,7 +192,7 @@ export default function App() {
   const {
     callState, setCallState, callInfo, setCallInfo,
     localStream, setLocalStream, remoteStream, setRemoteStream,
-    peerInstance, setPeerInstance, handleStartCall
+    peerInstance, setPeerInstance, remoteAudioRef, handleStartCall
   } = useCall();
 
   useEffect(() => {
@@ -258,7 +262,7 @@ export default function App() {
   // === Fetch Functions ===
   const fetchConversations = useCallback(async (overrideToken = null) => {
     const activeToken = typeof overrideToken === 'string' && overrideToken ? overrideToken : token;
-    if (!activeToken) return;
+    if (!activeToken) return null;
     try {
       const res = await fetch(`${API_URL}/chat/conversations`, {
         headers: { Authorization: `Bearer ${activeToken}` }
@@ -268,7 +272,7 @@ export default function App() {
         if (localStorage.getItem('chat_token') === activeToken) {
           sessionExpiredRef.current();
         }
-        return;
+        return null;
       }
       if (res.ok) {
         const data = await res.json();
@@ -291,10 +295,12 @@ export default function App() {
         setOnlineUsers((prev) =>
           prev.length === nextOnline.length && nextOnline.every((id) => prev.includes(id)) ? prev : nextOnline
         );
+        return data;
       }
     } catch (e) {
       console.error('Lỗi tải danh sách chat:', e);
     }
+    return null;
   }, [token, API_URL, user]);
 
   const fetchGlobalTasksCount = useCallback(async () => {
@@ -666,6 +672,68 @@ export default function App() {
     };
   }, [token, user, API_URL, fetchConversations, sendOfflineOutbox, triggerSoundAndToast]);
 
+  // Mở thẳng phòng chat theo ID (dùng khi người dùng chạm vào thông báo đẩy trên iPhone / Android)
+  const openConversationById = useCallback(
+    async (convId) => {
+      if (!convId || !token) return false;
+      const activateConv = (conv) => {
+        setActiveConversation(conv);
+        setShowProfile(false);
+        setShowTasks(false);
+        setShowRightSidebar(false);
+        setMobileActiveView('chat');
+      };
+
+      const existing = conversationsRef.current.find((c) => c.id === convId);
+      if (existing) {
+        activateConv(existing);
+        return true;
+      }
+
+      const freshList = await fetchConversations();
+      if (Array.isArray(freshList)) {
+        const found = freshList.find((c) => c.id === convId);
+        if (found) {
+          activateConv(found);
+          return true;
+        }
+      }
+      return false;
+    },
+    [token, fetchConversations]
+  );
+
+  // Đọc & xử lý ý định mở cuộc trò chuyện từ cả URL (?convId=...) VÀ Cache Storage dùng chung với Service Worker
+  // (Khắc phục triệt để việc iOS Standalone PWA bỏ qua tham số URL khi mở từ màn hình khóa)
+  const consumePendingNotificationIntent = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlConvId = urlParams.get('convId');
+      if (urlConvId) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('convId');
+        window.history.replaceState({}, '', url.pathname + url.search);
+        await openConversationById(urlConvId);
+      }
+    } catch (e) {}
+
+    if ('caches' in window) {
+      try {
+        const cache = await caches.open('chattikovia-nav-intent-v1');
+        const matched = await cache.match('/__open_conversation__');
+        if (matched) {
+          await cache.delete('/__open_conversation__');
+          const intent = await matched.json().catch(() => null);
+          if (intent?.conversationId && (!intent.ts || Date.now() - intent.ts < 120000)) {
+            await openConversationById(intent.conversationId);
+          }
+        }
+      } catch (e) {}
+    }
+  }, [token, openConversationById]);
+
   // === Service Worker Message Handler ===
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -674,6 +742,20 @@ export default function App() {
         const payload = event.data.payload || {};
         const pushConvId = payload.conversationId || payload.data?.conversationId || null;
         const pushMsgId = payload.data?.messageId || payload.messageId || null;
+
+        // Nếu nhận tín hiệu thu hồi qua Push khi ứng dụng vừa mở lại trước khi Socket kịp kết nối
+        if (payload.type === 'message-recalled' && pushMsgId) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === pushMsgId
+                ? { ...m, isRecalled: true, content: null, metadata: null, isPinned: false, pinnedBy: null, pinnedAt: null }
+                : m
+            )
+          );
+          fetchConversations();
+          return;
+        }
+
         const activeConv = activeConversationRef.current;
         const isChatVisible = window.innerWidth > 768 || mobileActiveViewRef.current === 'chat';
         const isViewingThisConv = Boolean(activeConv && activeConv.id === pushConvId && isChatVisible);
@@ -707,6 +789,11 @@ export default function App() {
             .catch(() => {});
         }
 
+        // Cuộc gọi đến đã có nhạc chuông riêng của VideoCall -> không phát chồng chuông tin nhắn
+        if (payload.isCall || payload.type === 'incoming-call') {
+          return;
+        }
+
         triggerSoundAndToast(
           !isViewingThisConv && payload.title
             ? {
@@ -719,64 +806,34 @@ export default function App() {
         );
       } else if (event.data?.type === 'SWITCH_CONVERSATION') {
         const { conversationId } = event.data;
-        const targetConv = conversationsRef.current.find((c) => c.id === conversationId);
-        if (targetConv) {
-          setActiveConversation(targetConv);
-          setShowProfile(false);
-          setShowTasks(false);
-          setMobileActiveView('chat');
-        } else {
-          fetchConversations().then(() => {
-            setConversations((latestConvs) => {
-              const conv = latestConvs.find((c) => c.id === conversationId);
-              if (conv) {
-                setActiveConversation(conv);
-                setShowProfile(false);
-                setShowTasks(false);
-                setMobileActiveView('chat');
-              }
-              return latestConvs;
-            });
-          });
+        if ('caches' in window) {
+          caches
+            .open('chattikovia-nav-intent-v1')
+            .then((c) => c.delete('/__open_conversation__'))
+            .catch(() => {});
         }
+        openConversationById(conversationId);
       }
     };
     navigator.serviceWorker.addEventListener('message', handleSWMessage);
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleSWMessage);
     };
-  }, [token, fetchConversations, triggerSoundAndToast]);
+  }, [token, API_URL, fetchConversations, openConversationById, recordNotifiedMessageId, triggerSoundAndToast]);
 
-  // === URL Query Parameter Handler ===
-  useEffect(() => {
-    if (conversations?.length > 0) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const convId = urlParams.get('convId');
-      if (convId) {
-        const target = conversations.find((c) => c.id === convId);
-        if (target) {
-          setActiveConversation(target);
-          setShowProfile(false);
-          setShowTasks(false);
-          setMobileActiveView('chat');
-          const url = new URL(window.location.href);
-          url.searchParams.delete('convId');
-          window.history.replaceState({}, '', url.pathname + url.search);
-        }
-      }
-    }
-  }, [conversations]);
-
-  // === Initial Data Loading & Foreground Wakeup Sync ===
+  // === Initial Data Loading, Notification Deep-Link & Foreground Wakeup Sync ===
   useEffect(() => {
     if (token) {
-      fetchConversations();
+      fetchConversations().then(() => {
+        consumePendingNotificationIntent();
+      });
       fetchGlobalTasksCount();
       checkPushNotificationStatus();
+      consumePendingNotificationIntent();
     }
-  }, [token, fetchConversations, fetchGlobalTasksCount, checkPushNotificationStatus]);
+  }, [token, fetchConversations, fetchGlobalTasksCount, checkPushNotificationStatus, consumePendingNotificationIntent]);
 
-  // Tự động đồng bộ lại tin nhắn & kết nối Socket ngay khi người dùng mở khoá điện thoại / quay lại ứng dụng
+  // Tự động đồng bộ lại tin nhắn, mở phòng chat vừa chạm từ thông báo & kết nối Socket ngay khi mở khoá điện thoại
   useEffect(() => {
     if (!token) return;
     const handleAppWakeup = () => {
@@ -784,6 +841,7 @@ export default function App() {
       if (socket && !socket.connected) {
         socket.connect();
       }
+      consumePendingNotificationIntent();
       fetchConversations();
       fetchGlobalTasksCountRef.current();
 
@@ -807,11 +865,19 @@ export default function App() {
       }
     };
 
+    const handleFocusOrPageShow = () => {
+      consumePendingNotificationIntent();
+    };
+
     document.addEventListener('visibilitychange', handleAppWakeup);
+    window.addEventListener('pageshow', handleFocusOrPageShow);
+    window.addEventListener('focus', handleFocusOrPageShow);
     return () => {
       document.removeEventListener('visibilitychange', handleAppWakeup);
+      window.removeEventListener('pageshow', handleFocusOrPageShow);
+      window.removeEventListener('focus', handleFocusOrPageShow);
     };
-  }, [token, socket, API_URL, fetchConversations]);
+  }, [token, socket, API_URL, fetchConversations, consumePendingNotificationIntent]);
 
   // === Active Conversation Effects ===
   useEffect(() => {
@@ -1113,7 +1179,7 @@ export default function App() {
           }}
           style={{
             position: 'fixed',
-            top: 'max(12px, env(safe-area-inset-top))',
+            top: 'calc(8px + env(safe-area-inset-top, 0px))',
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 9999,
@@ -1345,6 +1411,7 @@ export default function App() {
         setRemoteStream={setRemoteStream}
         peerInstance={peerInstance}
         setPeerInstance={setPeerInstance}
+        remoteAudioRef={remoteAudioRef}
         conversation={activeConversation}
       />
 
@@ -1415,13 +1482,15 @@ export default function App() {
 
 const styles = {
   appContainer: {
-    height: '100%',
+    height: 'var(--app-height, 100dvh)',
     width: '100%',
-    position: 'absolute',
+    position: 'fixed',
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
+    paddingTop: 'env(safe-area-inset-top, 0px)',
+    paddingLeft: 'env(safe-area-inset-left, 0px)',
+    paddingRight: 'env(safe-area-inset-right, 0px)',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
@@ -1429,6 +1498,7 @@ const styles = {
   },
   mainLayout: {
     flex: 1,
+    minHeight: 0,
     display: 'flex',
     height: '100%',
     width: '100%',

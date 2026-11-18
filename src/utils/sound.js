@@ -1,13 +1,89 @@
-// Bộ phát âm thanh thông báo & nhạc chuông cuộc gọi chuẩn Mobile (iOS Safari / Android Chrome) & Desktop
-// Kết hợp Web Audio API (tự động khôi phục khi iOS khóa màn hình làm chuyển sang trạng thái 'interrupted'/'suspended')
-// và Singleton HTML5 Audio WAV PCM đã mở khóa sẵn.
+// Bộ phát âm thanh thông báo, nhạc chuông & quản lý phiên âm thanh cuộc gọi chuẩn Mobile (iOS Safari / Android Chrome) & Desktop.
+// Kết hợp:
+// 1. navigator.audioSession (iOS 16.4+) để vượt cần gạt im lặng khi đổ chuông ('playback') và định tuyến thu/phát chuẩn khi gọi thoại ('play-and-record').
+// 2. Web Audio API + HTML5 Audio WAV PCM mở khóa sẵn ngay từ cú chạm đầu tiên.
 
 let sharedAudioCtx = null;
 let wavDataUri = null;
+let silentWavUri = null;
 let sharedChimeAudio = null;
 let isUnlockListenerAttached = false;
 let isHtmlAudioWarmedUp = false;
 let callRingtoneInterval = null;
+let isVoiceCallActive = false;
+
+function isIOS() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function applyAudioSessionType(type) {
+  try {
+    if (typeof navigator !== 'undefined' && 'audioSession' in navigator && navigator.audioSession) {
+      navigator.audioSession.type = type;
+    }
+  } catch (e) {}
+}
+
+/**
+ * Chuyển chế độ âm thanh phần cứng trên iOS khi bắt đầu / kết thúc cuộc gọi WebRTC
+ */
+export function setVoiceCallAudioMode(active) {
+  isVoiceCallActive = Boolean(active);
+  if (isVoiceCallActive) {
+    applyAudioSessionType('play-and-record');
+  } else {
+    // Đổi về 'auto' rồi 'playback' để xóa sạch cache định tuyến loa thoại bị nghẹt trên iOS WebKit
+    applyAudioSessionType('auto');
+    setTimeout(() => {
+      if (!isVoiceCallActive) {
+        applyAudioSessionType('playback');
+      }
+    }, 60);
+  }
+}
+
+/**
+ * Tạo chuỗi WAV câm cực ngắn (46 bytes) dùng để mở khóa (unlock) thẻ <audio> cuộc gọi ngay trong cử chỉ chạm
+ */
+export function getSilentWavDataUri() {
+  if (silentWavUri) return silentWavUri;
+  silentWavUri = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+  return silentWavUri;
+}
+
+/**
+ * Mở khóa quyền tự động phát (autoplay) cho thẻ <audio>/<video> cuộc gọi ngay trong sự kiện click/tap của người dùng.
+ * Bắt buộc trên iOS Safari/PWA và Chrome di động để luồng tiếng WebRTC đến sau vài giây không bị chặn (NotAllowedError).
+ */
+export function primeMediaElement(mediaEl) {
+  if (!mediaEl) return;
+  try {
+    if (!mediaEl.srcObject) {
+      const prevMuted = mediaEl.muted;
+      mediaEl.muted = true;
+      mediaEl.src = getSilentWavDataUri();
+      const p = mediaEl.play();
+      if (p && typeof p.then === 'function') {
+        p.then(() => {
+          if (!mediaEl.srcObject) {
+            mediaEl.pause();
+            mediaEl.removeAttribute('src');
+            mediaEl.load();
+          }
+          mediaEl.muted = prevMuted;
+        }).catch(() => {
+          mediaEl.muted = prevMuted;
+        });
+      } else {
+        mediaEl.muted = prevMuted;
+      }
+    } else {
+      mediaEl.play().catch(() => {});
+    }
+  } catch (e) {}
+}
 
 /**
  * Tạo chuỗi Data URI định dạng WAV (16-bit PCM, 44.1kHz) cho tiếng chuông thông báo 2 nốt rõ ràng ("Ding-Dong" hiện đại)
@@ -84,6 +160,7 @@ function getSharedChimeAudio() {
     try {
       sharedChimeAudio = new Audio(getNotificationWavDataUri());
       sharedChimeAudio.preload = 'auto';
+      sharedChimeAudio.playsInline = true;
       sharedChimeAudio.volume = 0.95;
     } catch (e) {}
   }
@@ -113,6 +190,10 @@ export function initAudioUnlock() {
 
   const unlockAndResume = () => {
     try {
+      if (!isVoiceCallActive) {
+        applyAudioSessionType('playback');
+      }
+
       const ctx = getOrCreateAudioContext();
       if (ctx && ctx.state !== 'running') {
         ctx.resume().catch(() => {});
@@ -154,6 +235,9 @@ export function initAudioUnlock() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+      if (!isVoiceCallActive) {
+        applyAudioSessionType('playback');
+      }
       getOrCreateAudioContext();
     }
   });
@@ -198,6 +282,7 @@ function playFallbackHtmlAudio() {
       audio.currentTime = 0;
       audio.play().catch(() => {
         const freshAudio = new Audio(getNotificationWavDataUri());
+        freshAudio.playsInline = true;
         freshAudio.volume = 0.95;
         freshAudio.play().catch(() => {});
       });
@@ -211,6 +296,10 @@ function playFallbackHtmlAudio() {
 export function playNotificationChime() {
   if (typeof window === 'undefined') return;
 
+  if (!isVoiceCallActive) {
+    applyAudioSessionType('playback');
+  }
+
   // Rung điện thoại (chỉ gọi sau khi người dùng đã chạm màn hình ít nhất 1 lần để tránh cảnh báo chặn của Chrome)
   try {
     if ('vibrate' in navigator && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) {
@@ -223,9 +312,12 @@ export function playNotificationChime() {
     if (ctx) {
       if (ctx.state === 'running') {
         playWebAudioNotes(ctx);
+        if (isIOS() && !isVoiceCallActive) {
+          // Bổ trợ kênh Media của iOS phòng trường hợp cần gạt rung bên hông iPhone đang bật
+          playFallbackHtmlAudio();
+        }
         return;
       }
-      // Nếu AudioContext đang bị 'suspended' hoặc 'interrupted' trên iOS, thử resume() rồi phát, đồng thời chạy cả HTMLAudio dự phòng
       ctx
         .resume()
         .then(() => {
@@ -252,6 +344,10 @@ export function startCallRingtone(isIncoming = true) {
   stopCallRingtone();
   if (typeof window === 'undefined') return;
 
+  if (isIncoming && !isVoiceCallActive) {
+    applyAudioSessionType('playback');
+  }
+
   const playPulse = () => {
     if (isIncoming) {
       try {
@@ -261,6 +357,7 @@ export function startCallRingtone(isIncoming = true) {
       } catch (e) {}
     }
 
+    let playedWebAudio = false;
     try {
       const ctx = getOrCreateAudioContext();
       if (ctx && ctx.state === 'running') {
@@ -295,17 +392,18 @@ export function startCallRingtone(isIncoming = true) {
           osc.start(now);
           osc.stop(now + 0.8);
         }
-        return;
+        playedWebAudio = true;
       }
     } catch (e) {}
 
-    if (isIncoming) {
+    // Trên iPhone hoặc khi AudioContext chưa chuyển sang 'running': phát thêm HTML5 Audio WAV cho chuông gọi đến
+    if (isIncoming && (!playedWebAudio || isIOS())) {
       playFallbackHtmlAudio();
     }
   };
 
   playPulse();
-  callRingtoneInterval = setInterval(playPulse, isIncoming ? 2000 : 3000);
+  callRingtoneInterval = setInterval(playPulse, isIncoming ? 1800 : 3000);
 }
 
 export function stopCallRingtone() {

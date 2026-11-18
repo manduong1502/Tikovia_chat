@@ -37,8 +37,8 @@ export default defineConfig({
         name: 'ChatTikovia - Chat Nội bộ Doanh nghiệp',
         short_name: 'ChatTikovia',
         description: 'Ứng dụng chat nội bộ bảo mật cao cho doanh nghiệp',
-        theme_color: '#0766ff',
-        background_color: '#0f172a',
+        theme_color: '#0a0d14',
+        background_color: '#0a0d14',
         display: 'standalone',
         start_url: '/',
         scope: '/',
@@ -70,7 +70,6 @@ export default defineConfig({
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
           'vendor-socket': ['socket.io-client'],
-          'vendor-peerjs': ['peerjs'],
           'vendor-icons': ['react-icons/fi']
         }
       }

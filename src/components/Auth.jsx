@@ -167,14 +167,17 @@ export default function Auth({ onAuthSuccess }) {
 
 const styles = {
   container: {
-    height: '100vh',
-    width: '100vw',
+    height: 'var(--app-height, 100dvh)',
+    width: '100%',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     background: '#070a13',
+    paddingTop: 'env(safe-area-inset-top, 0px)',
+    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     position: 'relative',
-    overflow: 'hidden',
+    overflowY: 'auto',
+    overflowX: 'hidden',
   },
   authCard: {
     width: '100%',

@@ -1,38 +1,112 @@
-import React, { useEffect, useRef, useState } from 'react';
-import Peer from 'peerjs';
-import { FiPhoneOff, FiVideo, FiVideoOff, FiMic, FiMicOff, FiVolume2, FiVolumeX, FiRefreshCw } from 'react-icons/fi';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  FiPhoneOff,
+  FiVideo,
+  FiVideoOff,
+  FiMic,
+  FiMicOff,
+  FiVolume2,
+  FiVolumeX,
+  FiRefreshCw
+} from 'react-icons/fi';
 import Avatar from './Avatar';
-import { startCallRingtone, stopCallRingtone } from '../utils/sound';
+import {
+  startCallRingtone,
+  stopCallRingtone,
+  primeMediaElement,
+  setVoiceCallAudioMode
+} from '../utils/sound';
+
+function getIceServers() {
+  const defaults = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' }
+  ];
+  try {
+    const raw = import.meta.env.VITE_ICE_SERVERS;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return [...parsed, ...defaults];
+      }
+    }
+  } catch (e) {}
+  return defaults;
+}
+
+async function acquireUserMedia(isVideo) {
+  const preferredConstraints = {
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    },
+    video: isVideo
+      ? {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
+      : false
+  };
+
+  try {
+    return await navigator.mediaDevices.getUserMedia(preferredConstraints);
+  } catch (firstErr) {
+    // Dự phòng tối giản nếu thiết bị di động kén tham số ràng buộc camera/mic
+    return await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: Boolean(isVideo)
+    });
+  }
+}
 
 export default function VideoCall({
   user,
-  token,
   socket,
   callState, // 'idle', 'calling', 'incoming', 'connected'
   setCallState,
-  callInfo, // { from, to, callerName, callerAvatar, isVideo }
+  callInfo, // { from, to, callerName, callerAvatar, isVideo, conversationId, callerSocketId }
   setCallInfo,
   localStream,
   setLocalStream,
   remoteStream,
   setRemoteStream,
-  peerInstance,
-  setPeerInstance,
+  remoteAudioRef: externalAudioRef,
   conversation
 }) {
+  const internalAudioRef = useRef(null);
+  const remoteAudioRef = externalAudioRef || internalAudioRef;
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const currentCallRef = useRef(null);
+
+  const pcRef = useRef(null);
+  const pendingIceCandidatesRef = useRef([]);
+  const remoteMediaStreamRef = useRef(null);
+  const remoteSocketIdRef = useRef(null);
+  const iceRestartCountRef = useRef(0);
+  const startingCallRef = useRef(false);
+  const isCleaningUpRef = useRef(false);
+
   const callStartTimeRef = useRef(null);
   const callWasConnectedRef = useRef(false);
 
-  // Lưu trữ các state vào refs để tránh stale closures trong các hàm callback sự kiện
+  // Lưu trữ các state vào refs để tránh stale closures trong callback WebRTC & Socket
   const conversationRef = useRef(conversation);
   const callInfoRef = useRef(callInfo);
   const localStreamRef = useRef(localStream);
   const callStateRef = useRef(callState);
-  const peerInstanceRef = useRef(peerInstance);
+  const speakerOnRef = useRef(true);
   const cleanupCallRef = useRef(null);
+
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [videoEnabled, setVideoEnabled] = useState(true);
+  const [durationText, setDurationText] = useState('00:00');
+  const [speakerOn, setSpeakerOn] = useState(true);
+  const [mediaLinkState, setMediaLinkState] = useState('connecting'); // 'connecting' | 'connected' | 'reconnecting' | 'failed'
+  const [facingMode, setFacingMode] = useState('user');
 
   useEffect(() => {
     conversationRef.current = conversation;
@@ -51,20 +125,52 @@ export default function VideoCall({
   }, [callState]);
 
   useEffect(() => {
-    peerInstanceRef.current = peerInstance;
-  }, [peerInstance]);
+    speakerOnRef.current = speakerOn;
+  }, [speakerOn]);
 
-  const [micEnabled, setMicEnabled] = useState(true);
-  const [videoEnabled, setVideoEnabled] = useState(true);
-  const [durationText, setDurationText] = useState('00:00');
-  const [speakerOn, setSpeakerOn] = useState(true);
+  const getOtherUserId = useCallback((infoOverride = null) => {
+    const info = infoOverride || callInfoRef.current;
+    if (!info) return null;
+    if (info.to && (!info.from || info.from === user?.id)) {
+      return info.to;
+    }
+    return info.from;
+  }, [user?.id]);
 
-  // Hook tính toán thời gian cuộc gọi (timer)
+  // Gắn luồng tiếng/hình của đối phương vào thẻ <audio> (luôn gắn sẵn trong DOM) và <video>
+  const attachRemoteStream = useCallback((stream) => {
+    if (!stream) return;
+
+    const audioEl = remoteAudioRef.current;
+    if (audioEl) {
+      if (audioEl.srcObject !== stream) {
+        audioEl.srcObject = stream;
+      }
+      audioEl.muted = !speakerOnRef.current;
+      audioEl.volume = 1.0;
+      audioEl.play().catch((err) => {
+        console.warn('[WebRTC] Chờ tương tác để phát âm thanh cuộc gọi:', err?.message || err);
+      });
+    }
+
+    const videoEl = remoteVideoRef.current;
+    if (videoEl && callInfoRef.current?.isVideo) {
+      if (videoEl.srcObject !== stream) {
+        videoEl.srcObject = stream;
+      }
+      // Âm thanh đã phát qua remoteAudioRef đã mở khóa sẵn -> tắt tiếng thẻ video để không bao giờ bị chặn autoplay hay dội tiếng kép
+      videoEl.muted = true;
+      videoEl.play().catch(() => {});
+    }
+  }, [remoteAudioRef]);
+
+  // Đồng bộ thời lượng cuộc gọi (00:00)
   useEffect(() => {
     let interval;
-    if (callState === 'connected' && callStartTimeRef.current) {
+    if (callState === 'connected') {
       interval = setInterval(() => {
-        const sec = Math.round((Date.now() - callStartTimeRef.current) / 1000);
+        if (!callStartTimeRef.current) return;
+        const sec = Math.max(0, Math.round((Date.now() - callStartTimeRef.current) / 1000));
         const m = Math.floor(sec / 60).toString().padStart(2, '0');
         const s = (sec % 60).toString().padStart(2, '0');
         setDurationText(`${m}:${s}`);
@@ -75,39 +181,26 @@ export default function VideoCall({
     return () => clearInterval(interval);
   }, [callState]);
 
-  // Hook tắt/bật loa (âm thanh đầu ra)
-  const toggleSpeaker = () => {
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.muted = !remoteVideoRef.current.muted;
-      setSpeakerOn(!remoteVideoRef.current.muted);
-    } else {
-      setSpeakerOn(!speakerOn);
-    }
-  };
-
-  // Gắn luồng stream cục bộ vào video element
+  // Gắn luồng camera cục bộ
   useEffect(() => {
     const video = localVideoRef.current;
-    if (localStream && video) {
-      video.srcObject = localStream;
-      video.play().catch(err => {
-        console.warn("Lỗi tự động phát video cục bộ:", err);
-      });
+    if (localStream && video && callInfo?.isVideo) {
+      if (video.srcObject !== localStream) {
+        video.srcObject = localStream;
+      }
+      video.muted = true;
+      video.play().catch(() => {});
     }
-  }, [localStream, callState]);
+  }, [localStream, callState, callInfo?.isVideo]);
 
-  // Gắn luồng stream đối phương vào video element
+  // Đảm bảo gắn lại stream đối phương khi UI chuyển trạng thái
   useEffect(() => {
-    const video = remoteVideoRef.current;
-    if (remoteStream && video) {
-      video.srcObject = remoteStream;
-      video.play().catch(err => {
-        console.warn("Lỗi tự động phát video đối phương:", err);
-      });
+    if (remoteStream && callState === 'connected') {
+      attachRemoteStream(remoteStream);
     }
-  }, [remoteStream, callState]);
+  }, [remoteStream, callState, attachRemoteStream]);
 
-  // Phát nhạc chuông & rung khi có cuộc gọi đến hoặc âm hồi chuông khi đang gọi đi
+  // Nhạc chuông gọi đến / âm hồi chuông gọi đi
   useEffect(() => {
     if (callState === 'incoming') {
       startCallRingtone(true);
@@ -121,11 +214,10 @@ export default function VideoCall({
     };
   }, [callState]);
 
-  // Tự động huỷ cuộc gọi nếu đổ chuông quá lâu mà không có phản hồi (45 giây - đồng bộ với Server)
+  // Tự động hủy cuộc gọi nếu không bắt máy sau 45 giây
   useEffect(() => {
     if (callState === 'calling' || callState === 'incoming') {
       const timer = setTimeout(() => {
-        console.log('[VideoCall] Cuộc gọi quá thời gian chờ (timeout 45s), tự động huỷ...');
         const currentCallInfo = callInfoRef.current;
         if (callStateRef.current === 'calling' && currentCallInfo?.to && socket) {
           socket.emit('end-call', { to: currentCallInfo.to });
@@ -134,362 +226,525 @@ export default function VideoCall({
       }, 45000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [callState, socket]);
 
-  // Thiết lập log giám sát chất lượng/kết nối WebRTC
-  const setupCallDiagnostics = (call) => {
-    if (!call) return;
-    console.log('[Diagnostics] Thiết lập giám sát cuộc gọi...');
-    if (call.peerConnection) {
-      const pc = call.peerConnection;
-      console.log(`[Diagnostics] Trạng thái RTCPeerConnection ban đầu: ice=${pc.iceConnectionState}, connection=${pc.connectionState}`);
-      pc.oniceconnectionstatechange = () => {
-        console.log(`[Diagnostics] Thay đổi trạng thái ICE Connection: ${pc.iceConnectionState}`);
-      };
-      pc.onconnectionstatechange = () => {
-        console.log(`[Diagnostics] Thay đổi trạng thái Connection: ${pc.connectionState}`);
-      };
-    }
-  };
-
-  // Trả lời cuộc gọi WebRTC (PeerJS) bằng Stream cục bộ
-  const answerPeerCall = (call, stream) => {
-    console.log('Answering PeerJS call with stream...');
-    setupCallDiagnostics(call);
-    call.answer(stream);
-    call.on('stream', (userRemoteStream) => {
-      console.log('Received remote stream, tracks:', userRemoteStream.getTracks().map(t => `${t.kind}: enabled=${t.enabled}, state=${t.readyState}`));
-      setRemoteStream(userRemoteStream);
-    });
-    call.on('close', () => {
-      console.log('PeerJS call closed.');
-      cleanupCallRef.current?.();
-    });
-    call.on('error', (err) => {
-      console.error('PeerJS call error:', err);
-      cleanupCallRef.current?.();
-    });
-  };
-
-  // Khởi tạo PeerJS với mã định danh riêng cho từng thiết bị/tab (`userId-suffix`)
-  // → mở đồng thời trên Máy tính + Điện thoại không bao giờ bị đụng lỗi "ID is taken"
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const deviceSuffix = Math.random().toString(36).slice(2, 8);
-    const devicePeerId = `${user.id}-${deviceSuffix}`;
-
-    // Sử dụng PeerJS Cloud với STUN servers để vượt tường lửa/NAT của mạng di động/VPS
-    const peer = new Peer(devicePeerId, {
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' }
-        ]
+  const flushPendingIceCandidates = useCallback(async (pc) => {
+    if (!pc || !pc.remoteDescription || !pc.remoteDescription.type) return;
+    const queued = pendingIceCandidatesRef.current.splice(0);
+    for (const candidate of queued) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.warn('[WebRTC] Bỏ qua ICE candidate cũ:', err?.message || err);
       }
-    });
+    }
+  }, []);
 
-    peer.on('open', (id) => {
-      console.log('Đã đăng ký Peer ID:', id);
-    });
+  const triggerIceRestart = useCallback(async () => {
+    const pc = pcRef.current;
+    const targetUserId = getOtherUserId();
+    if (!pc || !socket || !targetUserId || pc.signalingState === 'closed') return;
+    try {
+      setMediaLinkState('reconnecting');
+      const offer = await pc.createOffer({
+        iceRestart: true,
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: Boolean(callInfoRef.current?.isVideo)
+      });
+      await pc.setLocalDescription(offer);
+      socket.emit('webrtc-signal', {
+        to: targetUserId,
+        targetSocketId: remoteSocketIdRef.current || null,
+        signal: {
+          type: 'offer',
+          sdp: pc.localDescription
+        }
+      });
+    } catch (err) {
+      console.warn('[WebRTC] Lỗi thử kết nối lại ICE:', err);
+    }
+  }, [getOtherUserId, socket]);
 
-    peer.on('error', (err) => {
-      console.error('PeerJS error:', err);
-      if (err.type === 'disconnected' && !peer.destroyed) {
+  // Khởi tạo kết nối RTCPeerConnection thuần chuẩn trình duyệt (không qua máy chủ trung gian 0.peerjs.com)
+  const createPeerConnection = useCallback(
+    (targetUserId, stream, targetSocketId = null) => {
+      if (pcRef.current) {
         try {
-          peer.reconnect();
+          pcRef.current.onicecandidate = null;
+          pcRef.current.ontrack = null;
+          pcRef.current.oniceconnectionstatechange = null;
+          pcRef.current.onconnectionstatechange = null;
+          pcRef.current.close();
         } catch (e) {}
+        pcRef.current = null;
       }
-    });
 
-    // Lắng nghe cuộc gọi đến duy nhất một lần (Tránh rò rỉ listener)
-    peer.on('call', (incomingCall) => {
-      console.log('Có cuộc gọi WebRTC (PeerJS) đến!');
-      currentCallRef.current = incomingCall;
-
-      // Nếu chúng ta đã bấm trả lời và có stream cục bộ, tiến hành kết nối stream ngay lập tức
-      if (localStreamRef.current) {
-        answerPeerCall(incomingCall, localStreamRef.current);
+      if (targetSocketId) {
+        remoteSocketIdRef.current = targetSocketId;
       }
-    });
 
-    peerInstanceRef.current = peer;
-    setPeerInstance(peer);
+      const combinedRemoteStream = new MediaStream();
+      remoteMediaStreamRef.current = combinedRemoteStream;
+      setMediaLinkState('connecting');
 
-    return () => {
-      peer.destroy();
-    };
-  }, [user?.id]);
+      const pc = new RTCPeerConnection({
+        iceServers: getIceServers(),
+        iceCandidatePoolSize: 4
+      });
 
-  // Tự động kích hoạt gọi đi khi trạng thái chuyển sang 'calling' (Người gọi - Caller)
+      if (stream) {
+        stream.getTracks().forEach((track) => {
+          track.enabled = true;
+          pc.addTrack(track, stream);
+        });
+      }
+
+      pc.ontrack = (event) => {
+        let outStream = remoteMediaStreamRef.current;
+        if (!outStream) {
+          outStream = new MediaStream();
+          remoteMediaStreamRef.current = outStream;
+        }
+        if (event.track && !outStream.getTracks().some((t) => t.id === event.track.id)) {
+          outStream.addTrack(event.track);
+        }
+        if (event.streams && event.streams[0]) {
+          event.streams[0].getTracks().forEach((t) => {
+            if (!outStream.getTracks().some((existing) => existing.id === t.id)) {
+              outStream.addTrack(t);
+            }
+          });
+        }
+
+        setRemoteStream(outStream);
+        attachRemoteStream(outStream);
+
+        if (!callStartTimeRef.current) {
+          callStartTimeRef.current = Date.now();
+        }
+        callWasConnectedRef.current = true;
+        setMediaLinkState('connected');
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && socket && targetUserId) {
+          socket.emit('webrtc-signal', {
+            to: targetUserId,
+            targetSocketId: remoteSocketIdRef.current || null,
+            signal: {
+              type: 'candidate',
+              candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate
+            }
+          });
+        }
+      };
+
+      const handleStateCheck = () => {
+        const iceState = pc.iceConnectionState;
+        const connState = pc.connectionState;
+
+        if (iceState === 'connected' || iceState === 'completed' || connState === 'connected') {
+          iceRestartCountRef.current = 0;
+          callWasConnectedRef.current = true;
+          if (!callStartTimeRef.current) {
+            callStartTimeRef.current = Date.now();
+          }
+          setMediaLinkState('connected');
+          if (remoteAudioRef.current?.paused && remoteAudioRef.current?.srcObject) {
+            remoteAudioRef.current.play().catch(() => {});
+          }
+        } else if (iceState === 'disconnected') {
+          setMediaLinkState('reconnecting');
+        } else if (iceState === 'failed' || connState === 'failed') {
+          const isCaller = callInfoRef.current?.from === user?.id;
+          if (isCaller && iceRestartCountRef.current < 2) {
+            iceRestartCountRef.current += 1;
+            triggerIceRestart();
+          } else {
+            setMediaLinkState('failed');
+          }
+        }
+      };
+
+      pc.oniceconnectionstatechange = handleStateCheck;
+      pc.onconnectionstatechange = handleStateCheck;
+
+      pcRef.current = pc;
+      return pc;
+    },
+    [attachRemoteStream, remoteAudioRef, setRemoteStream, socket, triggerIceRestart, user?.id]
+  );
+
+  // Bắt đầu cuộc gọi đi (Caller)
+  const startOutgoingCall = useCallback(
+    async (isVideoCall) => {
+      if (startingCallRef.current || !socket || !callInfoRef.current?.to) return;
+      startingCallRef.current = true;
+
+      try {
+        const stream = await acquireUserMedia(isVideoCall);
+        // Nếu người dùng đã bấm cúp máy trong lúc trình duyệt đang hỏi quyền mic/camera
+        if (callStateRef.current !== 'calling') {
+          stream.getTracks().forEach((t) => t.stop());
+          startingCallRef.current = false;
+          return;
+        }
+
+        setVoiceCallAudioMode(true);
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        setMicEnabled(true);
+        setVideoEnabled(Boolean(isVideoCall));
+
+        const info = callInfoRef.current;
+        const targetConversationId = info?.conversationId || conversationRef.current?.id;
+        socket.emit('call-user', {
+          userToCall: info.to,
+          from: user.id,
+          callerName: user.displayName,
+          callerAvatar: user.avatarUrl,
+          isVideo: Boolean(isVideoCall),
+          conversationId: targetConversationId
+        });
+      } catch (e) {
+        console.error('[WebRTC] Không thể mở micro/camera khi gọi đi:', e);
+        alert('Không thể mở micro hoặc camera. Vui lòng kiểm tra quyền truy cập Micro trên điện thoại: ' + e.message);
+        cleanupCallRef.current?.();
+      } finally {
+        startingCallRef.current = false;
+      }
+    },
+    [setLocalStream, socket, user]
+  );
+
   useEffect(() => {
-    if (callState === 'calling' && callInfo && callInfo.to && !localStream) {
-      handleStartCall(callInfo.isVideo);
+    if (callState === 'calling' && callInfo?.to && !localStream && !startingCallRef.current) {
+      startOutgoingCall(callInfo.isVideo);
     }
-  }, [callState, callInfo, localStream]);
+  }, [callState, callInfo, localStream, startOutgoingCall]);
 
-  // Xử lý sự kiện cuộc gọi qua Socket.io
+  // Lắng nghe tín hiệu cuộc gọi & WebRTC SDP/ICE qua Socket.io
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) return undefined;
 
-    // Cuộc gọi đến qua Socket signalling
-    socket.on('incoming-call', (data) => {
+    const onIncomingCall = (data) => {
+      if (callStateRef.current !== 'idle') return;
+      remoteSocketIdRef.current = data?.callerSocketId || null;
+      pendingIceCandidatesRef.current = [];
       setCallInfo(data);
       setCallState('incoming');
-      console.log('Incoming call via socket:', data);
-    });
+    };
 
-    // Đồng bộ trạng thái cuộc gọi từ server (Đảm bảo tự phục hồi trạng thái khi chạy nền và ngắt kết nối tạm thời)
-    socket.on('call-status-sync', (data) => {
-      const { hasActiveCall, callData } = data;
-      console.log('[Socket.io] Đồng bộ trạng thái cuộc gọi từ server:', data);
-      
+    const onCallStatusSync = (data) => {
+      const { hasActiveCall, callData } = data || {};
       if (hasActiveCall && callData) {
         if (callStateRef.current === 'idle') {
+          remoteSocketIdRef.current = callData?.callerSocketId || null;
           setCallInfo(callData);
           setCallState('incoming');
         }
-      } else {
-        if (callStateRef.current !== 'idle') {
-          console.log('[Socket.io] Cuộc gọi không còn tồn tại trên server, tiến hành dọn dẹp...');
-          cleanupCallRef.current?.();
-        }
+      } else if (callStateRef.current !== 'idle') {
+        cleanupCallRef.current?.();
       }
-    });
+    };
 
-    // Đối phương đồng ý nghe cuộc gọi (Kết nối thẳng tới đúng thiết bị vừa bấm nghe nhờ acceptedSignal.peerId)
-    socket.on('call-accepted', (acceptedSignal) => {
-      console.log('Đối phương đã chấp nhận cuộc gọi!');
+    const onCallAccepted = async (acceptedSignal) => {
+      stopCallRingtone();
+      const responderSocketId =
+        acceptedSignal && typeof acceptedSignal === 'object' ? acceptedSignal.responderSocketId : null;
+      if (responderSocketId) {
+        remoteSocketIdRef.current = responderSocketId;
+      }
+
       callWasConnectedRef.current = true;
       callStartTimeRef.current = Date.now();
       setCallState('connected');
 
-      const activePeer = peerInstanceRef.current;
-      const activeCallInfo = callInfoRef.current;
-      const activeLocalStream = localStreamRef.current;
-      const targetPeerId =
-        acceptedSignal && typeof acceptedSignal === 'object' && acceptedSignal.peerId
-          ? acceptedSignal.peerId
-          : activeCallInfo?.to;
-
-      if (activePeer && targetPeerId && activeLocalStream) {
-        console.log('Caller side: call-accepted received, initiating PeerJS call to', targetPeerId);
-        const call = activePeer.call(targetPeerId, activeLocalStream);
-        if (call) {
-          currentCallRef.current = call;
-          setupCallDiagnostics(call);
-
-          call.on('stream', (userRemoteStream) => {
-            console.log('Caller side: Received remote stream, tracks:', userRemoteStream.getTracks().map(t => `${t.kind}: enabled=${t.enabled}, state=${t.readyState}`));
-            setRemoteStream(userRemoteStream);
-          });
-          call.on('close', () => {
-            console.log('PeerJS call closed (caller side).');
-            cleanupCallRef.current?.();
-          });
-          call.on('error', (err) => {
-            console.error('PeerJS call error (caller side):', err);
-            cleanupCallRef.current?.();
-          });
+      const targetUserId = getOtherUserId();
+      let stream = localStreamRef.current;
+      if (!stream) {
+        try {
+          stream = await acquireUserMedia(callInfoRef.current?.isVideo);
+          setVoiceCallAudioMode(true);
+          localStreamRef.current = stream;
+          setLocalStream(stream);
+        } catch (err) {
+          console.error('[WebRTC] Lỗi lấy micro phía người gọi:', err);
+          cleanupCallRef.current?.();
+          return;
         }
       }
-    });
 
-    // Đối phương cúp máy hoặc từ chối
-    socket.on('call-ended-by-peer', () => {
-      cleanupCallRef.current?.();
-    });
+      if (!targetUserId) return;
 
-    socket.on('call-failed', (data) => {
-      alert(data.reason);
+      try {
+        const pc = createPeerConnection(targetUserId, stream, responderSocketId);
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: Boolean(callInfoRef.current?.isVideo)
+        });
+        await pc.setLocalDescription(offer);
+
+        socket.emit('webrtc-signal', {
+          to: targetUserId,
+          targetSocketId: responderSocketId || null,
+          signal: {
+            type: 'offer',
+            sdp: pc.localDescription
+          }
+        });
+      } catch (err) {
+        console.error('[WebRTC] Lỗi tạo SDP Offer:', err);
+      }
+    };
+
+    const onWebrtcSignal = async ({ from, fromSocketId, signal } = {}) => {
+      if (!signal || !from) return;
+      if (fromSocketId) {
+        remoteSocketIdRef.current = fromSocketId;
+      }
+
+      try {
+        if (signal.type === 'offer') {
+          let pc = pcRef.current;
+          if (!pc || pc.signalingState === 'closed') {
+            pc = createPeerConnection(from, localStreamRef.current, fromSocketId);
+          }
+
+          // Xử lý va chạm gói Offer (glare) hoặc ICE restart mượt mà
+          if (pc.signalingState !== 'stable') {
+            await Promise.all([
+              pc.setLocalDescription({ type: 'rollback' }).catch(() => {}),
+              pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+            ]);
+          } else {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          }
+
+          await flushPendingIceCandidates(pc);
+
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          socket.emit('webrtc-signal', {
+            to: from,
+            targetSocketId: fromSocketId || null,
+            signal: {
+              type: 'answer',
+              sdp: pc.localDescription
+            }
+          });
+        } else if (signal.type === 'answer') {
+          const pc = pcRef.current;
+          if (!pc || pc.signalingState === 'closed') return;
+          if (pc.signalingState === 'have-local-offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            await flushPendingIceCandidates(pc);
+          }
+        } else if (signal.type === 'candidate' && signal.candidate) {
+          const pc = pcRef.current;
+          if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          } else {
+            pendingIceCandidatesRef.current.push(signal.candidate);
+          }
+        }
+      } catch (err) {
+        console.warn('[WebRTC] Lỗi xử lý tín hiệu WebRTC:', err);
+      }
+    };
+
+    const onCallEndedByPeer = () => {
       cleanupCallRef.current?.();
-    });
+    };
+
+    const onCallFailed = (data) => {
+      alert(data?.reason || 'Không thể thực hiện cuộc gọi');
+      cleanupCallRef.current?.();
+    };
+
+    socket.on('incoming-call', onIncomingCall);
+    socket.on('call-status-sync', onCallStatusSync);
+    socket.on('call-accepted', onCallAccepted);
+    socket.on('webrtc-signal', onWebrtcSignal);
+    socket.on('call-ended-by-peer', onCallEndedByPeer);
+    socket.on('call-failed', onCallFailed);
 
     return () => {
-      socket.off('incoming-call');
-      socket.off('call-status-sync');
-      socket.off('call-accepted');
-      socket.off('call-ended-by-peer');
-      socket.off('call-failed');
+      socket.off('incoming-call', onIncomingCall);
+      socket.off('call-status-sync', onCallStatusSync);
+      socket.off('call-accepted', onCallAccepted);
+      socket.off('webrtc-signal', onWebrtcSignal);
+      socket.off('call-ended-by-peer', onCallEndedByPeer);
+      socket.off('call-failed', onCallFailed);
     };
-  }, [socket]);
+  }, [createPeerConnection, flushPendingIceCandidates, getOtherUserId, setCallInfo, setCallState, setLocalStream, socket]);
 
-  // Bắt đầu cuộc gọi (Người gọi - Caller)
-  const handleStartCall = async (isVideoCall) => {
-    try {
-      // Bẻ khoá (Unlock) autoplay cho thẻ video đối phương ngay trong hành vi click chuột của người dùng
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.play().catch(() => {});
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: isVideoCall,
-        audio: true
-      });
-      localStreamRef.current = stream; // Cập nhật ref ngay lập tức tránh độ trễ React state
-      setLocalStream(stream);
-      setVideoEnabled(isVideoCall);
-
-      setCallState('calling');
-      
-      // Bắn tín hiệu socket báo cho đối phương
-      const targetConversationId = callInfo?.conversationId || conversationRef.current?.id;
-      socket.emit('call-user', {
-        userToCall: callInfo.to,
-        from: user.id,
-        callerName: user.displayName,
-        callerAvatar: user.avatarUrl,
-        isVideo: isVideoCall,
-        conversationId: targetConversationId
-      });
-
-    } catch (e) {
-      console.error(e);
-      alert('Không thể mở camera hoặc micro: ' + e.message);
-      cleanupCallRef.current?.();
-    }
-  };
-
-  // Trả lời cuộc gọi (Người nghe - Receiver)
+  // Trả lời cuộc gọi đến (Receiver) — chạy trực tiếp trong cử chỉ chạm nút "Trả lời"
   const handleAnswerCall = async () => {
     try {
-      // Bẻ khoá (Unlock) autoplay cho thẻ video đối phương ngay trong hành vi click chuột của người dùng
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.play().catch(() => {});
-      }
+      stopCallRingtone();
+      // Bẻ khóa thẻ <audio> đối phương ngay trong cú chạm "Trả lời" (bắt buộc trên iOS Safari & Chrome Mobile)
+      primeMediaElement(remoteAudioRef.current);
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: callInfo.isVideo,
-        audio: true
-      });
-      localStreamRef.current = stream; // Cập nhật ref ngay lập tức tránh độ trễ React state
+      const info = callInfoRef.current;
+      if (!info?.from || !socket) return;
+
+      const stream = await acquireUserMedia(info.isVideo);
+      setVoiceCallAudioMode(true);
+      localStreamRef.current = stream;
       setLocalStream(stream);
-      setVideoEnabled(callInfo.isVideo);
+      setMicEnabled(true);
+      setVideoEnabled(Boolean(info.isVideo));
+
+      // Khởi tạo sẵn RTCPeerConnection + gắn track micro TRƯỚC khi báo 'answer-call' cho người gọi gửi Offer
+      createPeerConnection(info.from, stream, info.callerSocketId || remoteSocketIdRef.current);
 
       callWasConnectedRef.current = true;
       callStartTimeRef.current = Date.now();
       setCallState('connected');
 
-      // Báo socket đã đồng ý kèm PeerID của chính thiết bị đang nghe máy
       socket.emit('answer-call', {
-        to: callInfo.from,
-        signal: { peerId: peerInstanceRef.current?.id || user.id }
+        to: info.from,
+        signal: { ready: true }
       });
-
-      // Nếu cuộc gọi PeerJS đã đến trước đó và được lưu trong Ref, trả lời ngay
-      if (currentCallRef.current) {
-        answerPeerCall(currentCallRef.current, stream);
-      } else {
-        console.log('Chờ cuộc gọi PeerJS từ đối phương kết nối tới...');
-      }
     } catch (e) {
-      console.error(e);
-      alert('Không thể mở camera hoặc micro: ' + e.message);
+      console.error('[WebRTC] Không thể mở micro/camera khi nghe máy:', e);
+      alert('Không thể mở micro hoặc camera. Vui lòng cấp quyền Micro trên điện thoại: ' + e.message);
       handleDeclineCall();
     }
   };
 
-  // Trợ giúp lấy User ID của đối phương một cách chính xác
-  const getOtherUserId = () => {
-    if (!callInfo) return null;
-    if (callInfo.to && (!callInfo.from || callInfo.from === user.id)) {
-      return callInfo.to;
-    }
-    return callInfo.from;
-  };
-
-  // Từ chối cuộc gọi
   const handleDeclineCall = () => {
     const receiverId = getOtherUserId();
-    if (receiverId) {
+    if (receiverId && socket) {
       socket.emit('end-call', { to: receiverId });
     }
     cleanupCallRef.current?.();
   };
 
-  // Cúp máy (Đang gọi hoặc đang kết nối)
   const handleEndCall = () => {
     const receiverId = getOtherUserId();
-    if (receiverId) {
+    if (receiverId && socket) {
       socket.emit('end-call', { to: receiverId });
     }
     cleanupCallRef.current?.();
   };
 
-  // Dọn dẹp luồng stream và reset state
+  // Dọn dẹp toàn bộ kết nối WebRTC, micro/camera và trả lại phiên âm thanh bình thường
   const cleanupCall = () => {
-    const currentConversation = conversationRef.current;
-    const currentCallInfo = callInfoRef.current;
-    const currentLocalStream = localStreamRef.current;
+    if (isCleaningUpRef.current) return;
+    isCleaningUpRef.current = true;
 
-    // 1. Lưu nhật ký cuộc gọi vào phòng chat (ưu tiên conversationId gắn theo cuộc gọi để tránh ghi nhầm phòng nếu người gọi chuyển tab)
-    const targetConvId = currentCallInfo?.conversationId || currentConversation?.id;
-    if (targetConvId && socket && currentCallInfo) {
-      const isCaller = currentCallInfo.from === user.id;
-      // Chỉ để máy người gọi gửi tin nhắn lưu nhật ký cuộc gọi tránh bị trùng 2 lần
-      if (isCaller) {
+    try {
+      stopCallRingtone();
+      const currentConversation = conversationRef.current;
+      const currentCallInfo = callInfoRef.current;
+      const currentLocalStream = localStreamRef.current;
+
+      // 1. Lưu nhật ký cuộc gọi (chỉ máy người gọi ghi để tránh trùng)
+      const targetConvId = currentCallInfo?.conversationId || currentConversation?.id;
+      if (targetConvId && socket && currentCallInfo && currentCallInfo.from === user?.id) {
         let logText = '';
         let durationSec = 0;
         const callTypeLabel = currentCallInfo.isVideo ? 'video' : 'thoại';
         if (callWasConnectedRef.current && callStartTimeRef.current) {
-          durationSec = Math.round((Date.now() - callStartTimeRef.current) / 1000);
-          const formatTime = (sec) => {
-            const m = Math.floor(sec / 60);
-            const s = sec % 60;
-            return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
-          };
-          logText = `Cuộc gọi ${callTypeLabel} kết thúc. Thời lượng: ${formatTime(durationSec)}`;
+          durationSec = Math.max(1, Math.round((Date.now() - callStartTimeRef.current) / 1000));
+          const m = Math.floor(durationSec / 60);
+          const s = durationSec % 60;
+          const formatted = m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+          logText = `Cuộc gọi ${callTypeLabel} kết thúc. Thời lượng: ${formatted}`;
         } else {
           logText = `Cuộc gọi ${callTypeLabel} nhỡ`;
         }
 
-        if (logText) {
-          socket.emit('send-message', {
-            conversationId: targetConvId,
-            senderId: user.id,
-            type: 'call',
-            content: logText,
-            metadata: {
-              callType: currentCallInfo.isVideo ? 'video' : 'voice',
-              status: callWasConnectedRef.current ? 'connected' : 'missed',
-              duration: durationSec
-            }
-          });
-        }
+        socket.emit('send-message', {
+          conversationId: targetConvId,
+          senderId: user.id,
+          type: 'call',
+          content: logText,
+          metadata: {
+            callType: currentCallInfo.isVideo ? 'video' : 'voice',
+            status: callWasConnectedRef.current ? 'connected' : 'missed',
+            duration: durationSec
+          }
+        });
       }
-    }
 
-    // 2. Dọn dẹp các luồng stream
-    if (currentLocalStream) {
-      currentLocalStream.getTracks().forEach(track => track.stop());
-    }
-    if (currentCallRef.current) {
-      try {
-        currentCallRef.current.close();
-      } catch (err) {
-        console.warn('Error closing current call ref:', err);
+      // 2. Dừng toàn bộ track micro & camera
+      if (currentLocalStream) {
+        currentLocalStream.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch (e) {}
+        });
       }
-      currentCallRef.current = null;
+
+      // 3. Đóng RTCPeerConnection
+      if (pcRef.current) {
+        try {
+          pcRef.current.onicecandidate = null;
+          pcRef.current.ontrack = null;
+          pcRef.current.oniceconnectionstatechange = null;
+          pcRef.current.onconnectionstatechange = null;
+          pcRef.current.close();
+        } catch (e) {}
+        pcRef.current = null;
+      }
+
+      // 4. Ngắt nguồn phát trên thẻ audio/video
+      if (remoteAudioRef.current) {
+        try {
+          remoteAudioRef.current.pause();
+          remoteAudioRef.current.srcObject = null;
+        } catch (e) {}
+      }
+      if (remoteVideoRef.current) {
+        try {
+          remoteVideoRef.current.pause();
+          remoteVideoRef.current.srcObject = null;
+        } catch (e) {}
+      }
+      if (localVideoRef.current) {
+        try {
+          localVideoRef.current.srcObject = null;
+        } catch (e) {}
+      }
+
+      pendingIceCandidatesRef.current = [];
+      remoteMediaStreamRef.current = null;
+      remoteSocketIdRef.current = null;
+      iceRestartCountRef.current = 0;
+      startingCallRef.current = false;
+
+      localStreamRef.current = null;
+      setLocalStream(null);
+      setRemoteStream(null);
+      setCallState('idle');
+      setCallInfo(null);
+      setMicEnabled(true);
+      setSpeakerOn(true);
+      speakerOnRef.current = true;
+      setMediaLinkState('connecting');
+      callWasConnectedRef.current = false;
+      callStartTimeRef.current = null;
+
+      // Khôi phục định tuyến loa ngoài chất lượng cao trên iOS sau khi đóng mic
+      setVoiceCallAudioMode(false);
+    } finally {
+      isCleaningUpRef.current = false;
     }
-    setLocalStream(null);
-    setRemoteStream(null);
-    setCallState('idle');
-    setCallInfo(null);
-    callWasConnectedRef.current = false;
-    callStartTimeRef.current = null;
   };
 
   useEffect(() => {
     cleanupCallRef.current = cleanupCall;
   });
 
-  // Bật/tắt micro
   const toggleMic = () => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
+    const stream = localStreamRef.current || localStream;
+    if (stream) {
+      const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setMicEnabled(audioTrack.enabled);
@@ -497,10 +752,10 @@ export default function VideoCall({
     }
   };
 
-  // Bật/tắt camera
   const toggleVideo = () => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
+    const stream = localStreamRef.current || localStream;
+    if (stream) {
+      const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
         setVideoEnabled(videoTrack.enabled);
@@ -508,182 +763,318 @@ export default function VideoCall({
     }
   };
 
-  if (callState === 'idle') return null;
+  const toggleSpeaker = () => {
+    const next = !speakerOn;
+    setSpeakerOn(next);
+    speakerOnRef.current = next;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.muted = !next;
+      if (next && remoteAudioRef.current.paused && remoteAudioRef.current.srcObject) {
+        remoteAudioRef.current.play().catch(() => {});
+      }
+    }
+  };
+
+  const switchCamera = async () => {
+    const stream = localStreamRef.current || localStream;
+    if (!stream || !callInfo?.isVideo) return;
+    const nextFacing = facingMode === 'user' ? 'environment' : 'user';
+    try {
+      const camStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: nextFacing } },
+        audio: false
+      });
+      const newVideoTrack = camStream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+
+      const oldVideoTrack = stream.getVideoTracks()[0];
+      if (oldVideoTrack) {
+        stream.removeTrack(oldVideoTrack);
+        oldVideoTrack.stop();
+      }
+      stream.addTrack(newVideoTrack);
+
+      const sender = pcRef.current?.getSenders().find((s) => s.track && s.track.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(newVideoTrack);
+      }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      setFacingMode(nextFacing);
+      setVideoEnabled(true);
+    } catch (e) {
+      console.warn('[WebRTC] Không thể đổi camera:', e);
+    }
+  };
+
+  const renderConnectionLabel = () => {
+    if (mediaLinkState === 'connecting') return 'Đang kết nối âm thanh...';
+    if (mediaLinkState === 'reconnecting') return `Đang khôi phục mạng... (${durationText})`;
+    if (mediaLinkState === 'failed') return 'Mạng chặn kết nối trực tiếp — Bấm thử lại';
+    return `Đang gọi thoại • ${durationText}`;
+  };
 
   return (
-    <div style={styles.overlay}>
-      {/* 1. Màn hình người nhận chuông gọi đến */}
-      {callState === 'incoming' && (
-        <div style={styles.callCard} className="glass-card anim-scale-in">
-          <Avatar url={callInfo.callerAvatar} name={callInfo.callerName} size={90} style={{ ...styles.avatar, margin: '0 auto 16px auto' }} />
-          <h3 style={styles.callerName}>{callInfo.callerName}</h3>
-          <p style={styles.callStatus}>Cuộc gọi {callInfo.isVideo ? 'Video' : 'Thoại'} đến...</p>
-          <div style={styles.actionButtons}>
-            <button onClick={handleDeclineCall} style={{...styles.btn, backgroundColor: 'var(--danger)'}}>
-              Từ chối
-            </button>
-            <button onClick={handleAnswerCall} style={{...styles.btn, backgroundColor: 'var(--secondary)'}}>
-              Trả lời
-            </button>
-          </div>
-        </div>
-      )}
+    <>
+      {/* Thẻ <audio> LUÔN tồn tại trên DOM (không bao giờ display:none hay bị gỡ khi idle)
+          để mở khóa quyền phát tiếng WebRTC ngay từ cú chạm trên iPhone Safari/PWA & Android */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        style={styles.persistentAudio}
+      />
 
-      {/* 2. Màn hình đổ chuông gọi đi */}
-      {callState === 'calling' && (
-        <div style={styles.callCard} className="glass-card anim-scale-in">
-          <Avatar 
-            url={callInfo?.callerAvatar} 
-            name={callInfo?.callerName || 'User'} 
-            size={90} 
-            style={{...styles.avatar, animation: 'fadeIn 1s infinite alternate', margin: '0 auto 16px auto'}} 
-          />
-          <h3 style={styles.callerName}>Đang gọi cho {callInfo?.callerName || 'đối phương'}...</h3>
-          <p style={styles.callStatus}>Vui lòng chờ đối phương bắt máy</p>
-          <button onClick={handleEndCall} style={{...styles.roundBtn, backgroundColor: 'var(--danger)'}}>
-            <FiPhoneOff size={22} />
-          </button>
-        </div>
-      )}
-
-      {/* 3. Màn hình Cuộc gọi kết nối thành công (Connected) */}
-      <div style={{
-        ...styles.connectedContainer,
-        display: callState === 'connected' ? 'block' : 'none'
-      }}>
-        {/* Video đối phương (Toàn màn hình nếu là Video Call, ẩn đi nếu là Voice Call) */}
-        <video 
-          ref={remoteVideoRef} 
-          autoPlay 
-          playsInline 
-          webkit-playsinline="true"
-          style={callInfo?.isVideo ? styles.remoteVideo : { display: 'none' }} 
-        />
-        
-        {/* Video bản thân (PiP góc phải nếu là Video Call, ẩn đi nếu là Voice Call) */}
-        <video 
-          ref={localVideoRef} 
-          autoPlay 
-          playsInline 
-          webkit-playsinline="true"
-          muted 
-          style={callInfo?.isVideo && videoEnabled ? styles.localVideo : { display: 'none' }} 
-        />
-
-        {/* GIAO DIỆN GỌI THOẠI THƯỜNG (Voice Call UI) */}
-        {!callInfo?.isVideo && (
-          <div style={styles.voiceCallWrapper}>
-            {/* Center Area (Avatar, Tên, Thời gian) */}
-            <div style={styles.voiceCallCenter}>
-              <Avatar 
-                url={callInfo?.callerAvatar} 
-                name={callInfo?.callerName || 'User'} 
-                size={130} 
-                style={{...styles.voiceCallAvatar, margin: '0 auto 20px auto'}} 
+      {callState !== 'idle' && (
+        <div style={styles.overlay}>
+          {/* 1. Màn hình người nhận chuông gọi đến */}
+          {callState === 'incoming' && callInfo && (
+            <div style={styles.callCard} className="glass-card anim-scale-in">
+              <Avatar
+                url={callInfo.callerAvatar}
+                name={callInfo.callerName}
+                size={90}
+                style={{ ...styles.avatar, margin: '0 auto 16px auto' }}
               />
-              <h2 style={styles.voiceCallName}>{callInfo?.callerName || 'Người dùng'}</h2>
-              <div style={styles.voiceCallDuration}>Đang gọi thoại... ({durationText})</div>
-            </div>
-
-            {/* Bottom Controls (Phím chức năng) */}
-            <div style={styles.voiceControlBar}>
-              <div style={styles.controlItem}>
-                <button 
-                  disabled
-                  style={{...styles.roundBtn, backgroundColor: 'rgba(255,255,255,0.08)', cursor: 'not-allowed', opacity: 0.4}}
-                >
-                  <FiVideoOff size={20} />
+              <h3 style={styles.callerName}>{callInfo.callerName}</h3>
+              <p style={styles.callStatus}>Cuộc gọi {callInfo.isVideo ? 'Video' : 'Thoại'} đến...</p>
+              <div style={styles.actionButtons}>
+                <button onClick={handleDeclineCall} style={{ ...styles.btn, backgroundColor: 'var(--danger)' }}>
+                  Từ chối
                 </button>
-                <span style={styles.controlLabel}>Camera</span>
-              </div>
-              <div style={styles.controlItem}>
-                <button 
-                  onClick={toggleMic} 
-                  style={{...styles.roundBtn, backgroundColor: micEnabled ? 'rgba(255,255,255,0.15)' : 'var(--danger)'}}
-                >
-                  {micEnabled ? <FiMic size={20} /> : <FiMicOff size={20} />}
+                <button onClick={handleAnswerCall} style={{ ...styles.btn, backgroundColor: 'var(--secondary)' }}>
+                  Trả lời
                 </button>
-                <span style={styles.controlLabel}>{micEnabled ? 'Tắt tiếng' : 'Bật tiếng'}</span>
-              </div>
-              <div style={styles.controlItem}>
-                <button 
-                  onClick={toggleSpeaker} 
-                  style={{...styles.roundBtn, backgroundColor: speakerOn ? 'rgba(255,255,255,0.15)' : 'var(--danger)'}}
-                >
-                  {speakerOn ? <FiVolume2 size={20} /> : <FiVolumeX size={20} />}
-                </button>
-                <span style={styles.controlLabel}>Loa</span>
               </div>
             </div>
+          )}
 
-            {/* Nút Kết thúc (Hang up) */}
-            <div style={styles.voiceCallHangupContainer}>
-              <button onClick={handleEndCall} style={{...styles.roundBtn, width: '60px', height: '60px', backgroundColor: 'var(--danger)'}}>
-                <FiPhoneOff size={24} />
+          {/* 2. Màn hình đổ chuông gọi đi */}
+          {callState === 'calling' && (
+            <div style={styles.callCard} className="glass-card anim-scale-in">
+              <Avatar
+                url={callInfo?.callerAvatar}
+                name={callInfo?.callerName || 'User'}
+                size={90}
+                style={{ ...styles.avatar, animation: 'fadeIn 1s infinite alternate', margin: '0 auto 16px auto' }}
+              />
+              <h3 style={styles.callerName}>Đang gọi cho {callInfo?.callerName || 'đối phương'}...</h3>
+              <p style={styles.callStatus}>Đang đổ chuông, vui lòng chờ bắt máy</p>
+              <button onClick={handleEndCall} style={{ ...styles.roundBtn, backgroundColor: 'var(--danger)' }}>
+                <FiPhoneOff size={22} />
               </button>
-              <span style={{...styles.controlLabel, marginTop: '8px'}}>Kết thúc</span>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* GIAO DIỆN GỌI VIDEO (Video Call UI) */}
-        {callInfo?.isVideo && (
-          <div style={styles.videoCallWrapper}>
-            {/* Header overlay hiển thị thông tin đối phương và thời gian */}
-            <div style={styles.videoHeader}>
-              <div style={styles.videoHeaderContent}>
-                <Avatar 
-                  url={callInfo?.callerAvatar} 
-                  name={callInfo?.callerName || 'User'} 
-                  size={40} 
-                  style={styles.videoHeaderAvatar} 
-                />
-                <div>
-                  <div style={styles.videoHeaderName}>{callInfo?.callerName}</div>
-                  <div style={styles.videoHeaderDuration}>{durationText}</div>
+          {/* 3. Màn hình Cuộc gọi đã bắt máy (Connected) */}
+          {callState === 'connected' && (
+            <div style={styles.connectedContainer}>
+              {callInfo?.isVideo && (
+                <>
+                  <video
+                    ref={remoteVideoRef}
+                    autoPlay
+                    playsInline
+                    webkit-playsinline="true"
+                    muted
+                    style={styles.remoteVideo}
+                  />
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    webkit-playsinline="true"
+                    muted
+                    style={videoEnabled ? styles.localVideo : { ...styles.localVideo, opacity: 0 }}
+                  />
+                </>
+              )}
+
+              {/* GIAO DIỆN GỌI THOẠI (Voice Call UI) */}
+              {!callInfo?.isVideo && (
+                <div style={styles.voiceCallWrapper}>
+                  <div style={styles.voiceCallCenter}>
+                    <Avatar
+                      url={callInfo?.callerAvatar}
+                      name={callInfo?.callerName || 'User'}
+                      size={126}
+                      style={{ ...styles.voiceCallAvatar, margin: '0 auto 20px auto' }}
+                    />
+                    <h2 style={styles.voiceCallName}>{callInfo?.callerName || 'Người dùng'}</h2>
+                    <div
+                      style={{
+                        ...styles.voiceCallDuration,
+                        color:
+                          mediaLinkState === 'failed'
+                            ? '#fb7185'
+                            : mediaLinkState === 'connected'
+                              ? '#34d399'
+                              : 'rgba(255, 255, 255, 0.7)'
+                      }}
+                    >
+                      {renderConnectionLabel()}
+                    </div>
+                    {mediaLinkState === 'failed' && (
+                      <button
+                        type="button"
+                        onClick={triggerIceRestart}
+                        style={styles.retryBtn}
+                      >
+                        <FiRefreshCw size={14} /> Thử kết nối lại
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ width: '100%' }}>
+                    <div style={styles.voiceControlBar}>
+                      <div style={styles.controlItem}>
+                        <button
+                          type="button"
+                          onClick={toggleMic}
+                          style={{
+                            ...styles.roundBtn,
+                            backgroundColor: micEnabled ? 'rgba(255,255,255,0.16)' : 'var(--danger)'
+                          }}
+                        >
+                          {micEnabled ? <FiMic size={20} /> : <FiMicOff size={20} />}
+                        </button>
+                        <span style={styles.controlLabel}>{micEnabled ? 'Tắt mic' : 'Bật mic'}</span>
+                      </div>
+                      <div style={styles.controlItem}>
+                        <button
+                          type="button"
+                          onClick={toggleSpeaker}
+                          style={{
+                            ...styles.roundBtn,
+                            backgroundColor: speakerOn ? 'rgba(255,255,255,0.16)' : 'var(--danger)'
+                          }}
+                        >
+                          {speakerOn ? <FiVolume2 size={20} /> : <FiVolumeX size={20} />}
+                        </button>
+                        <span style={styles.controlLabel}>{speakerOn ? 'Loa bật' : 'Tắt loa'}</span>
+                      </div>
+                    </div>
+
+                    <div style={styles.voiceCallHangupContainer}>
+                      <button
+                        type="button"
+                        onClick={handleEndCall}
+                        style={{ ...styles.roundBtn, width: '62px', height: '62px', backgroundColor: 'var(--danger)' }}
+                      >
+                        <FiPhoneOff size={24} />
+                      </button>
+                      <span style={{ ...styles.controlLabel, marginTop: '8px' }}>Kết thúc</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              )}
 
-            {/* Placeholder local video khi camera bị tắt */}
-            {!videoEnabled && (
-              <div style={styles.localVideoPlaceholder}>Camera tắt</div>
-            )}
+              {/* GIAO DIỆN GỌI VIDEO (Video Call UI) */}
+              {callInfo?.isVideo && (
+                <div style={styles.videoCallWrapper}>
+                  <div style={styles.videoHeader}>
+                    <div style={styles.videoHeaderContent}>
+                      <Avatar
+                        url={callInfo?.callerAvatar}
+                        name={callInfo?.callerName || 'User'}
+                        size={40}
+                        style={styles.videoHeaderAvatar}
+                      />
+                      <div>
+                        <div style={styles.videoHeaderName}>{callInfo?.callerName}</div>
+                        <div style={styles.videoHeaderDuration}>
+                          {mediaLinkState === 'connected' ? durationText : 'Đang kết nối...'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-            {/* Thanh điều khiển video nổi phía dưới */}
-            <div style={styles.controlBar} className="glass">
-              <button onClick={toggleMic} style={{...styles.roundBtn, backgroundColor: micEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
-                {micEnabled ? <FiMic size={20} /> : <FiMicOff size={20} />}
-              </button>
-              <button onClick={handleEndCall} style={{...styles.roundBtn, backgroundColor: 'var(--danger)'}}>
-                <FiPhoneOff size={20} />
-              </button>
-              <button onClick={toggleVideo} style={{...styles.roundBtn, backgroundColor: videoEnabled ? 'rgba(255,255,255,0.1)' : 'var(--danger)'}}>
-                {videoEnabled ? <FiVideo size={20} /> : <FiVideoOff size={20} />}
-              </button>
+                  {!videoEnabled && <div style={styles.localVideoPlaceholder}>Camera tắt</div>}
+
+                  <div style={styles.controlBar} className="glass">
+                    <button
+                      type="button"
+                      onClick={toggleMic}
+                      style={{
+                        ...styles.roundBtn,
+                        backgroundColor: micEnabled ? 'rgba(255,255,255,0.14)' : 'var(--danger)'
+                      }}
+                    >
+                      {micEnabled ? <FiMic size={20} /> : <FiMicOff size={20} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleSpeaker}
+                      style={{
+                        ...styles.roundBtn,
+                        backgroundColor: speakerOn ? 'rgba(255,255,255,0.14)' : 'var(--danger)'
+                      }}
+                    >
+                      {speakerOn ? <FiVolume2 size={20} /> : <FiVolumeX size={20} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleVideo}
+                      style={{
+                        ...styles.roundBtn,
+                        backgroundColor: videoEnabled ? 'rgba(255,255,255,0.14)' : 'var(--danger)'
+                      }}
+                    >
+                      {videoEnabled ? <FiVideo size={20} /> : <FiVideoOff size={20} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={switchCamera}
+                      style={{ ...styles.roundBtn, backgroundColor: 'rgba(255,255,255,0.14)' }}
+                      title="Đổi camera trước/sau"
+                    >
+                      <FiRefreshCw size={19} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleEndCall}
+                      style={{ ...styles.roundBtn, backgroundColor: 'var(--danger)' }}
+                    >
+                      <FiPhoneOff size={20} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
-      </div>
-    </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
 const styles = {
+  persistentAudio: {
+    position: 'fixed',
+    width: '1px',
+    height: '1px',
+    opacity: 0,
+    pointerEvents: 'none',
+    left: '-9999px',
+    top: 0
+  },
   overlay: {
     position: 'fixed',
     top: 0,
     left: 0,
-    width: '100vw',
-    height: '100vh',
-    background: 'rgba(9, 13, 22, 0.95)',
-    zIndex: 999,
+    width: '100%',
+    height: 'var(--app-height, 100dvh)',
+    paddingTop: 'env(safe-area-inset-top, 0px)',
+    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+    background: 'rgba(9, 13, 22, 0.96)',
+    zIndex: 1200,
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center'
   },
   callCard: {
-    width: '320px',
+    width: 'min(90vw, 330px)',
     padding: '30px 24px',
     display: 'flex',
     flexDirection: 'column',
@@ -706,7 +1097,7 @@ const styles = {
   callStatus: {
     fontSize: '0.85rem',
     color: 'var(--text-secondary)',
-    marginBottom: '30px'
+    marginBottom: '28px'
   },
   actionButtons: {
     display: 'flex',
@@ -715,11 +1106,12 @@ const styles = {
   },
   btn: {
     flex: 1,
-    padding: '12px',
+    padding: '13px 12px',
     borderRadius: 'var(--radius-sm)',
     color: 'white',
     border: 'none',
     fontWeight: '600',
+    fontSize: '0.95rem',
     cursor: 'pointer',
     boxShadow: 'var(--shadow-md)'
   },
@@ -748,40 +1140,43 @@ const styles = {
   },
   localVideo: {
     position: 'absolute',
-    top: '30px',
-    right: '30px',
-    width: '120px',
-    height: '160px',
+    top: 'calc(16px + env(safe-area-inset-top, 0px))',
+    right: '16px',
+    width: '112px',
+    height: '154px',
     objectFit: 'cover',
     borderRadius: 'var(--radius-sm)',
-    border: '2px solid rgba(255,255,255,0.2)',
-    boxShadow: 'var(--shadow-lg)'
+    border: '2px solid rgba(255,255,255,0.22)',
+    boxShadow: 'var(--shadow-lg)',
+    zIndex: 5
   },
   localVideoPlaceholder: {
     position: 'absolute',
-    top: '30px',
-    right: '30px',
-    width: '120px',
-    height: '160px',
-    background: 'rgba(255,255,255,0.05)',
+    top: 'calc(16px + env(safe-area-inset-top, 0px))',
+    right: '16px',
+    width: '112px',
+    height: '154px',
+    background: 'rgba(255,255,255,0.06)',
     borderRadius: 'var(--radius-sm)',
     border: '2px solid rgba(255,255,255,0.2)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: '0.75rem',
-    color: 'var(--text-secondary)'
+    color: 'var(--text-secondary)',
+    zIndex: 5
   },
   controlBar: {
     position: 'absolute',
-    bottom: '40px',
+    bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
     left: '50%',
     transform: 'translateX(-50%)',
     display: 'flex',
-    gap: '24px',
-    padding: '12px 24px',
+    gap: '14px',
+    padding: '10px 18px',
     borderRadius: '40px',
-    pointerEvents: 'auto'
+    pointerEvents: 'auto',
+    zIndex: 10
   },
   voiceCallWrapper: {
     width: '100%',
@@ -790,22 +1185,23 @@ const styles = {
     flexDirection: 'column',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '60px 24px 80px 24px',
-    background: 'radial-gradient(circle, rgba(45, 55, 72, 0.95) 0%, rgba(10, 15, 30, 0.98) 100%)',
+    padding:
+      'calc(36px + env(safe-area-inset-top, 0px)) 24px calc(40px + env(safe-area-inset-bottom, 0px)) 24px',
+    background: 'radial-gradient(circle, rgba(38, 49, 71, 0.96) 0%, rgba(10, 14, 24, 0.99) 100%)',
     position: 'absolute',
-    top: 0,
-    left: 0,
+    inset: 0,
     zIndex: 2
   },
   voiceCallCenter: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    marginTop: '60px'
+    marginTop: '36px',
+    textAlign: 'center'
   },
   voiceCallAvatar: {
-    width: '130px',
-    height: '130px',
+    width: '126px',
+    height: '126px',
     borderRadius: '50%',
     border: '4px solid rgba(255, 255, 255, 0.15)',
     boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
@@ -813,22 +1209,35 @@ const styles = {
     marginBottom: '20px'
   },
   voiceCallName: {
-    fontSize: '1.6rem',
+    fontSize: '1.55rem',
     fontWeight: '700',
     color: '#ffffff',
     margin: '0 0 8px 0'
   },
   voiceCallDuration: {
-    fontSize: '1rem',
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '500'
+    fontSize: '0.95rem',
+    fontWeight: '600'
+  },
+  retryBtn: {
+    marginTop: '14px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 16px',
+    borderRadius: '20px',
+    border: '1px solid rgba(255,255,255,0.2)',
+    background: 'rgba(99, 102, 241, 0.35)',
+    color: '#ffffff',
+    fontSize: '0.82rem',
+    fontWeight: '600',
+    cursor: 'pointer'
   },
   voiceControlBar: {
     display: 'flex',
     justifyContent: 'center',
-    gap: '30px',
+    gap: '36px',
     width: '100%',
-    marginBottom: '20px'
+    marginBottom: '28px'
   },
   controlItem: {
     display: 'flex',
@@ -838,7 +1247,7 @@ const styles = {
   },
   controlLabel: {
     fontSize: '0.75rem',
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.72)',
     fontWeight: '500'
   },
   voiceCallHangupContainer: {
@@ -854,38 +1263,37 @@ const styles = {
     top: 0,
     left: 0,
     pointerEvents: 'none',
-    zIndex: 2
+    zIndex: 6
   },
   videoHeader: {
     position: 'absolute',
-    top: '30px',
-    left: '30px',
+    top: 'calc(16px + env(safe-area-inset-top, 0px))',
+    left: '16px',
     zIndex: 10,
-    background: 'rgba(9, 13, 22, 0.6)',
-    backdropFilter: 'blur(8px)',
-    padding: '10px 16px',
+    background: 'rgba(9, 13, 22, 0.65)',
+    padding: '8px 14px',
     borderRadius: '30px',
-    border: '1px solid rgba(255,255,255,0.1)',
+    border: '1px solid rgba(255,255,255,0.12)',
     pointerEvents: 'auto'
   },
   videoHeaderContent: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px'
+    gap: '10px'
   },
   videoHeaderAvatar: {
-    width: '40px',
-    height: '40px',
+    width: '38px',
+    height: '38px',
     borderRadius: '50%',
     objectFit: 'cover'
   },
   videoHeaderName: {
-    fontSize: '0.9rem',
+    fontSize: '0.88rem',
     fontWeight: '700',
     color: '#ffffff'
   },
   videoHeaderDuration: {
-    fontSize: '0.75rem',
-    color: 'rgba(255, 255, 255, 0.6)'
+    fontSize: '0.74rem',
+    color: 'rgba(255, 255, 255, 0.7)'
   }
 };
